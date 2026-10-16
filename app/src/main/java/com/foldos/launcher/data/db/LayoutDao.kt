@@ -46,8 +46,48 @@ interface LayoutDao {
 
     // Items
 
-    @Query("SELECT * FROM items WHERE page_id = :pageId ORDER BY grid_row ASC, grid_col ASC, stack_index ASC")
+    /** Items placed on the page; folder children (`parent_id` set) are excluded. */
+    @Query(
+        "SELECT * FROM items WHERE page_id = :pageId AND parent_id IS NULL " +
+            "ORDER BY grid_row ASC, grid_col ASC, stack_index ASC",
+    )
     fun itemsByPage(pageId: Long): Flow<List<ItemEntity>>
+
+    // Folders
+
+    /** Items inside the folder [parentId]; `grid_row` / `grid_col` give their order inside it. */
+    @Query("SELECT * FROM items WHERE parent_id = :parentId ORDER BY grid_row ASC, grid_col ASC")
+    fun childrenOf(parentId: Long): Flow<List<ItemEntity>>
+
+    @Query("SELECT * FROM items WHERE parent_id = :parentId ORDER BY grid_row ASC, grid_col ASC")
+    suspend fun childrenOfOnce(parentId: Long): List<ItemEntity>
+
+    @Query("SELECT COUNT(*) FROM items WHERE parent_id = :parentId")
+    suspend fun countChildren(parentId: Long): Int
+
+    /** Moves one item into a folder: leaves any stack and free placement, takes the folder's page. */
+    @Query(
+        "UPDATE items SET parent_id = :parentId, page_id = :pageId, grid_col = :col, grid_row = :row, " +
+            "stack_id = NULL, stack_index = 0, free = 0 WHERE id = :id",
+    )
+    suspend fun placeInFolder(id: Long, parentId: Long, pageId: Long, col: Int, row: Int)
+
+    /** Takes one item out of its folder and onto the grid at [col]/[row] on [pageId]. */
+    @Query(
+        "UPDATE items SET parent_id = NULL, page_id = :pageId, grid_col = :col, grid_row = :row " +
+            "WHERE id = :id",
+    )
+    suspend fun removeFromFolder(id: Long, pageId: Long, col: Int, row: Int)
+
+    /** Keeps folder children on their folder's page when the folder moves. */
+    @Query("UPDATE items SET page_id = :pageId WHERE parent_id = :parentId")
+    suspend fun moveChildren(parentId: Long, pageId: Long)
+
+    @Query("UPDATE items SET folder_style = :style WHERE id = :id")
+    suspend fun setFolderStyle(id: Long, style: String?)
+
+    @Query("DELETE FROM items WHERE parent_id = :parentId")
+    suspend fun deleteChildren(parentId: Long)
 
     @Query("SELECT * FROM items WHERE id = :id")
     suspend fun itemById(id: Long): ItemEntity?
@@ -61,7 +101,11 @@ interface LayoutDao {
     @Query("SELECT COUNT(*) FROM items WHERE page_id = :pageId")
     suspend fun countItemsForPage(pageId: Long): Int
 
-    @Query("SELECT * FROM items WHERE page_id = :pageId ORDER BY grid_row ASC, grid_col ASC, stack_index ASC")
+    /** One-shot form of [itemsByPage] (folder children excluded). */
+    @Query(
+        "SELECT * FROM items WHERE page_id = :pageId AND parent_id IS NULL " +
+            "ORDER BY grid_row ASC, grid_col ASC, stack_index ASC",
+    )
     suspend fun itemsByPageOnce(pageId: Long): List<ItemEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

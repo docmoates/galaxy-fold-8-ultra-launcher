@@ -1,5 +1,6 @@
 package com.foldos.launcher.home
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -21,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,10 +31,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -61,7 +67,7 @@ internal val HomeSidePadding: Dp = 16.dp
 
 /**
  * Everything a page needs to render, bundled so the page composables stay short.
- * Built once per [HomeScreen] composition.
+ * Built once per [HomeScreen] composition; the two [MutableState]s are remembered by [HomeScreen].
  */
 internal class HomeContext(
     val screen: ScreenKind,
@@ -79,6 +85,24 @@ internal class HomeContext(
     val callbacks: HomeCallbacks = HomeCallbacks(),
     /** True when [HomePage.style] decides a page's style instead of the per-screen setting. */
     val perPageStyle: Boolean = false,
+    /** Folder / pair / context-menu slots from [LocalHomeItemHooks]; null slots use the home fallbacks. */
+    val hooks: HomeItemHooks = HomeItemHooks(),
+    /** `BadgeRepository.counts` (package -> unread count); empty while badges are off. */
+    val badges: Map<String, Int> = emptyMap(),
+    /** True while the live-edit overlay is up: an item long press goes straight to the edit hooks. */
+    val editMode: Boolean = false,
+    /** The item whose long-press popup (notification preview + context menu) is open. */
+    val pressed: MutableState<HomePressedItem?> = mutableStateOf(null),
+    /** The folder whose `items.FolderSheet` is open (only used while [HomeItemHooks.onOpenFolder] is null). */
+    val folderSheet: MutableState<HomeItem?> = mutableStateOf(null),
+    /** Applied to every page container (the `gestures/` detector from `HomeScreen.pageModifier`). */
+    val pageModifier: Modifier = Modifier,
+    /**
+     * True when the page's own swipe-up detector opens the drawer (Phase 1 behaviour). The host sets
+     * it false while the `gestures/` detector in [pageModifier] owns the swipes, so SWIPE_UP does
+     * not fire twice.
+     */
+    val swipeUpOpensDrawer: Boolean = true,
 ) {
     val cols: Int get() = settings.colsFor(screen).coerceAtLeast(1)
     val iconSize: Dp get() = settings.iconSizeDp.dp
@@ -91,12 +115,54 @@ internal class HomeContext(
     /** Widget stacks flip; when the feature is off only the front item of a stack shows. */
     val stacksOn: Boolean get() = settings.feature(LauncherSettings.FEATURE_STACKS)
 
+    /** Smart rules (`rule:HH:MM-HH:MM` on stack members) pick the stack face by time of day. */
+    val smartOn: Boolean get() = settings.feature(LauncherSettings.FEATURE_SMART)
+
+    /** App pairs launch both apps; when off a pair tile launches its first app only. */
+    val pairsOn: Boolean get() = settings.feature(LauncherSettings.FEATURE_PAIRS)
+
+    /** Settings > Notifications > Badges on, and a style other than "off". */
+    val badgesOn: Boolean
+        get() = settings.feature(LauncherSettings.FEATURE_BADGES) && settings.badgeStyle != LauncherSettings.BADGE_OFF
+
+    /** `BADGE_COUNT` / `BADGE_DOT` / `BADGE_OFF`, passed to [HomeBadgedBox]. */
+    val badgeStyle: String get() = settings.badgeStyle
+
+    /** Long-press notification previews (Settings > Notifications) need the badges feature too. */
+    val previewOn: Boolean
+        get() = settings.notificationPreview && settings.feature(LauncherSettings.FEATURE_BADGES)
+
+    /** Unread count for one package; 0 when badges are off. */
+    fun badgeFor(packageName: String?): Int =
+        if (!badgesOn || packageName == null) 0 else badges[packageName] ?: 0
+
+    /** Unread count for an item (app, or both apps of a pair); 0 for widgets and when badges are off. */
+    fun badgeFor(item: HomeItem): Int = if (badgesOn) homeBadgeCount(badges, item) else 0
+
+    /** Unread count summed over a folder's children; 0 when badges are off. */
+    fun badgeFor(children: List<HomeItem>): Int = if (badgesOn) homeBadgeCount(badges, children) else 0
+
     /** The style a page renders with. */
     fun styleFor(page: HomePage?): HomeStyle =
         if (perPageStyle && page != null) page.style else settings.styleFor(screen)
 
-    /** Long press on an item: the edit hook when provided, otherwise the Phase 1 action. */
-    fun longPress(item: HomeItem) {
+    /**
+     * Long press on an item. In edit mode (or when the items package takes it over through
+     * [HomeItemHooks.onItemLongPress]) nothing more happens here; otherwise the popup with the
+     * notification preview and the context menu opens at [anchor] (the tile's window bounds).
+     */
+    fun longPress(item: HomeItem, anchor: Rect? = null) {
+        if (editMode) {
+            editLongPress(item)
+            return
+        }
+        val hook = hooks.onItemLongPress
+        if (hook != null && hook(item, anchor)) return
+        pressed.value = HomePressedItem(item, anchor, appFor(item))
+    }
+
+    /** The Phase 1 long press: the edit hook when provided, otherwise [onLongPressHome]. */
+    fun editLongPress(item: HomeItem) {
         val hook = callbacks.onItemLongPress
         if (hook != null) hook(item) else onLongPressHome()
     }
@@ -108,16 +174,60 @@ internal class HomeContext(
     }
 
     /** Long press on an app shown from the favorites of [items] (list / hybrid / flex styles). */
-    fun longPressApp(app: AppInfo, items: List<HomeItem>) {
-        val item = items.firstOrNull { it.kind == ItemKind.APP && appFor(it)?.key == app.key }
-        if (item != null) longPress(item) else onLongPressHome()
+    fun longPressApp(app: AppInfo, items: List<HomeItem>, anchor: Rect? = null) {
+        longPress(itemFor(app, items), anchor)
     }
 
-    fun appFor(item: HomeItem): AppInfo? {
-        val pkg = item.packageName ?: return null
-        val activity = item.activityName
-        return if (activity != null) {
-            appsByKey["$pkg/$activity"] ?: apps.firstOrNull { it.packageName == pkg }
+    /**
+     * The APP item of [items] that shows [app], or an unsaved (id -1) stand-in when the app comes
+     * from the alphabetical fallback list; the same stand-in every time, so [isPressed] matches it.
+     */
+    fun itemFor(app: AppInfo, items: List<HomeItem>): HomeItem =
+        items.firstOrNull { it.kind == ItemKind.APP && appFor(it)?.key == app.key }
+            ?: HomeItem(
+                id = -1L,
+                pageId = items.firstOrNull()?.pageId ?: 0L,
+                kind = ItemKind.APP,
+                col = -1,
+                row = -1,
+                packageName = app.packageName,
+                activityName = app.activityName,
+                title = app.label,
+            )
+
+    /** True when [item] is the one whose long-press popup is open (see [HomeItemPressOverlay]). */
+    fun isPressed(item: HomeItem): Boolean {
+        val current = pressed.value?.item ?: return false
+        return current.homePressKey() == item.homePressKey()
+    }
+
+    /** Tap on a folder: [HomeItemHooks.onOpenFolder] when provided, else `items.FolderSheet` at the tile. */
+    fun openFolder(item: HomeItem) {
+        val hook = hooks.onOpenFolder
+        if (hook != null) hook(item) else folderSheet.value = item
+    }
+
+    /** Tap on a pair: [HomeItemHooks.onLaunchPair] when provided, else `items.AppPairs.launch`. */
+    fun launchPair(item: HomeItem, context: Context) {
+        val hook = hooks.onLaunchPair
+        if (hook != null) hook(item) else launchHomePair(context, this, item)
+    }
+
+    /** True when the item's app is in `LauncherSettings.hiddenApps` (so its cell stays empty). */
+    fun isHiddenItem(item: HomeItem): Boolean {
+        val pkg = item.packageName ?: return false
+        return settings.isHidden(pkg, item.activityName)
+    }
+
+    fun appFor(item: HomeItem): AppInfo? = appFor(item.packageName, item.activityName)
+
+    /** The second app of a PAIR item. */
+    fun appFor2(item: HomeItem): AppInfo? = appFor(item.packageName2, item.activityName2)
+
+    private fun appFor(packageName: String?, activityName: String?): AppInfo? {
+        val pkg = packageName ?: return null
+        return if (activityName != null) {
+            appsByKey["$pkg/$activityName"] ?: apps.firstOrNull { it.packageName == pkg }
         } else {
             apps.firstOrNull { it.packageName == pkg }
         }
@@ -153,6 +263,21 @@ internal class HomeContext(
         }
 }
 
+/**
+ * Remembers where a tile was laid out so a long press can report the tile's window bounds (the
+ * anchor of the long-press popup). Attach with [homeAnchor]; read with [bounds].
+ */
+internal class HomeAnchorHolder {
+    var coordinates: LayoutCoordinates? = null
+
+    /** The tile's bounds in window px, or null before it was positioned / after it left. */
+    fun bounds(): Rect? = coordinates?.takeIf { it.isAttached }?.boundsInWindow()
+}
+
+/** Records this node's layout coordinates into [holder]. */
+internal fun Modifier.homeAnchor(holder: HomeAnchorHolder): Modifier =
+    onGloballyPositioned { holder.coordinates = it }
+
 /** Soft shadow behind text drawn directly on the wallpaper (mock-up `--tsh`). */
 internal fun homeTextShadow(): Shadow = Shadow(
     color = Color.Black.copy(alpha = 0.45f),
@@ -175,6 +300,10 @@ internal fun Modifier.homeLongPress(onLongPress: () -> Unit): Modifier =
     pointerInput(onLongPress) {
         detectTapGestures(onLongPress = { onLongPress() })
     }
+
+/** [homeSwipeUp] while [enabled]; otherwise this modifier unchanged (the gestures package owns the swipes). */
+internal fun Modifier.homeSwipeUp(enabled: Boolean, onSwipeUp: () -> Unit): Modifier =
+    if (enabled) homeSwipeUp(onSwipeUp) else this
 
 /** A clear upward swipe on the page opens the app drawer. */
 internal fun Modifier.homeSwipeUp(onSwipeUp: () -> Unit): Modifier =

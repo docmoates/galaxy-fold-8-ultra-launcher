@@ -2,32 +2,12 @@ package com.foldos.launcher
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.Mail
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.WbSunny
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -38,20 +18,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.core.fold.FoldState
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.DockBackground
 import com.foldos.launcher.core.model.DockPosition
 import com.foldos.launcher.core.model.DrawerStyle
+import com.foldos.launcher.core.model.GestureAction
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.LauncherSettings
@@ -65,44 +40,48 @@ import com.foldos.launcher.edit.ThemeQuickSheet
 import com.foldos.launcher.edit.WallpaperSheet
 import com.foldos.launcher.fold.effectiveScreen
 import com.foldos.launcher.fold.rememberFoldState
+import com.foldos.launcher.gestures.HingeGestureEffect
+import com.foldos.launcher.gestures.homeGestures
 import com.foldos.launcher.home.HomeCallbacks
 import com.foldos.launcher.home.HomeScreen
 import com.foldos.launcher.home.LocalHomeCallbacks
 import com.foldos.launcher.home.rememberGridGeometry
+import com.foldos.launcher.hub.HubPage
+import com.foldos.launcher.notifications.QuietDrawerSheet
 import com.foldos.launcher.onboarding.SetupWizard
 import com.foldos.launcher.picker.WidgetPicker
 import com.foldos.launcher.picker.rememberWidgetPickerBackdropModifier
+import com.foldos.launcher.profiles.ProfileAutoSwitchEffect
+import com.foldos.launcher.profiles.ProfileSwitcherSheet
+import com.foldos.launcher.search.SearchBar
+import com.foldos.launcher.search.UniversalSearch
 import com.foldos.launcher.settings.SettingsActivity
 import com.foldos.launcher.settings.SettingsRoutes
-import com.foldos.launcher.theme.FoldOsSurface
-import com.foldos.launcher.theme.LocalFoldOsTokens
 import com.foldos.launcher.theme.Wallpaper
 import com.foldos.launcher.widgets.AddAppWidgetResult
 import com.foldos.launcher.widgets.WidgetSizing
 import com.foldos.launcher.widgets.rememberAddAppWidgetFlow
 import com.foldos.launcher.widgets.rememberWidgetHostController
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
  * Everything inside the launcher window. Until the first-run wizard has finished it shows the
- * [SetupWizard] full screen; afterwards: wallpaper, [HomeScreen] with the dock, search bar and hub
- * page, the rail dock when configured, the live-edit overlay with its quick sheets, the widget
- * picker and the [AppDrawer] on top. Must be composed inside `FoldOsTheme`.
+ * [SetupWizard] full screen; afterwards: wallpaper, [HomeScreen] with the dock, the search bar and
+ * the Hub page, the rail dock when configured, the live-edit overlay with its quick sheets, the
+ * widget picker, the [AppDrawer] and, on top of everything, universal search. Must be composed
+ * inside `FoldOsTheme` with `LocalAppGraph` and `builtins.LocalPermissionRequester` provided.
  */
 @Composable
 fun LauncherRoot(viewModel: LauncherViewModel, modifier: Modifier = Modifier) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val settingsLoaded by viewModel.settingsLoaded.collectAsStateWithLifecycle()
+    val loadedSettings by viewModel.loadedSettings.collectAsStateWithLifecycle()
+    val settings = loadedSettings
 
     when {
         // Until DataStore has answered, only the wallpaper: composing the home here would seed the
         // layout store with the default styles before the wizard has picked the real ones (and flash
         // a default-themed home in front of the wizard).
-        !settingsLoaded -> Box(modifier.fillMaxSize()) { Wallpaper() }
+        settings == null -> Box(modifier.fillMaxSize()) { Wallpaper() }
         !settings.wizardDone -> {
             // First run: every wizard tap writes straight to the settings; Finish / Skip set
             // wizardDone, which switches this branch over to the home.
@@ -125,9 +104,11 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val context = LocalContext.current
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val drawerOpen by viewModel.drawerOpen.collectAsStateWithLifecycle()
+    val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     val editMode by viewModel.editMode.collectAsStateWithLifecycle()
     val pickerOpen by viewModel.widgetPickerOpen.collectAsStateWithLifecycle()
     val homeRequest by viewModel.homeRequests.collectAsStateWithLifecycle()
+    val hubRequest by viewModel.hubRequests.collectAsStateWithLifecycle()
     val currentPageId by viewModel.currentPageId.collectAsStateWithLifecycle()
     val pageSelectRequest by viewModel.pageSelectRequest.collectAsStateWithLifecycle()
 
@@ -161,6 +142,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
 
     val onLaunch: (AppInfo) -> Unit = { app -> viewModel.launch(app) }
     val openDrawer: () -> Unit = { viewModel.openDrawer() }
+    val openSearch: () -> Unit = { viewModel.openSearch() }
     val openSettings: (String?) -> Unit = { route ->
         context.startActivity(SettingsActivity.intent(context, route))
     }
@@ -172,9 +154,24 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         )
     }
 
-    // Back on the home screen returns to the default page. The drawer, the picker and the edit
-    // overlay each have their own BackHandler (composed later, so higher priority).
-    BackHandler(enabled = !drawerOpen && !pickerOpen && !editMode) { viewModel.goHome() }
+    // Gestures (PLAN.md 4): bound actions run through the view model's GestureHost. The touch
+    // detector wraps every home page (HomeScreen.pageModifier); the hinge detector watches the
+    // fold posture; the home key double press is handled in MainActivity.onNewIntent.
+    val gesturesOn = settings.feature(LauncherSettings.FEATURE_GESTURES)
+    val onGestureAction: (GestureAction) -> Unit = { action -> viewModel.performGesture(context, action) }
+    val pageGestures = Modifier.homeGestures(
+        enabled = !editMode && !drawerOpen && !pickerOpen && !searchOpen,
+        settings = settings,
+        onAction = onGestureAction,
+    )
+    HingeGestureEffect(fold = fold, enabled = settings.wizardDone, settings = settings, onAction = onGestureAction)
+
+    // Profiles: schedule / Do Not Disturb rules re-evaluated on resume, DND receiver while composed.
+    ProfileAutoSwitchEffect()
+
+    // Back on the home screen returns to the default page. The drawer, the picker, the edit
+    // overlay and universal search each have their own BackHandler (composed later, so higher priority).
+    BackHandler(enabled = !drawerOpen && !pickerOpen && !editMode && !searchOpen) { viewModel.goHome() }
 
     // Widget picker -> app widget: allocate, bind (system permission dialog when needed), configure
     // through MainActivity.onActivityResult, then place the item. Built-ins are placed directly.
@@ -232,6 +229,8 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
 
     var themesOpen by rememberSaveable { mutableStateOf(false) }
     var wallpaperOpen by rememberSaveable { mutableStateOf(false) }
+    var profilesOpen by rememberSaveable { mutableStateOf(false) }
+    var quietDrawerOpen by rememberSaveable { mutableStateOf(false) }
     // Done / Back / home key leave edit mode without going through the sheets' onDismiss; reset
     // the flags so a sheet does not pop up by itself the next time edit mode opens.
     LaunchedEffect(editMode) {
@@ -242,9 +241,15 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     }
 
     val backdrop = rememberWidgetPickerBackdropModifier(
-        visible = drawerOpen || pickerOpen,
-        blur = settings.popBlur && (pickerOpen || settings.drawerStyle == DrawerStyle.POPUP),
+        visible = drawerOpen || pickerOpen || searchOpen,
+        blur = settings.popBlur && (pickerOpen || searchOpen || settings.drawerStyle == DrawerStyle.POPUP),
     )
+    val profilesOn = settings.feature(LauncherSettings.FEATURE_PROFILES)
+    val onNotifications: (() -> Unit)? = if (settings.feature(LauncherSettings.FEATURE_BADGES)) {
+        { quietDrawerOpen = true }
+    } else {
+        null
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize().then(backdrop)) {
@@ -274,18 +279,19 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                                 settings = settings,
                                 onLaunch = onLaunch,
                                 onOpenDrawer = openDrawer,
-                                onSearch = openDrawer,
+                                onSearch = openSearch,
                                 modifier = Modifier.padding(start = sideMargin, end = sideMargin, bottom = 6.dp),
+                                onNotifications = onNotifications,
                             )
                         }
                     },
                     searchBar = if (settings.feature(LauncherSettings.FEATURE_SEARCH)) {
-                        { HomeSearchBar(showAi = settings.feature(LauncherSettings.FEATURE_AI), onClick = openDrawer) }
+                        { SearchBar(onClick = openSearch, settings = settings) }
                     } else {
                         null
                     },
                     hub = if (settings.hubOn) {
-                        { HubTodayPage(settings = settings, fold = fold) }
+                        { HubPage(screen = fold.kind, settings = settings, modifier = Modifier.fillMaxSize()) }
                     } else {
                         null
                     },
@@ -293,6 +299,12 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     perPageStyle = true,
                     onCurrentPageChanged = { page -> viewModel.setCurrentPage(page) },
                     pageSelectRequest = pageSelectRequest,
+                    editMode = editMode,
+                    pageModifier = pageGestures,
+                    // The gestures detector binds SWIPE_UP itself; the page's own detector only
+                    // fills in while the Gestures feature is off.
+                    swipeUpOpensDrawer = !gesturesOn,
+                    hubSelectRequest = hubRequest,
                 )
             }
             if (railDock) {
@@ -304,17 +316,19 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     settings = settings,
                     onLaunch = onLaunch,
                     onOpenDrawer = openDrawer,
-                    onSearch = openDrawer,
+                    onSearch = openSearch,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .windowInsetsPadding(WindowInsets.systemBars)
                         .padding(end = 10.dp),
+                    onNotifications = onNotifications,
                 )
             }
         }
 
         // Live edit (PLAN.md 5.2): same Box as the home, both fillMaxSize, so the grid geometry the
-        // home publishes in window dp maps 1:1 onto the overlay.
+        // home publishes in window dp maps 1:1 onto the overlay. Dropping an app onto another app
+        // makes a folder, onto a folder adds to it (LauncherViewModel.moveItem).
         EditModeOverlay(
             active = editMode && !pickerOpen,
             screen = screen,
@@ -341,6 +355,11 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
             onExit = { viewModel.exitEditMode() },
             modifier = Modifier.fillMaxSize(),
             onSelectPage = { pageId -> viewModel.selectPage(pageId) },
+            onOpenProfiles = if (profilesOn) {
+                { profilesOpen = true }
+            } else {
+                null
+            },
         )
         ThemeQuickSheet(visible = editMode && themesOpen, settings = settings, onDismiss = { themesOpen = false })
         WallpaperSheet(visible = editMode && wallpaperOpen, onDismiss = { wallpaperOpen = false })
@@ -363,245 +382,32 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
             onDismiss = { viewModel.closeDrawer() },
             modifier = Modifier.fillMaxSize(),
         )
-    }
-}
 
-/* ------------------------------------------------------------------------------------------ */
-/* Search bar stub                                                                             */
-/* ------------------------------------------------------------------------------------------ */
-
-/** Pill search bar at the top of each home page (mock-up `.srch`). Tapping opens the drawer. */
-@Composable
-fun HomeSearchBar(showAi: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val tokens = LocalFoldOsTokens.current
-    val shape = RoundedCornerShape(25.dp)
-    FoldOsSurface(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .clip(shape)
-            .clickable(onClick = onClick),
-        shape = shape,
-        contentPadding = PaddingValues(horizontal = 18.dp),
-    ) {
-        Row(
+        // Universal search (PLAN.md 4): search bar tap, dock search bar, or a bound gesture.
+        UniversalSearch(
+            visible = searchOpen,
+            screen = fold.kind,
+            settings = settings,
+            onDismiss = { viewModel.closeSearch() },
+            onLaunch = { app ->
+                viewModel.closeSearch()
+                viewModel.launch(app)
+            },
+            onOpenSettingsRoute = { route ->
+                viewModel.closeSearch()
+                openSettings(route)
+            },
             modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Search,
-                contentDescription = "Search",
-                modifier = Modifier.size(22.dp),
-                tint = tokens.onSurface,
-            )
-            Text(
-                text = "Search apps",
-                modifier = Modifier.weight(1f),
-                color = tokens.onSurface.copy(alpha = 0.7f),
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (showAi) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = tokens.accent,
-                )
-            }
+        )
+
+        // Profile switcher (edit bar > Profiles) and the quiet notification drawer (dock add-on).
+        if (profilesOpen && profilesOn) {
+            ProfileSwitcherSheet(onDismiss = { profilesOpen = false })
+        }
+        if (quietDrawerOpen) {
+            QuietDrawerSheet(onDismiss = { quietDrawerOpen = false })
         }
     }
-}
-
-/* ------------------------------------------------------------------------------------------ */
-/* Hub placeholder                                                                             */
-/* ------------------------------------------------------------------------------------------ */
-
-/**
- * Phase 1 hub: the Today tab with a greeting, the date and placeholder briefing cards, plus the
- * tab bar on the configured side. Inner screen splits the cards into two panes.
- */
-@Composable
-fun HubTodayPage(settings: LauncherSettings, fold: FoldState, modifier: Modifier = Modifier) {
-    val tokens = LocalFoldOsTokens.current
-    val now = rememberHubClock()
-    val inner = fold.kind != ScreenKind.COVER
-    val tabBarOnTop = settings.hubBar == LauncherSettings.HUB_BAR_TOP
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        if (tabBarOnTop) HubTabBar(settings)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = greetingFor(now.hour),
-                color = tokens.onSurface,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = now.format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())),
-                color = tokens.onSurface.copy(alpha = 0.75f),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        if (inner) {
-            Row(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(28.dp),
-            ) {
-                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    HubBriefingCard(Modifier.fillMaxWidth())
-                    HubCard("Next event", "Nothing scheduled", "Calendar connects in phase 5", Modifier.fillMaxWidth())
-                }
-                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    HubCard("Tasks", "0 due today", "Todoist and Google Tasks arrive later", Modifier.fillMaxWidth())
-                    HubCard("Mail", "Inbox is quiet", "Gmail connects in phase 5", Modifier.fillMaxWidth())
-                    HubCard("People", "No one to reach", "Missed calls and meetings show here", Modifier.fillMaxWidth())
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                HubBriefingCard(Modifier.fillMaxWidth())
-                HubCard("Next event", "Nothing scheduled", "Calendar connects in phase 5", Modifier.fillMaxWidth())
-                HubCard("Tasks", "0 due today", "Todoist and Google Tasks arrive later", Modifier.fillMaxWidth())
-                HubCard("Mail", "Inbox is quiet", "Gmail connects in phase 5", Modifier.fillMaxWidth())
-            }
-        }
-        if (!tabBarOnTop) HubTabBar(settings)
-    }
-}
-
-@Composable
-private fun HubBriefingCard(modifier: Modifier = Modifier) {
-    val tokens = LocalFoldOsTokens.current
-    FoldOsSurface(
-        modifier = modifier,
-        color = tokens.highlight,
-        borderColor = Color.Transparent,
-        contentPadding = PaddingValues(18.dp),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = tokens.onHighlight,
-                )
-                Text(
-                    text = "TODAY",
-                    color = tokens.onHighlight.copy(alpha = 0.8f),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
-            }
-            Text(
-                text = "Your morning briefing will appear here once calendar, mail and tasks are connected.",
-                color = tokens.onHighlight,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun HubCard(title: String, body: String, caption: String, modifier: Modifier = Modifier) {
-    val tokens = LocalFoldOsTokens.current
-    FoldOsSurface(modifier = modifier, contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title.uppercase(Locale.getDefault()),
-                color = tokens.onSurface.copy(alpha = 0.72f),
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.sp,
-            )
-            Text(
-                text = body,
-                color = tokens.onSurface,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = caption,
-                color = tokens.onSurface.copy(alpha = 0.7f),
-                fontSize = 13.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-/** Today plus the enabled tabs (mock-up `HUBTABS`); Today is selected, the others are stubs. */
-@Composable
-private fun HubTabBar(settings: LauncherSettings) {
-    val tokens = LocalFoldOsTokens.current
-    val tabs = ArrayList<Triple<String, String, ImageVector>>(5)
-    tabs.add(Triple("today", "Today", Icons.Rounded.WbSunny))
-    if (LauncherSettings.HUB_TAB_AI in settings.hubTabs) tabs.add(Triple(LauncherSettings.HUB_TAB_AI, "AI", Icons.Rounded.AutoAwesome))
-    if (LauncherSettings.HUB_TAB_MAIL in settings.hubTabs) tabs.add(Triple(LauncherSettings.HUB_TAB_MAIL, "Mail", Icons.Rounded.Mail))
-    if (LauncherSettings.HUB_TAB_CAL in settings.hubTabs) tabs.add(Triple(LauncherSettings.HUB_TAB_CAL, "Calendar", Icons.Rounded.CalendarMonth))
-    if (LauncherSettings.HUB_TAB_PEOPLE in settings.hubTabs) tabs.add(Triple(LauncherSettings.HUB_TAB_PEOPLE, "Contacts", Icons.Rounded.Person))
-
-    FoldOsSurface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(tokens.radius + 6.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            tabs.forEach { (id, name, icon) ->
-                val selected = id == "today"
-                val tint = if (selected) tokens.accent else tokens.onSurface.copy(alpha = 0.7f)
-                Column(
-                    modifier = Modifier.weight(1f).padding(vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Icon(imageVector = icon, contentDescription = name, modifier = Modifier.size(22.dp), tint = tint)
-                    Text(
-                        text = name,
-                        color = tint,
-                        fontSize = 11.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun greetingFor(hour: Int): String = when {
-    hour < 5 -> "Good night"
-    hour < 12 -> "Good morning"
-    hour < 17 -> "Good afternoon"
-    else -> "Good evening"
-}
-
-/** Wall clock that recomposes once a minute. */
-@Composable
-private fun rememberHubClock(): LocalDateTime {
-    var now by remember { mutableStateOf(LocalDateTime.now()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = LocalDateTime.now()
-            val millisToNextMinute = (60 - now.second) * 1000L - (now.nano / 1_000_000L)
-            delay(millisToNextMinute.coerceIn(250L, 60_000L))
-        }
-    }
-    return now
 }
 
 /* ------------------------------------------------------------------------------------------ */

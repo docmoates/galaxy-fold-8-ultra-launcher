@@ -1,5 +1,6 @@
 package com.foldos.launcher.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -13,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -203,19 +206,41 @@ private fun HomeFavoriteList(
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
     ) {
         items(favorites, key = { it.key }) { app ->
-            Text(
-                text = app.label,
-                color = tokens.onSurface,
-                fontSize = 29.sp,
-                lineHeight = 36.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = homeTextShadow()),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .homeTapGestures(onTap = { ctx.onLaunch(app) }, onLongPress = { ctx.longPressApp(app, items) })
-                    .padding(vertical = 5.dp),
-            )
+            val holder = remember { HomeAnchorHolder() }
+            Box(Modifier.fillMaxWidth()) {
+                // Mock-up `.li`: the name, then an accent dot when the app has notifications.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .homeAnchor(holder)
+                        .homeTapGestures(
+                            onTap = { ctx.onLaunch(app) },
+                            onLongPress = { ctx.longPressApp(app, items, holder.bounds()) },
+                        )
+                        .padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = app.label,
+                        color = tokens.onSurface,
+                        fontSize = 29.sp,
+                        lineHeight = 36.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(shadow = homeTextShadow()),
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (ctx.badgeFor(app.packageName) > 0) {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .background(tokens.accent, CircleShape),
+                        )
+                    }
+                }
+                HomeItemPressOverlay(ctx, ctx.itemFor(app, items))
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Dock
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Widgets
@@ -99,6 +100,7 @@ private sealed interface EditDrag {
  * @param items the items of [currentPageId] (items of other pages are ignored).
  * @param onSelectPage optional: called when the drop target page changes while dragging past an
  *   edge, and from the page arrows, so the caller can scroll its pager along.
+ * @param onOpenProfiles optional: adds a "Profiles" entry to the bottom bar (the profile switcher).
  */
 @Composable
 fun EditModeOverlay(
@@ -123,6 +125,7 @@ fun EditModeOverlay(
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
     onSelectPage: (pageId: Long) -> Unit = {},
+    onOpenProfiles: (() -> Unit)? = null,
 ) {
     if (!active) return
     BackHandler(onBack = onExit)
@@ -389,13 +392,15 @@ fun EditModeOverlay(
 
         /* ---- bottom action bar (mock-up `.ebar` bottom 26px) ---- */
         EditActionBar(
-            actions = listOf(
-                EditAction("Wallpaper", Icons.Rounded.Wallpaper, onOpenWallpaper),
-                EditAction("Themes", Icons.Rounded.Palette, onOpenThemes),
-                EditAction("Widgets", Icons.Rounded.Widgets, onAddWidget),
-                EditAction("Dock", Icons.Rounded.Dock, onOpenDock),
-                EditAction("Settings", Icons.Rounded.Settings, onOpenSettings),
-            ),
+            actions = buildList {
+                add(EditAction("Wallpaper", Icons.Rounded.Wallpaper, onOpenWallpaper))
+                add(EditAction("Themes", Icons.Rounded.Palette, onOpenThemes))
+                add(EditAction("Widgets", Icons.Rounded.Widgets, onAddWidget))
+                add(EditAction("Dock", Icons.Rounded.Dock, onOpenDock))
+                // Profiles (Phase 4+5): the switcher sheet, only while the host offers it.
+                if (onOpenProfiles != null) add(EditAction("Profiles", Icons.Rounded.Person, onOpenProfiles))
+                add(EditAction("Settings", Icons.Rounded.Settings, onOpenSettings))
+            },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.systemBars)

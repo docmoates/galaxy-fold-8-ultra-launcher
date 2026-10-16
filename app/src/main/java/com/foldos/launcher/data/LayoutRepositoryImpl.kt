@@ -36,6 +36,9 @@ class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
     override fun items(pageId: Long): Flow<List<HomeItem>> =
         dao.itemsByPage(pageId).map { rows -> rows.map(ItemEntity::toModel) }
 
+    override fun children(folderId: Long): Flow<List<HomeItem>> =
+        dao.childrenOf(folderId).map { rows -> rows.map(ItemEntity::toModel) }
+
     override suspend fun ensureDefaultLayout(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?) {
         db.withTransaction {
             val key = screen.name
@@ -81,18 +84,26 @@ class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
         dao.upsertItem(ItemEntity.fromModel(item))
     }
 
+    /** Deletes the item; a folder takes its children with it. */
     override suspend fun deleteItem(id: Long) {
-        dao.deleteItem(id)
+        db.withTransaction {
+            val item = dao.itemById(id)
+            if (item?.kind == ItemKind.FOLDER) dao.deleteChildren(id)
+            dao.deleteItem(id)
+        }
     }
 
     override suspend fun moveItem(id: Long, pageId: Long, col: Int, row: Int) {
         db.withTransaction {
-            val stackId = dao.itemById(id)?.stackId
+            val item = dao.itemById(id)
+            val stackId = item?.stackId
             if (stackId != null) {
                 dao.moveStack(stackId, pageId, col, row)
             } else {
                 dao.moveItem(id, pageId, col, row)
             }
+            // Folder children follow their folder so a page delete still cascades to them.
+            if (item?.kind == ItemKind.FOLDER) dao.moveChildren(id, pageId)
         }
     }
 
@@ -155,6 +166,52 @@ class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
             }
             stackId
         }
+    }
+
+    override suspend fun createFolder(pageId: Long, col: Int, row: Int, title: String, itemIds: List<Long>): Long =
+        db.withTransaction {
+            val folderId = dao.upsertItem(
+                ItemEntity(
+                    pageId = pageId,
+                    kind = ItemKind.FOLDER,
+                    col = col,
+                    row = row,
+                    title = title,
+                ),
+            )
+            itemIds.distinct().forEachIndexed { index, itemId ->
+                // Children keep an order through grid_row (index); grid_col is unused inside a folder.
+                dao.placeInFolder(id = itemId, parentId = folderId, pageId = pageId, col = 0, row = index)
+            }
+            folderId
+        }
+
+    override suspend fun createPair(pageId: Long, col: Int, row: Int, a: AppInfo, b: AppInfo): Long =
+        dao.upsertItem(
+            ItemEntity(
+                pageId = pageId,
+                kind = ItemKind.PAIR,
+                col = col,
+                row = row,
+                packageName = a.packageName,
+                activityName = a.activityName,
+                title = "${a.label} & ${b.label}",
+                packageName2 = b.packageName,
+                activityName2 = b.activityName,
+            ),
+        )
+
+    override suspend fun removeFromFolder(itemId: Long, toPageId: Long, col: Int, row: Int) {
+        db.withTransaction {
+            val folderId = dao.itemById(itemId)?.parentId ?: return@withTransaction
+            dao.removeFromFolder(id = itemId, pageId = toPageId, col = col, row = row)
+            if (dao.countChildren(folderId) == 0) dao.deleteItem(folderId)
+        }
+    }
+
+    /** Sets or clears (null) one folder's style override ("grid", "list" or "big"). */
+    suspend fun setFolderStyle(folderId: Long, style: String?) {
+        dao.setFolderStyle(folderId, style)
     }
 
     /** Inserts or replaces a page; an id of 0 means "assign one". Returns the row id. */

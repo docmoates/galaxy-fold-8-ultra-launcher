@@ -30,15 +30,23 @@ import kotlinx.coroutines.withContext
 fun rememberDrawerIconBitmap(app: AppInfo, sizePx: Int): ImageBitmap? {
     // HomeIconCache.generation is bumped after an icon pack / shape / override change, so the
     // drawer re-rasterises together with the home grid.
+    // Shares the home grid's cache (same key format), so a cell scrolling back into view reuses
+    // the already rasterised, pack-resolved and shape-masked bitmap instead of redoing the work.
+    val cacheKey = "${app.key}@$sizePx#${HomeIconCache.generation}"
     val state = produceState<ImageBitmap?>(
-        initialValue = null,
-        key1 = app.key,
-        key2 = sizePx,
-        key3 = HomeIconCache.generation,
+        initialValue = HomeIconCache.get(cacheKey),
+        key1 = cacheKey,
     ) {
-        value = withContext(Dispatchers.IO) {
+        val hit = HomeIconCache.get(cacheKey)
+        if (hit != null) {
+            value = hit
+            return@produceState
+        }
+        val bitmap = withContext(Dispatchers.IO) {
             runCatching { loadDrawerIconBitmap(app, sizePx) }.getOrNull()
         }
+        if (bitmap != null) HomeIconCache.put(cacheKey, bitmap)
+        value = bitmap
     }
     return state.value
 }

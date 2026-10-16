@@ -5,4 +5,10 @@
     <include domain="database" path="." />
     <include domain="file" path="datastore/" />
     <exclude domain="file" path="cache/" />
+    <!-- Gmail tokens are encrypted with a Keystore key that never leaves the device; the
+         EncryptedSharedPreferences keyset files are wrapped with that same key. -->
+    <exclude domain="sharedpref" path="foldos_mail_auth.xml" />
+    <exclude domain="sharedpref" path="foldos_mail_auth_plain.xml" />
+    <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
+    <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
 </full-backup-content>

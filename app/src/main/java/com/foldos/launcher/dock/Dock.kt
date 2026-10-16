@@ -1,5 +1,6 @@
 package com.foldos.launcher.dock
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,13 +102,14 @@ fun Dock(
     onOpenDrawer: () -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
+    onNotifications: (() -> Unit)? = null,
 ) {
     if (!settings.feature(LauncherSettings.FEATURE_DOCK)) return
     val palette = dockPalette()
     if (config.pos == DockPosition.RAIL) {
         RailDock(config, pinned, palette, onLaunch, modifier)
     } else {
-        BottomDock(config, screen, pinned, recents, settings, palette, onLaunch, onOpenDrawer, onSearch, modifier)
+        BottomDock(config, screen, pinned, recents, settings, palette, onLaunch, onOpenDrawer, onSearch, modifier, onNotifications)
     }
 }
 
@@ -215,6 +217,7 @@ private fun BottomDock(
     onOpenDrawer: () -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier,
+    onNotifications: (() -> Unit)? = null,
 ) {
     val wide = screen != ScreenKind.COVER
     val count = DockDefaults.pinnedCount(config, screen)
@@ -251,7 +254,7 @@ private fun BottomDock(
             Spacer(Modifier.height(6.dp))
         }
         if (config.notify) {
-            NotifyRow(wide, palette)
+            NotifyRow(wide, palette, onNotifications)
             Spacer(Modifier.height(12.dp))
         }
         Box {
@@ -269,16 +272,18 @@ private fun BottomDock(
     }
 }
 
+/** The notification add-on's callout; tapping it opens the quiet notification drawer when [onClick] is set. */
 @Composable
-private fun NotifyRow(wide: Boolean, palette: DockPalette) {
+private fun NotifyRow(wide: Boolean, palette: DockPalette, onClick: (() -> Unit)?) {
+    val callout = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     if (wide) {
         Box(Modifier.fillMaxWidth().padding(start = 30.dp)) {
-            NotifyCallout(palette)
+            NotifyCallout(palette, callout)
         }
     } else {
         Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.weight(1f))
-            NotifyCallout(palette)
+            NotifyCallout(palette, callout)
             Spacer(Modifier.weight(3f))
         }
     }

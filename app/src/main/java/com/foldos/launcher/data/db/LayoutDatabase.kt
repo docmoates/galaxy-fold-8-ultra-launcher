@@ -15,10 +15,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * 1. pages + items (Phase 1).
  * 2. items gained the widget (`app_widget_id`, `builtin_id`), stack (`stack_id`, `stack_index`)
  *    and free-placement (`free`, `x_dp`, `y_dp`, `w_dp`, `h_dp`) columns.
+ * 3. items gained the folder (`parent_id` + index, `folder_style`) and app-pair
+ *    (`package_name_2`, `activity_name_2`) columns.
  */
 @Database(
     entities = [PageEntity::class, ItemEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(LayoutConverters::class)
@@ -44,10 +46,21 @@ abstract class LayoutDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds the Phase 4 folder and app-pair columns; the index name follows Room's `index_<table>_<column>` convention. */
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE items ADD COLUMN parent_id INTEGER")
+                db.execSQL("ALTER TABLE items ADD COLUMN package_name_2 TEXT")
+                db.execSQL("ALTER TABLE items ADD COLUMN activity_name_2 TEXT")
+                db.execSQL("ALTER TABLE items ADD COLUMN folder_style TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_items_parent_id ON items (parent_id)")
+            }
+        }
+
         /** Builds a new instance; callers (the [com.foldos.launcher.data.AppGraphImpl]) keep it as a singleton. */
         fun create(context: Context): LayoutDatabase =
             Room.databaseBuilder(context.applicationContext, LayoutDatabase::class.java, DATABASE_NAME)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
     }

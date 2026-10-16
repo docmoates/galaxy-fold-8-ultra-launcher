@@ -116,10 +116,12 @@ internal fun HomeDashboardPage(
     val pageId = page?.id ?: 0L
     val cols = dashboardColumns(ctx.screen)
     val free = ctx.freeMode
-    val shown = remember(items, ctx.screen, pageId, cols, free) {
-        // Only a truly empty page shows the preview; a page holding apps / folders / pairs but no
-        // widget keeps rendering its real, editable items.
-        val source = if (items.isNotEmpty()) items else defaultDashboardItems(ctx.screen, pageId).asPreviewItems()
+    val placeholder = page == null
+    val shown = remember(items, ctx.screen, pageId, cols, free, placeholder) {
+        // The preview is only the placeholder shown before any page exists; a persisted page
+        // (seeded with the default widgets when it becomes a dashboard) renders its real, editable
+        // items, even when the user emptied it.
+        val source = if (items.isNotEmpty() || !placeholder) items else defaultDashboardItems(ctx.screen, pageId).asPreviewItems()
         reflowGridItems(source, cols, skipFree = free)
     }
     val rows = remember(shown, ctx.screen) { max(dashboardRows(shown), if (ctx.isInner) 3 else 4) }

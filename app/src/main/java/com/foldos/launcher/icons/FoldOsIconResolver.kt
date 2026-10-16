@@ -13,6 +13,7 @@ import com.foldos.launcher.core.repo.IconPackInfo
 import com.foldos.launcher.core.repo.IconResolver
 import com.foldos.launcher.core.repo.IconShape
 import com.foldos.launcher.core.repo.SettingsRepository
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -57,7 +58,9 @@ class FoldOsIconResolver(
     val shaper: IconShaper = IconShaper(appContext)
 
     private val overrideStore = IconOverrideStore(appContext)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, t -> Log.w(TAG, "background task failed", t) },
+    )
     private val cache = LruCache<String, Drawable>(CACHE_ENTRIES)
 
     private data class State(

@@ -16,6 +16,7 @@ object HomeRows {
     val drawerStyle = SettingsRowInfo("App drawer", "Pixel-style pop-up or full screen")
     val popBlur = SettingsRowInfo("Blur behind pop-up", "Blur home while the drawer is open")
     val labels = SettingsRowInfo("App labels")
+    val folderStyle = SettingsRowInfo("Folder style", "Grid, list or big folders; each folder can override it")
     val colsCover = SettingsRowInfo("Cover columns", advanced = true)
     val colsInner = SettingsRowInfo("Inner columns", advanced = true)
     val iconSize = SettingsRowInfo("Icon size", advanced = true)
@@ -26,7 +27,13 @@ object HomeRows {
         title = "Home",
         subtitle = "Style per screen, placement, app drawer, labels",
         icon = Icons.Outlined.Home,
-        rows = listOf(styleCover, styleInner, gridMode, drawerStyle, popBlur, labels, colsCover, colsInner, iconSize, more),
+        rows = listOf(styleCover, styleInner, gridMode, drawerStyle, popBlur, labels, folderStyle, colsCover, colsInner, iconSize, more),
+    )
+
+    val folderStyleOptions: List<Pair<String, String>> = listOf(
+        LauncherSettings.FOLDER_GRID to "Grid",
+        LauncherSettings.FOLDER_LIST to "List",
+        LauncherSettings.FOLDER_BIG to "Big",
     )
 
     val coverStyleOptions: List<Pair<HomeStyle, String>> = listOf(
@@ -93,6 +100,12 @@ fun HomeSettingsPage(
             info = HomeRows.labels,
             checked = settings.labels,
             onCheckedChange = { on -> update { it.copy(labels = on) } },
+        )
+        SelectRow(
+            info = HomeRows.folderStyle,
+            value = settings.folderStyle,
+            options = HomeRows.folderStyleOptions,
+            onSelect = { style -> update { it.copy(folderStyle = style) } },
         )
         SliderRow(
             info = HomeRows.colsCover,

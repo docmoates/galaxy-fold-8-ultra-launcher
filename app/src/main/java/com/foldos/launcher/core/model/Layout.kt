@@ -2,6 +2,7 @@ package com.foldos.launcher.core.model
 
 import android.content.ComponentName
 import android.graphics.drawable.Drawable
+import kotlinx.serialization.Serializable
 
 /** A home page on one screen. [index] is the page order; page 0 is the default page. */
 data class HomePage(
@@ -54,12 +55,86 @@ data class HomeItem(
     val yDp: Float? = null,
     val wDp: Float? = null,
     val hDp: Float? = null,
+    /**
+     * Id of the [ItemKind.FOLDER] item this item lives in; null for items placed on the grid. A
+     * folder child keeps its folder's [pageId] (so deleting the page removes it) but is never drawn
+     * on the page itself: `LayoutRepository.items(pageId)` omits it and `children(folderId)` lists it.
+     */
+    val parentId: Long? = null,
+    /** Second app of an [ItemKind.PAIR] (the first one is [packageName] / [activityName]). */
+    val packageName2: String? = null,
+    val activityName2: String? = null,
+    /** Per-folder style override ("grid", "list" or "big"); null = `LauncherSettings.folderStyle`. */
+    val folderStyle: String? = null,
 ) {
     /** True for a widget item backed by a hosted app widget. */
     val isAppWidget: Boolean get() = kind == ItemKind.WIDGET && appWidgetId != null
 
     /** True for a widget item backed by a FoldOS built-in. */
     val isBuiltInWidget: Boolean get() = kind == ItemKind.WIDGET && builtinId != null
+
+    /** True for a folder container (its contents come from `LayoutRepository.children(id)`). */
+    val isFolder: Boolean get() = kind == ItemKind.FOLDER
+
+    /** True for an app pair with both apps set. */
+    val isPair: Boolean get() = kind == ItemKind.PAIR && packageName2 != null && activityName2 != null
+
+    /** True when this item is inside a folder rather than on the grid. */
+    val inFolder: Boolean get() = parentId != null
+}
+
+/**
+ * Every gesture the home screen can bind an action to (Settings > Gestures). `_2F` = two fingers;
+ * [HOME_DOUBLE] = home button pressed twice; [FOLD] / [UNFOLD] = hinge gestures.
+ */
+enum class GestureKind {
+    SWIPE_UP,
+    SWIPE_DOWN,
+    SWIPE_LEFT_2F,
+    SWIPE_RIGHT_2F,
+    SWIPE_UP_2F,
+    SWIPE_DOWN_2F,
+    DOUBLE_TAP,
+    PINCH_IN,
+    PINCH_OUT,
+    HOME_DOUBLE,
+    FOLD,
+    UNFOLD,
+}
+
+/**
+ * What a gesture does. [type] is one of the `GestureAction.TYPE_*` constants; [target] is the
+ * `AppInfo.key` ("package/activity") for [TYPE_APP] and null for every other type.
+ */
+@Serializable
+data class GestureAction(
+    val type: String = TYPE_NONE,
+    val target: String? = null,
+) {
+    companion object {
+        const val TYPE_NONE: String = "none"
+        const val TYPE_DRAWER: String = "drawer"
+        const val TYPE_SEARCH: String = "search"
+        const val TYPE_HUB: String = "hub"
+        const val TYPE_SETTINGS: String = "settings"
+        const val TYPE_NOTIFICATIONS: String = "notifications"
+        const val TYPE_QUICK_SETTINGS: String = "quick_settings"
+        const val TYPE_APP: String = "app"
+        const val TYPE_EDIT: String = "edit"
+        const val TYPE_LOCK_HINT: String = "lock_hint"
+        const val TYPE_RECENTS_HINT: String = "recents_hint"
+
+        /** Every assignable type, in Settings > Gestures picker order. */
+        val ALL_TYPES: List<String> = listOf(
+            TYPE_NONE, TYPE_DRAWER, TYPE_SEARCH, TYPE_HUB, TYPE_SETTINGS, TYPE_NOTIFICATIONS,
+            TYPE_QUICK_SETTINGS, TYPE_APP, TYPE_EDIT, TYPE_LOCK_HINT, TYPE_RECENTS_HINT,
+        )
+
+        val NONE: GestureAction = GestureAction(TYPE_NONE)
+
+        /** Shorthand for an [TYPE_APP] action launching the app with [appKey] (`AppInfo.key`). */
+        fun app(appKey: String): GestureAction = GestureAction(TYPE_APP, appKey)
+    }
 }
 
 /**

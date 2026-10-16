@@ -3,7 +3,9 @@
 An Android launcher for the Samsung Galaxy Z Fold 8 Ultra, written in Kotlin with Jetpack
 Compose (Material 3). It gives the cover screen and the inner screen their own home layouts,
 keeps a gap over the hinge, splits the home at the hinge in Flex Mode, and ships a dock built
-from mixable traits, a pop-up app drawer with backdrop blur, a hub page and a full settings app.
+from mixable traits, a pop-up app drawer with backdrop blur, gestures, universal search, folders
+and app pairs, notification badges, profiles, a Hub page (Today, Calendar, Contacts, Mail, AI)
+and a full settings app.
 
 The design is in `PLAN.md`; `mockup/foldos-mockup.html` is the interactive mock-up every screen
 is built from.
@@ -31,9 +33,17 @@ app/                        The single Gradle module (com.foldos.launcher)
     edit/                   Live edit mode: drag, resize, delete, page style / add / delete, theme and wallpaper sheets
     icons/                  Icon pack parser (appfilter.xml), per-app overrides, icon shape masking, Settings sheets
     onboarding/             First-run setup wizard (5 steps) and the preset gallery
-    MainActivity.kt         ROLE_HOME activity; permission requester, widget configure results, host start/stop
-    LauncherViewModel.kt    Hot flows for settings, apps and pages; drawer, edit mode, picker and layout mutations
-    LauncherRoot.kt         Wizard gate, then wallpaper, HomeScreen, dock, edit overlay, widget picker and drawer
+    gestures/               Home gesture detector (swipes, two-finger, pinch, double tap), hinge and home-key detectors, action dispatch
+    search/                 Universal search sheet, home search bar, providers (apps, shortcuts, contacts, settings, files, calendar, web, calculator, units)
+    items/                  Folders (icon, open sheet, styles), app pairs (icon, split-screen launch, editor), item context menu
+    profiles/               Persisted profiles, schedule / Do Not Disturb auto-switching, alarm and boot receivers, switcher and editor
+    notifications/          Notification badges and previews from the listener, quiet notification drawer, settings rows
+    hub/                    Hub page: Today briefing, Calendar and Contacts tabs; CalendarContract / CallLog / Contacts repository, task store
+    mail/                   Gmail API through AppAuth (sign-in activity, token store, client), Gmail-app label counts, Mail tab
+    ai/                     AI command router (natural-language settings), template and on-device (AICore) providers, AI tab, usage log
+    MainActivity.kt         ROLE_HOME activity; permission requester, widget configure results, host start/stop, home-key double press
+    LauncherViewModel.kt    Hot flows for settings, apps and pages; drawer, search, hub, edit mode, picker, gesture host, layout mutations
+    LauncherRoot.kt         Wizard gate, then wallpaper, HomeScreen, dock, hub page, edit overlay, widget picker, drawer, universal search
 .github/workflows/android.yml   CI: assembles the debug APK on every push
 ```
 
@@ -81,6 +91,91 @@ On first launch FoldOS asks once to become the default home through the system's
 
 To go back to One UI Home pick it in the same place. Uninstall with
 `adb uninstall com.foldos.launcher`.
+
+## Phase 4+5: power features, Hub and AI
+
+What this phase adds (every feature has a switch under Settings > Features):
+
+- **Gestures.** Swipe up / down, two-finger swipes in four directions, pinch in / out, double tap,
+  home key double press, and the hinge (fold / unfold). Each is bound in Settings > Gestures to an
+  action: app drawer, universal search, Hub, Settings, notification shade, quick settings, edit
+  mode, any app, or the lock / recents hints. Defaults: swipe up = drawer, swipe down =
+  notifications, two-finger swipe up = search, pinch in = edit mode.
+- **Universal search.** Tap the home search bar (or the dock's search bar, or bind a gesture).
+  Results are sectioned: apps and their shortcuts, contacts, FoldOS settings, files, calendar
+  events, calculator and unit conversions, web search with a choice of engine and `!bangs`, plus a
+  Lens / visual search shortcut. Providers and the engine are chosen under Settings > Search;
+  results are ranked by what you picked before.
+- **Folders and app pairs.** In edit mode drop an app onto another app to make a folder (or onto
+  a folder to add to it); tap a folder to open it next to its icon, rename it, or change its style
+  (grid / list / big; the default is Settings > Home > Folder style). Long-press an app > "Add to
+  pair" builds a split-screen pair icon; tapping a pair launches both apps side by side.
+- **Notification badges.** Counts or dots on app icons (Settings > Features > Badge style), a
+  long-press preview of an app's notifications, and a **quiet notification drawer** that keeps
+  low-value apps out of the badges; open it from the dock's notification add-on. Needs
+  notification access.
+- **Profiles.** Work, Home and Night are seeded; each is a full snapshot of the settings plus a
+  hidden-apps list. Switch from Settings > Profiles or the edit bar's Profiles button, or add a time
+  window (exact alarms when "Alarms & reminders" is allowed) or a Do Not Disturb rule in the
+  profile editor to switch automatically; nothing switches on its own until you do.
+- **Hub page.** The page beside home now has real tabs: **Today** (greeting, briefing, next event
+  with Join, tasks due, schedule, mail that needs you, people to reach), **Calendar** (week strip,
+  day timeline with a now line, month grid on the inner screen), **Contacts** (favorites, A-Z list
+  with scrubber, call / message / video), **Mail** and **AI**. Calendar, call log and contacts are
+  read from the Android providers after you tap "Allow" on the tab.
+- **AI.** Settings > AI picks the engine: Template rules (default, fully on-device, no model),
+  on-device Gemini Nano through AICore when the device offers it, or off. The AI tab answers
+  questions about your day and applies plain-language launcher commands ("make my inner screen a
+  dashboard", "hide Instagram"); every action is listed in the AI usage log.
+
+### Permissions added in this phase
+
+| Permission | Why | When |
+|---|---|---|
+| `READ_CONTACTS` | Hub Contacts / Today tabs, contact search | "Allow" card on the tab or search result |
+| `READ_CALL_LOG` | Missed calls on Today and in a contact's card | "Allow" card on the tab |
+| `READ_CALENDAR` (already declared) | Hub Calendar / Today, calendar search | "Allow" card on the tab |
+| `EXPAND_STATUS_BAR` | Gesture actions "Notifications" and "Quick settings" | Install time (normal) |
+| `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM` | Profile schedules survive a reboot and switch on the minute | Install time; exact alarms from Settings > Profiles |
+| `INTERNET` | Gmail API and the OAuth token exchange | Install time |
+| `com.google.android.gm.permission.READ_CONTENT_PROVIDER` | Unread counts per label from the Gmail app, no sign-in | Install time (normal) |
+| Notification access (`FoldOsNotificationListener`) | Badges, previews, quiet drawer, Now Playing | Settings > Notifications > Device & app notifications > FoldOS |
+
+### Connecting Gmail
+
+The Mail tab works in two layers. Without any setup it shows the Gmail app's unread counts per
+label (Primary, Updates, Starred, ...) for a Google account you pick. The inbox itself comes from
+the Gmail API and needs an OAuth client that belongs to you (FoldOS ships no client id):
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/) create a project (or reuse
+   one) and enable the **Gmail API** under APIs & Services > Library.
+2. Under APIs & Services > OAuth consent screen choose *External*, fill in the app name and your
+   e-mail, and add the scope `https://www.googleapis.com/auth/gmail.readonly`. While the app is
+   in *Testing*, add the Google accounts that may sign in as test users.
+3. Under Credentials create an **OAuth client ID** of type **Android**: package name
+   `com.foldos.launcher`, and the SHA-1 of the signing key. For the CI debug build that is the
+   debug keystore's fingerprint; get it with
+   `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`
+   (the GitHub Actions runner's debug key differs from your machine's; sign the APK yourself, or
+   add both fingerprints as two Android clients).
+4. Copy the client id (`...apps.googleusercontent.com`) into FoldOS Settings > Mail > OAuth client
+   id, then tap **Connect**. Sign-in runs through AppAuth in a Custom Tab; the redirect
+   `com.foldos.launcher:/oauth2redirect` is registered by the `appAuthRedirectScheme` placeholder in
+   `app/build.gradle.kts`. Tokens are stored in `EncryptedSharedPreferences` and excluded from
+   backups.
+
+`gmail.readonly` is a restricted scope: publishing the consent screen for everyone requires
+Google's verification, so until then only the test users from step 2 can connect.
+
+### Known limits in this phase
+
+- Gemini Nano: `AiCoreProvider` detects AICore but this build does not bundle the GenAI SDK, so
+  "On-device" falls back to the template engine with a status line explaining why.
+- Weather on the Today tab is still the sample provider.
+- The notification shade and quick-settings gesture actions use `StatusBarManager` through
+  reflection (as Nova and Lawnchair do); a OEM build that blocks it shows a toast instead.
+- The dock's notification add-on opens the quiet drawer; it does not yet show the newest
+  notification inline.
 
 ## Phase 2+3: widgets, looks and styles
 

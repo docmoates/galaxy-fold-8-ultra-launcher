@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -31,6 +32,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.fold.FoldState
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
@@ -66,8 +68,22 @@ import kotlin.math.max
  *   page is showing), so edit mode and the widget picker know which page they work on.
  * @param pageSelectRequest scrolls the pager to the requested page whenever a new request arrives
  *   (the edit overlay's page arrows and edge drops).
+ * @param editMode true while the live-edit overlay is up: an item long press then goes straight to
+ *   `HomeCallbacks.onItemLongPress` (Phase 1 behaviour) instead of opening the item popup, and any
+ *   open popup / folder sheet closes.
+ * @param pageModifier applied to every home page container (the Flex top half included), where
+ *   the `gestures/` package hooks its detector; it is placed outermost on the page.
+ * @param swipeUpOpensDrawer true (default) keeps the page's own swipe-up-to-drawer detector; pass
+ *   false while [pageModifier] carries the `gestures/` detector, which binds SWIPE_UP itself, so a
+ *   swipe up does not open the drawer twice.
+ * @param hubSelectRequest a counter; every increment scrolls the pager to the hub page (gesture
+ *   action `TYPE_HUB`). Ignored while the hub is off or in Flex Mode.
  *
- * Edit-mode hooks are read from [LocalHomeCallbacks]; provide it around this composable.
+ * Edit-mode hooks are read from [LocalHomeCallbacks], folder / pair / context-menu slots from
+ * [LocalHomeItemHooks]; provide both around this composable. Badges come from
+ * `LocalAppGraph.current.badges.counts` (in `settings.badgeStyle`, only while the Badges feature
+ * is on) and `hiddenApps` are honoured through the already filtered [apps] list: an item whose app
+ * is hidden leaves its cell empty.
  */
 @Composable
 fun HomeScreen(
@@ -88,12 +104,35 @@ fun HomeScreen(
     perPageStyle: Boolean = false,
     onCurrentPageChanged: ((HomePage?) -> Unit)? = null,
     pageSelectRequest: PageSelectRequest? = null,
+    editMode: Boolean = false,
+    pageModifier: Modifier = Modifier,
+    swipeUpOpensDrawer: Boolean = true,
+    hubSelectRequest: Int = 0,
 ) {
     val appsByKey = remember(apps) { apps.associateBy { it.key } }
     val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
     val sortedPages = remember(pages) { pages.sortedBy { it.index } }
     var origin by remember { mutableStateOf(Offset.Zero) }
     val callbacks = LocalHomeCallbacks.current
+    val hooks = LocalHomeItemHooks.current
+    val graph = LocalAppGraph.current
+
+    // Notification badges (Settings > Notifications): only subscribed while they can show.
+    val badgesOn = settings.feature(LauncherSettings.FEATURE_BADGES) && settings.badgeStyle != LauncherSettings.BADGE_OFF
+    val countsFlow: Flow<Map<String, Int>> = remember(graph, badgesOn) {
+        if (badgesOn) graph.badges.counts else flowOf(emptyMap())
+    }
+    val badges by countsFlow.collectAsStateWithLifecycle(initialValue = emptyMap())
+
+    // Long-press popup and open folder (both pop up at their tile); they close when edit mode takes over.
+    val pressed = remember { mutableStateOf<HomePressedItem?>(null) }
+    val folderSheet = remember { mutableStateOf<HomeItem?>(null) }
+    LaunchedEffect(editMode) {
+        if (editMode) {
+            pressed.value = null
+            folderSheet.value = null
+        }
+    }
 
     // FoldStateObserver reports FLEX only for HALF_OPENED with a horizontal hinge (table-top).
     val flex = fold.kind == ScreenKind.FLEX && fold.hingeBounds != null
@@ -112,6 +151,13 @@ fun HomeScreen(
         hingeGutter = gutter,
         callbacks = callbacks,
         perPageStyle = perPageStyle,
+        hooks = hooks,
+        badges = badges,
+        editMode = editMode,
+        pressed = pressed,
+        folderSheet = folderSheet,
+        pageModifier = pageModifier,
+        swipeUpOpensDrawer = swipeUpOpensDrawer,
     )
 
     Box(
@@ -145,6 +191,7 @@ fun HomeScreen(
                 homeRequest = homeRequest,
                 onCurrentPageChanged = onCurrentPageChanged,
                 pageSelectRequest = pageSelectRequest,
+                hubSelectRequest = hubSelectRequest,
             )
         }
     }
@@ -168,6 +215,7 @@ private fun HomePagedLayout(
     homeRequest: Int,
     onCurrentPageChanged: ((HomePage?) -> Unit)?,
     pageSelectRequest: PageSelectRequest?,
+    hubSelectRequest: Int = 0,
 ) {
     val hubOn = ctx.settings.hubOn
     val hubLeft = ctx.settings.hubPos == LauncherSettings.HUB_POS_LEFT
@@ -184,9 +232,21 @@ private fun HomePagedLayout(
     LaunchedEffect(hubOn, hubLeft, total) {
         if (pagerState.currentPage >= total) pagerState.scrollToPage(firstHome)
     }
-    // Home key / back press: return to the default home page.
+    // Home key / back press: return to the default home page. The view model's counters are never
+    // reset, so each one is honoured once: the value seen when this layout enters composition (a
+    // Flex <-> paged toggle, activity recreation) counts as handled and only later increments scroll.
+    var handledHome by rememberSaveable { mutableIntStateOf(homeRequest) }
     LaunchedEffect(homeRequest) {
-        if (homeRequest > 0 && pagerState.currentPage != firstHome) pagerState.animateScrollToPage(firstHome)
+        if (homeRequest == handledHome || homeRequest <= 0) return@LaunchedEffect
+        handledHome = homeRequest
+        if (pagerState.currentPage != firstHome) pagerState.animateScrollToPage(firstHome)
+    }
+    // Gesture action "Open the Hub": scroll to the hub page (a no-op while the hub is off).
+    var handledHub by rememberSaveable { mutableIntStateOf(hubSelectRequest) }
+    LaunchedEffect(hubSelectRequest) {
+        if (hubSelectRequest == handledHub || hubSelectRequest <= 0 || hubIndex < 0) return@LaunchedEffect
+        handledHub = hubSelectRequest
+        if (pagerState.currentPage != hubIndex) pagerState.animateScrollToPage(hubIndex)
     }
     // Report the settled page (null for the hub) whenever it, or the page list, changes.
     val reportPage = rememberUpdatedState(onCurrentPageChanged)
@@ -256,9 +316,11 @@ private fun HomePageColumn(
     Column(
         Modifier
             .fillMaxSize()
+            // The gestures/ detector (HomeScreen.pageModifier) wraps the page.
+            .then(ctx.pageModifier)
             // Outside the item grid the cell is unknown (-1 / -1); the grid reports exact cells.
             .homeLongPress { ctx.emptyLongPress(pageId, -1, -1) }
-            .homeSwipeUp(ctx.onOpenDrawer)
+            .homeSwipeUp(ctx.swipeUpOpensDrawer, ctx.onOpenDrawer)
             .padding(horizontal = HomeSidePadding, vertical = 10.dp),
     ) {
         if (searchBar != null) {

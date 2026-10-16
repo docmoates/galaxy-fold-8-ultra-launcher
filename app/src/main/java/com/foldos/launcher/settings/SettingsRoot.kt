@@ -60,7 +60,10 @@ fun SettingsRoot(
     LaunchedEffect(navController, startRoute) {
         if (!startRouteHandled) {
             startRouteHandled = true
-            if (startRoute != null && startRoute != SettingsRoutes.ROOT && SettingsPages.byRoute(startRoute) != null) {
+            val known = SettingsPages.byRoute(startRoute ?: "") != null ||
+                startRoute == SearchRows.ROUTE ||
+                startRoute == MailSettingsRows.ROUTE
+            if (startRoute != null && startRoute != SettingsRoutes.ROOT && known) {
                 navController.navigate(startRoute) { launchSingleTop = true }
             }
         }
@@ -82,13 +85,15 @@ fun SettingsRoot(
             composable(SettingsRoutes.SCREENS) { ScreensPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.HOME) { HomeSettingsPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.DOCK) { DockPage(settings = current, update = update, onBack = onBack) }
-            composable(SettingsRoutes.HUB) { HubPage(settings = current, update = update, onBack = onBack) }
+            composable(SettingsRoutes.HUB) { HubSettingsPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.LOOK) { LookPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.WIDGETS) { WidgetsPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.GESTURES) { GesturesPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.PROFILES) { ProfilesPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.AI) { AiPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.FEATURES) { FeaturesPage(settings = current, update = update, onBack = onBack) }
+            composable(SearchRows.ROUTE) { SearchSettingsPage(settings = current, update = update, onBack = onBack) }
+            composable(MailSettingsRows.ROUTE) { MailSettingsPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.ABOUT) { AboutPage(onBack = onBack) }
         }
     }

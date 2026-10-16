@@ -18,10 +18,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -36,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -98,32 +101,48 @@ fun rememberHomeAppIconPainter(app: AppInfo, sizePx: Int): Painter? {
     return painter
 }
 
-/** One app icon clipped to the theme's icon shape. Shows a surface-colored placeholder while loading. */
+/**
+ * One app icon clipped to the theme's icon shape. Shows a surface-colored placeholder while loading.
+ * With [badge] > 0 a notification badge in [badgeStyle] (`LauncherSettings.BADGE_*`) is drawn over
+ * the top-right corner, outside the clipped icon.
+ */
 @Composable
-fun HomeAppIcon(app: AppInfo, size: Dp, modifier: Modifier = Modifier) {
+fun HomeAppIcon(
+    app: AppInfo,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    badge: Int = 0,
+    badgeStyle: String = LauncherSettings.BADGE_COUNT,
+) {
     val tokens = LocalFoldOsTokens.current
     val sizePx = with(LocalDensity.current) { size.roundToPx() }
     val percent = (tokens.iconCornerFraction * 100f).toInt().coerceIn(0, 50)
     val shape = RoundedCornerShape(percent = percent)
     val painter = rememberHomeAppIconPainter(app, sizePx)
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(shape)
-            .background(if (painter == null) tokens.surface else Color.Transparent),
-    ) {
-        if (painter != null) {
-            Image(
-                painter = painter,
-                contentDescription = app.label,
-                modifier = Modifier.size(size),
-                contentScale = ContentScale.Fit,
-            )
+    HomeBadgedBox(count = badge, style = badgeStyle, modifier = modifier.size(size)) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(shape)
+                .background(if (painter == null) tokens.surface else Color.Transparent),
+        ) {
+            if (painter != null) {
+                Image(
+                    painter = painter,
+                    contentDescription = app.label,
+                    modifier = Modifier.size(size),
+                    contentScale = ContentScale.Fit,
+                )
+            }
         }
     }
 }
 
-/** Icon plus optional label, centered in its cell. Tap launches; long-press is left to the caller. */
+/**
+ * Icon plus optional label, centered in its cell. Tap launches; a long press calls [onLongPressAt]
+ * with the tile's window bounds when given, else [onLongClick]. [badge] / [badgeStyle] draw the
+ * notification badge, see [HomeAppIcon].
+ */
 @Composable
 fun HomeAppTile(
     app: AppInfo,
@@ -133,15 +152,21 @@ fun HomeAppTile(
     modifier: Modifier = Modifier,
     labelColor: Color = LocalFoldOsTokens.current.onSurface,
     onLongClick: (() -> Unit)? = null,
+    badge: Int = 0,
+    badgeStyle: String = LauncherSettings.BADGE_COUNT,
+    onLongPressAt: ((anchor: Rect) -> Unit)? = null,
 ) {
+    val holder = remember { HomeAnchorHolder() }
+    val longPress: (() -> Unit)? = onLongPressAt?.let { report -> { report(holder.bounds() ?: Rect.Zero) } } ?: onLongClick
     Column(
         modifier = modifier
             .fillMaxSize()
-            .homeTapGestures(onTap = onClick, onLongPress = onLongClick)
+            .homeAnchor(holder)
+            .homeTapGestures(onTap = onClick, onLongPress = longPress)
             .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        HomeAppIcon(app = app, size = iconSize)
+        HomeAppIcon(app = app, size = iconSize, badge = badge, badgeStyle = badgeStyle)
         if (showLabel) {
             Spacer(Modifier.height(6.dp))
             Text(

@@ -19,6 +19,9 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        // AppAuth's RedirectUriReceiverActivity (declared in the library manifest) catches the OAuth
+        // redirect "com.foldos.launcher:/oauth2redirect" used by mail.MailAuthActivity.
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.foldos.launcher"
     }
 
     buildTypes {
@@ -76,4 +79,8 @@ dependencies {
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+
+    // Hub > Mail: Gmail API sign-in (AppAuth) and encrypted token storage.
+    implementation(libs.openid.appauth)
+    implementation(libs.androidx.security.crypto)
 }

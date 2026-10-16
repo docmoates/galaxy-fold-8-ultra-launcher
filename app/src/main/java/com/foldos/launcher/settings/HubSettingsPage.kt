@@ -38,7 +38,7 @@ object HubRows {
 }
 
 @Composable
-fun HubPage(
+fun HubSettingsPage(
     settings: LauncherSettings,
     update: SettingsUpdater,
     onBack: () -> Unit,

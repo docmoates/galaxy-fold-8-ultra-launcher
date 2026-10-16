@@ -132,10 +132,19 @@ internal fun AppIcon(
     val sizePx = with(LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
     // HomeIconCache.generation is bumped after an icon pack / shape / override change, so the
     // always-visible dock re-rasterises together with the home grid.
-    val bitmap by produceState<ImageBitmap?>(null, app.key, sizePx, HomeIconCache.generation) {
-        value = withContext(Dispatchers.Default) {
+    // It shares the home grid's icon cache (same key format) so the pack / shape work is done once.
+    val cacheKey = "${app.key}@$sizePx#${HomeIconCache.generation}"
+    val bitmap by produceState<ImageBitmap?>(HomeIconCache.get(cacheKey), cacheKey) {
+        val hit = HomeIconCache.get(cacheKey)
+        if (hit != null) {
+            value = hit
+            return@produceState
+        }
+        val rendered = withContext(Dispatchers.Default) {
             runCatching { app.iconLoader().toBitmap(sizePx, sizePx).asImageBitmap() }.getOrNull()
         }
+        if (rendered != null) HomeIconCache.put(cacheKey, rendered)
+        value = rendered
     }
     val shape = RoundedCornerShape(size * cornerFraction.coerceIn(0f, 0.5f))
     Box(modifier = modifier.size(size).clip(shape), contentAlignment = Alignment.Center) {

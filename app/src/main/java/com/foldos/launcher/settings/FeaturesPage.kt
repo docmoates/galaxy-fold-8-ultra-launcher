@@ -4,6 +4,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ToggleOn
 import androidx.compose.runtime.Composable
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.notifications.NotificationBadgeSettingsRows
+import com.foldos.launcher.notifications.NotificationSettingsRowInfos
+import com.foldos.launcher.notifications.QuietDrawerSettingsRows
 
 /** One feature switch: settings key plus the mock-up's label and subtitle. */
 data class FeatureRowInfo(val key: String, val info: SettingsRowInfo)
@@ -29,10 +32,16 @@ object FeaturesRows {
         title = "Features",
         subtitle = "Every launcher feature has an on/off switch",
         icon = Icons.Outlined.ToggleOn,
-        rows = features.map { it.info } + listOf(backup, locks),
+        // Notification rows (badge style, previews, quiet drawer) live on this page too.
+        rows = features.map { it.info } + NotificationSettingsRowInfos.all + listOf(backup, locks),
     )
 }
 
+/**
+ * Settings > Features: one switch per feature, then the notification section (badge style,
+ * long-press previews, quiet notification drawer and its apps, notification access) from
+ * `notifications/`, then the advanced placeholders.
+ */
 @Composable
 fun FeaturesPage(
     settings: LauncherSettings,
@@ -47,6 +56,9 @@ fun FeaturesPage(
                 onCheckedChange = { on -> update { it.withFeature(feature.key, on) } },
             )
         }
+        SectionHeader(text = "Notifications")
+        NotificationBadgeSettingsRows(settings = settings, update = update)
+        QuietDrawerSettingsRows()
         StaticRow(info = FeaturesRows.backup)
         StaticRow(info = FeaturesRows.locks)
     }

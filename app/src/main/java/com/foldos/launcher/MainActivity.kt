@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.builtins.LocalPermissionRequester
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.LocalAppGraph
+import com.foldos.launcher.hub.FoldOsHubRepository
 import com.foldos.launcher.theme.FoldOsTheme
 import com.foldos.launcher.widgets.WidgetHostController
 
@@ -29,6 +30,9 @@ import com.foldos.launcher.widgets.WidgetHostController
  * for), forwards the deprecated `onActivityResult` to the widget host controller (app-widget
  * configure activities can only report back this way) and starts / stops the `AppWidgetHost`
  * with the activity, like Launcher3.
+ *
+ * Phase 4+5: the Hub tabs and universal search reuse the same permission requester (calendar,
+ * call log, contacts); the home key double press is detected in [onNewIntent].
  */
 class MainActivity : ComponentActivity() {
 
@@ -44,13 +48,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             // Built-in widgets (calendar, photos, Bluetooth battery) ask for one permission at a
-            // time through this; the widget re-checks the grant when the activity resumes.
-            val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            // time through this; the widget re-checks the grant when the activity resumes, and the
+            // Hub's provider flows re-check on this bump (they never poll).
+            val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                (graph.hub as? FoldOsHubRepository)?.notifyPermissionsChanged()
+            }
             val requestPermission: (String) -> Unit = remember(permissionLauncher) {
-                { permission: String ->
+                val request: (String) -> Unit = { permission ->
                     runCatching { permissionLauncher.launch(permission) }
                         .onFailure { Log.w(TAG, "Could not request $permission", it) }
+                    Unit
                 }
+                request
             }
             CompositionLocalProvider(
                 LocalAppGraph provides graph,
@@ -94,11 +103,14 @@ class MainActivity : ComponentActivity() {
         WidgetHostController.from(this, FoldOsApplication.from(this).graph).onActivityResult(requestCode, resultCode, data)
     }
 
-    /** The home key while already on the launcher: close the drawer and return to the default page. */
+    /**
+     * The home key while already on the launcher: close the drawer / search / edit mode and return
+     * to the default page; a second press within 400 ms performs the HOME_DOUBLE gesture binding.
+     */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        viewModel.goHome()
+        viewModel.onHomeKeyPressed(this)
     }
 
     /** Asks once to become the default home when another launcher currently holds the role. */

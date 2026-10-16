@@ -58,7 +58,45 @@ data class LauncherSettings(
     val wizardDone: Boolean = false,
     /** Id of the last applied preset (Settings > Quick setup > Preset gallery); null = none. */
     val preset: String? = null,
+    /**
+     * Apps hidden from the drawer, search and `AppsRepository.apps`: package names (an
+     * `AppInfo.key` "package/activity" is accepted too, to hide a single activity).
+     */
+    val hiddenApps: Set<String> = emptySet(),
+    /** Gesture bindings keyed by [GestureKind.name]; a missing key means [GestureAction.NONE]. */
+    val gestures: Map<String, GestureAction> = DEFAULT_GESTURES,
+    /** Web search engine id: one of [SEARCH_ENGINES]. */
+    val searchEngine: String = SEARCH_ENGINE_GOOGLE,
+    /** Enabled universal-search providers: subset of [ALL_SEARCH_PROVIDERS]. */
+    val searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(),
+    /** Notification badge style: [BADGE_COUNT], [BADGE_DOT] or [BADGE_OFF]. */
+    val badgeStyle: String = BADGE_COUNT,
+    /** Id of the active [Profile]; null = no profile applied. */
+    val activeProfile: String? = null,
+    /** OAuth client id the Mail tab signs in with; null = mail not configured. */
+    val mailClientId: String? = null,
+    /** AI engine: [AI_MODE_TEMPLATE] (rule-based replies), [AI_MODE_ONDEVICE] (Gemini Nano) or [AI_MODE_OFF]. */
+    val aiMode: String = AI_MODE_TEMPLATE,
+    /** Default folder style: [FOLDER_GRID], [FOLDER_LIST] or [FOLDER_BIG]; a `HomeItem.folderStyle` overrides it. */
+    val folderStyle: String = FOLDER_GRID,
+    /** Show notification previews on long-press of a badged app. */
+    val notificationPreview: Boolean = true,
 ) {
+    /** The action bound to [kind]; [GestureAction.NONE] when unbound. */
+    fun gesture(kind: GestureKind): GestureAction = gestures[kind.name] ?: GestureAction.NONE
+
+    fun withGesture(kind: GestureKind, action: GestureAction): LauncherSettings =
+        copy(gestures = gestures + (kind.name to action))
+
+    /** True when the package, or the "package/activity" key when [activityName] is given, is in [hiddenApps]. */
+    fun isHidden(packageName: String, activityName: String? = null): Boolean =
+        packageName in hiddenApps || (activityName != null && "$packageName/$activityName" in hiddenApps)
+
+    fun searchProvider(key: String): Boolean = key in searchProviders
+
+    fun withSearchProvider(key: String, enabled: Boolean): LauncherSettings =
+        copy(searchProviders = if (enabled) searchProviders + key else searchProviders - key)
+
     /** True unless the feature was explicitly switched off. */
     fun feature(key: String): Boolean = features[key] ?: true
 
@@ -110,5 +148,79 @@ data class LauncherSettings(
             FEATURE_SEARCH, FEATURE_DOCK, FEATURE_BADGES, FEATURE_GESTURES, FEATURE_PAIRS,
             FEATURE_AI, FEATURE_STACKS, FEATURE_SMART, FEATURE_DRAWER_TABS, FEATURE_PROFILES,
         )
+
+        /** Default gesture bindings (Settings > Gestures). Gestures not listed are unbound. */
+        val DEFAULT_GESTURES: Map<String, GestureAction> = mapOf(
+            GestureKind.SWIPE_UP.name to GestureAction(GestureAction.TYPE_DRAWER),
+            GestureKind.SWIPE_DOWN.name to GestureAction(GestureAction.TYPE_NOTIFICATIONS),
+            GestureKind.DOUBLE_TAP.name to GestureAction(GestureAction.TYPE_NONE),
+            GestureKind.PINCH_IN.name to GestureAction(GestureAction.TYPE_EDIT),
+            GestureKind.SWIPE_UP_2F.name to GestureAction(GestureAction.TYPE_SEARCH),
+            GestureKind.UNFOLD.name to GestureAction(GestureAction.TYPE_NONE),
+        )
+
+        const val SEARCH_ENGINE_GOOGLE: String = "google"
+        const val SEARCH_ENGINE_BING: String = "bing"
+        const val SEARCH_ENGINE_DUCKDUCKGO: String = "duckduckgo"
+        const val SEARCH_ENGINE_KAGI: String = "kagi"
+        const val SEARCH_ENGINE_BRAVE: String = "brave"
+        const val SEARCH_ENGINE_ECOSIA: String = "ecosia"
+
+        val SEARCH_ENGINES: List<String> = listOf(
+            SEARCH_ENGINE_GOOGLE, SEARCH_ENGINE_BING, SEARCH_ENGINE_DUCKDUCKGO,
+            SEARCH_ENGINE_KAGI, SEARCH_ENGINE_BRAVE, SEARCH_ENGINE_ECOSIA,
+        )
+
+        const val SEARCH_APPS: String = "apps"
+        const val SEARCH_CONTACTS: String = "contacts"
+        const val SEARCH_SETTINGS: String = "settings"
+        const val SEARCH_FILES: String = "files"
+        const val SEARCH_CALENDAR: String = "calendar"
+        const val SEARCH_WEB: String = "web"
+        const val SEARCH_CALCULATOR: String = "calculator"
+        const val SEARCH_UNITS: String = "units"
+
+        /** Every universal-search provider, in result-section order. */
+        val ALL_SEARCH_PROVIDERS: List<String> = listOf(
+            SEARCH_APPS, SEARCH_CONTACTS, SEARCH_SETTINGS, SEARCH_FILES,
+            SEARCH_CALENDAR, SEARCH_WEB, SEARCH_CALCULATOR, SEARCH_UNITS,
+        )
+
+        const val BADGE_COUNT: String = "count"
+        const val BADGE_DOT: String = "dot"
+        const val BADGE_OFF: String = "off"
+
+        const val AI_MODE_TEMPLATE: String = "template"
+        const val AI_MODE_ONDEVICE: String = "ondevice"
+        const val AI_MODE_OFF: String = "off"
+
+        const val FOLDER_GRID: String = "grid"
+        const val FOLDER_LIST: String = "list"
+        const val FOLDER_BIG: String = "big"
+
+        val FOLDER_STYLES: List<String> = listOf(FOLDER_GRID, FOLDER_LIST, FOLDER_BIG)
     }
+}
+
+/**
+ * A saved launcher state (Settings > Profiles): Work, Home, Travel, Night, Kids... [settingsJson]
+ * is a [LauncherSettings] encoded the way `SettingsRepositoryImpl` stores it (`encodeDefaults`,
+ * `ignoreUnknownKeys`); [hiddenApps] is applied alongside it. The optional schedule switches the
+ * profile on automatically between [startMinute] and [endMinute] (minutes after midnight, local
+ * time) on [days] (`java.util.Calendar.SUNDAY`..`SATURDAY`, i.e. 1..7; empty = every day), or
+ * whenever Do Not Disturb is on when [onDnd] is true.
+ */
+@Serializable
+data class Profile(
+    val id: String,
+    val name: String,
+    val settingsJson: String,
+    val hiddenApps: Set<String>,
+    val startMinute: Int? = null,
+    val endMinute: Int? = null,
+    val days: Set<Int> = emptySet(),
+    val onDnd: Boolean = false,
+) {
+    /** True when the profile has a time window to switch on automatically. */
+    val scheduled: Boolean get() = startMinute != null && endMinute != null
 }

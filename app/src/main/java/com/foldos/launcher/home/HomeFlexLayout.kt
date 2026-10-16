@@ -44,8 +44,9 @@ internal fun HomeFlexLayout(
             Modifier
                 .fillMaxWidth()
                 .height(topHeight)
+                .then(ctx.pageModifier)
                 .homeLongPress { ctx.emptyLongPress(firstPage?.id ?: 0L, -1, -1) }
-                .homeSwipeUp(ctx.onOpenDrawer)
+                .homeSwipeUp(ctx.swipeUpOpensDrawer, ctx.onOpenDrawer)
                 .padding(horizontal = HomeSidePadding, vertical = 10.dp),
         ) {
             if (searchBar != null) {

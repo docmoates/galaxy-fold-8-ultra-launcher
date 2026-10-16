@@ -1,7 +1,5 @@
 package com.foldos.launcher.home
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,29 +9,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomePage
 import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.ItemKind
-import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlin.math.max
 
 /**
@@ -136,7 +124,7 @@ internal fun HomeItemsGrid(
     ) { index ->
         val slot = slots[index]
         if (slot.isStack && ctx.stacksOn) {
-            HomeStackSlot(slot.items, Modifier.fillMaxSize()) { item ->
+            HomeStackSlot(slot.items, Modifier.fillMaxSize(), smartRules = ctx.smartOn) { item ->
                 HomeItemTile(ctx, item, cellPadding, highlight = heroHighlight && item.id == heroId)
             }
         } else {
@@ -158,11 +146,12 @@ internal fun HomeGridPage(
     val cols = ctx.cols
     val pageId = page?.id ?: 0L
     val free = ctx.freeMode
-    // Only the first page (or the placeholder shown before any page exists) is auto-filled while
-    // the repository has nothing for it; other pages render empty when they are empty.
-    val firstPage = page == null || page.index == 0
-    val gridItems = remember(items, cols, pageId, firstPage, free, ctx.sortedApps) {
-        val source = if (items.isEmpty() && firstPage) ctx.autoGridItems(pageId, cols, maxRows = 8) else items
+    // Only the placeholder shown before any page exists is auto-filled; once a persisted page
+    // exists it renders its real items, even when the user has emptied it in edit mode (the
+    // synthetic items could not be selected, moved or deleted there).
+    val placeholder = page == null
+    val gridItems = remember(items, cols, pageId, placeholder, free, ctx.sortedApps) {
+        val source = if (items.isEmpty() && placeholder) ctx.autoGridItems(pageId, cols, maxRows = 8) else items
         reflowGridItems(source, cols, skipFree = free)
     }
     val labelHeight = if (ctx.labels) 24.dp else 0.dp
@@ -242,8 +231,10 @@ internal fun reflowGridItems(items: List<HomeItem>, cols: Int, skipFree: Boolean
 }
 
 /**
- * One item filling its slot: app, folder, pair or widget. Widgets get [widgetPadding] around them
- * (the grid gap of the mock-up) and a long-press hook; apps keep the Phase 1 tile.
+ * One item filling its slot: app (with its notification badge), folder ([HomeFolderTile]), pair
+ * ([HomePairTile]) or widget. Widgets get [widgetPadding] around them (the grid gap of the mock-up)
+ * and a long-press hook. An APP item whose app is in `hiddenApps` leaves its cell empty; one whose
+ * app is uninstalled shows [HomeMissingTile].
  */
 @Composable
 internal fun HomeItemTile(
@@ -255,120 +246,40 @@ internal fun HomeItemTile(
     when (item.kind) {
         ItemKind.APP -> {
             val app = ctx.appFor(item)
-            if (app != null) {
-                HomeAppTile(
-                    app = app,
-                    iconSize = ctx.iconSize,
-                    showLabel = ctx.labels,
-                    onClick = { ctx.onLaunch(app) },
-                    onLongClick = { ctx.longPress(item) },
-                )
-            } else {
-                HomeMissingTile(ctx.iconSize)
+            when {
+                app != null -> Box(Modifier.fillMaxSize()) {
+                    HomeAppTile(
+                        app = app,
+                        iconSize = ctx.iconSize,
+                        showLabel = ctx.labels,
+                        onClick = { ctx.onLaunch(app) },
+                        badge = ctx.badgeFor(app.packageName),
+                        badgeStyle = ctx.badgeStyle,
+                        onLongPressAt = { anchor -> ctx.longPress(item, anchor) },
+                    )
+                    HomeItemPressOverlay(ctx, item)
+                }
+                ctx.isHiddenItem(item) -> Spacer(Modifier.fillMaxSize())
+                else -> HomeMissingTile(ctx.iconSize)
             }
         }
         ItemKind.FOLDER -> HomeFolderTile(ctx, item)
-        ItemKind.WIDGET -> Box(
-            Modifier
-                .fillMaxSize()
-                .padding(widgetPadding)
-                .pointerInput(item.id) {
-                    detectTapGestures(onLongPress = { ctx.longPress(item) })
-                },
-        ) {
-            HomeWidgetItem(item, Modifier.fillMaxSize(), highlight = highlight)
-        }
-        ItemKind.PAIR -> HomePairTile(ctx, item)
-    }
-}
-
-/** Folder: a surface tile with four mini squares (mock-up `.fic`). */
-@Composable
-private fun HomeFolderTile(ctx: HomeContext, item: HomeItem) {
-    val tokens = LocalFoldOsTokens.current
-    val shape = RoundedCornerShape(percent = (tokens.iconCornerFraction * 100f).toInt().coerceIn(0, 50))
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            // Opening a folder arrives with the folder UI; a plain tap does nothing for now.
-            .homeTapGestures(onTap = {}, onLongPress = { ctx.longPress(item) })
-            .padding(horizontal = 2.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(ctx.iconSize)
-                .clip(shape)
-                .background(tokens.surface, shape)
-                .border(1.dp, tokens.surfaceBorder, shape)
-                .padding(ctx.iconSize / 6),
-        ) {
-            val dot = ctx.iconSize / 4
-            Column(verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.size(dot).background(tokens.accent, RoundedCornerShape(30)))
-                    Box(Modifier.size(dot).background(tokens.accent.copy(alpha = 0.7f), RoundedCornerShape(30)))
-                }
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.size(dot).background(tokens.accent.copy(alpha = 0.5f), RoundedCornerShape(30)))
-                    Box(Modifier.size(dot).background(tokens.accent.copy(alpha = 0.35f), RoundedCornerShape(30)))
-                }
-            }
-        }
-        if (ctx.labels) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = item.title ?: "Folder",
-                color = tokens.onSurface,
-                fontSize = 12.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = homeTextShadow()),
-            )
-        }
-    }
-}
-
-/** App pair: the primary app's icon with a second half tinted in the accent (mock-up `.ic.pair`). */
-@Composable
-private fun HomePairTile(ctx: HomeContext, item: HomeItem) {
-    val tokens = LocalFoldOsTokens.current
-    val app = ctx.appFor(item)
-    val shape = RoundedCornerShape(percent = (tokens.iconCornerFraction * 100f).toInt().coerceIn(0, 50))
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .homeTapGestures(onTap = { if (app != null) ctx.onLaunch(app) }, onLongPress = { ctx.longPress(item) })
-            .padding(horizontal = 2.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Row(Modifier.size(ctx.iconSize), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            Box(Modifier.weight(1f).fillMaxHeight().clip(shape)) {
-                if (app != null) {
-                    HomeAppIcon(app = app, size = ctx.iconSize, modifier = Modifier.fillMaxHeight())
-                } else {
-                    Box(Modifier.fillMaxSize().background(tokens.surface))
-                }
-            }
+        ItemKind.WIDGET -> {
+            val holder = remember { HomeAnchorHolder() }
             Box(
                 Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(shape)
-                    .background(tokens.highlight),
-            )
+                    .fillMaxSize()
+                    .padding(widgetPadding)
+                    .homeAnchor(holder)
+                    .pointerInput(item.id) {
+                        detectTapGestures(onLongPress = { ctx.longPress(item, holder.bounds()) })
+                    },
+            ) {
+                HomeWidgetItem(item, Modifier.fillMaxSize(), highlight = highlight)
+                HomeItemPressOverlay(ctx, item)
+            }
         }
-        if (ctx.labels) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = item.title ?: "Pair",
-                color = tokens.onSurface,
-                fontSize = 12.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = homeTextShadow()),
-            )
-        }
+        ItemKind.PAIR -> HomePairTile(ctx, item)
     }
 }
 
@@ -480,12 +391,17 @@ internal fun HomeFavoriteGrid(
         geometryScreen = if (publishGeometry) ctx.screen else null,
     ) { index ->
         val app = shown[index]
-        HomeAppTile(
-            app = app,
-            iconSize = ctx.iconSize,
-            showLabel = ctx.labels,
-            onClick = { ctx.onLaunch(app) },
-            onLongClick = { ctx.longPressApp(app, items) },
-        )
+        Box(Modifier.fillMaxSize()) {
+            HomeAppTile(
+                app = app,
+                iconSize = ctx.iconSize,
+                showLabel = ctx.labels,
+                onClick = { ctx.onLaunch(app) },
+                badge = ctx.badgeFor(app.packageName),
+                badgeStyle = ctx.badgeStyle,
+                onLongPressAt = { anchor -> ctx.longPressApp(app, items, anchor) },
+            )
+            HomeItemPressOverlay(ctx, ctx.itemFor(app, items))
+        }
     }
 }

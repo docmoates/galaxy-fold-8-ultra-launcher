@@ -13,11 +13,16 @@ import android.util.Log
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.repo.AppsRepository
 import com.foldos.launcher.core.repo.IconResolver
+import com.foldos.launcher.core.repo.SettingsRepository
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -28,6 +33,8 @@ import kotlinx.coroutines.sync.withLock
  * collection and refreshed whenever LauncherApps reports a package change; the callback is
  * registered exactly once for the lifetime of the process.
  *
+ * @param settings when given, [apps] leaves out `LauncherSettings.hiddenApps` (package names or
+ *   `AppInfo.key`s) and re-emits when that set changes; [allApps] always has every activity.
  * @param iconResolver supplies the graph's [IconResolver] (icon packs, overrides, shape) lazily,
  *   so every `AppInfo.iconLoader` returns the themed icon; null (the default) keeps the raw system
  *   icon. The resolver receives an [AppInfo] whose own `iconLoader` is the raw icon, so a resolver
@@ -35,6 +42,7 @@ import kotlinx.coroutines.sync.withLock
  */
 class AppsRepositoryImpl(
     context: Context,
+    private val settings: SettingsRepository? = null,
     private val iconResolver: () -> IconResolver? = { null },
 ) : AppsRepository {
 
@@ -43,7 +51,9 @@ class AppsRepositoryImpl(
     private val user: UserHandle = Process.myUserHandle()
     private val densityDpi: Int = appContext.resources.displayMetrics.densityDpi
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, t -> Log.w(TAG, "background task failed", t) },
+    )
     private val refreshLock = Mutex()
     private val state = MutableStateFlow<List<AppInfo>>(emptyList())
 
@@ -73,7 +83,16 @@ class AppsRepositoryImpl(
         }
     }
 
-    override val apps: Flow<List<AppInfo>> = state.onStart { ensureStarted() }
+    override val allApps: Flow<List<AppInfo>> = state.onStart { ensureStarted() }
+
+    override val apps: Flow<List<AppInfo>> = run {
+        val repo = settings ?: return@run allApps
+        val hidden: Flow<Set<String>> = repo.settings.map { it.hiddenApps }.distinctUntilChanged()
+        combine(allApps, hidden) { list, hiddenSet ->
+            if (hiddenSet.isEmpty()) list
+            else list.filter { it.packageName !in hiddenSet && it.key !in hiddenSet }
+        }
+    }
 
     override fun launch(app: AppInfo) {
         val component = ComponentName(app.packageName, app.activityName)

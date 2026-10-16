@@ -6,11 +6,22 @@
         <include domain="database" path="." />
         <include domain="file" path="datastore/" />
         <exclude domain="file" path="cache/" />
+        <!-- Gmail tokens are encrypted with a Keystore key that never leaves the device. The two
+             keyset files EncryptedSharedPreferences keeps beside them are wrapped with that same
+             key; restored without it they make EncryptedSharedPreferences.create() fail forever. -->
+        <exclude domain="sharedpref" path="foldos_mail_auth.xml" />
+        <exclude domain="sharedpref" path="foldos_mail_auth_plain.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="." />
         <include domain="database" path="." />
         <include domain="file" path="datastore/" />
         <exclude domain="file" path="cache/" />
+        <exclude domain="sharedpref" path="foldos_mail_auth.xml" />
+        <exclude domain="sharedpref" path="foldos_mail_auth_plain.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
     </device-transfer>
 </data-extraction-rules>

@@ -1,6 +1,8 @@
 package com.foldos.launcher
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
@@ -8,6 +10,8 @@ import androidx.lifecycle.viewModelScope
 import com.foldos.launcher.core.AppGraph
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.core.model.GestureAction
+import com.foldos.launcher.core.model.GestureKind
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomePage
 import com.foldos.launcher.core.model.HomeStyle
@@ -15,13 +19,19 @@ import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.model.WidgetEntry
+import com.foldos.launcher.gestures.GestureActions
+import com.foldos.launcher.gestures.GestureHost
+import com.foldos.launcher.gestures.HomeKeyDoubleTapDetector
 import com.foldos.launcher.home.GridGeometry
 import com.foldos.launcher.home.HomeIconCache
 import com.foldos.launcher.home.PageSelectRequest
 import com.foldos.launcher.home.defaultDashboardItems
 import com.foldos.launcher.icons.FoldOsIconResolver
+import com.foldos.launcher.items.Folders
+import com.foldos.launcher.settings.SettingsActivity
 import com.foldos.launcher.widgets.WidgetHostController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +52,10 @@ import kotlinx.coroutines.withContext
  * Phase 2+3 adds the live-edit state (edit mode, widget picker, current page) and the layout
  * mutations the edit overlay and picker report; every write runs on `graph.appScope` so it
  * finishes even when the UI that started it leaves the composition.
+ *
+ * Phase 4+5 adds universal search and hub requests, the [GestureHost] the `gestures/` package
+ * dispatches bound actions through (including the home key double press), and folder creation
+ * when an app is dropped onto another app (or into a folder) in edit mode.
  */
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -51,10 +65,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val settings: StateFlow<LauncherSettings> = graph.settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, LauncherSettings())
 
-    /** False until the first real settings value arrived, so the wizard is never shown by mistake. */
-    val settingsLoaded: StateFlow<Boolean> = graph.settings.settings
-        .map { true }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /**
+     * Null until the first real settings value arrived, so the wizard is never shown by mistake.
+     * "Loaded" and the value come from this one flow so they can never be observed out of step.
+     */
+    val loadedSettings: StateFlow<LauncherSettings?> = graph.settings.settings
+        .map<LauncherSettings, LauncherSettings?> { it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** All launchable apps, independent of the fold posture. */
     val apps: StateFlow<List<AppInfo>> = graph.apps.apps
@@ -71,9 +88,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         graph.layouts.pages(screen).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     }
 
-    /** Applies a settings transform on the app scope (wizard, quick sheets). */
+    /** Settings transforms are applied one at a time, in the order they were requested. */
+    private val settingsWrites = Channel<(LauncherSettings) -> LauncherSettings>(Channel.UNLIMITED)
+
+    init {
+        graph.appScope.launch {
+            for (transform in settingsWrites) {
+                runCatching { graph.settings.update(transform) }
+                    .onFailure { Log.w(TAG, "updateSettings failed", it) }
+            }
+        }
+    }
+
+    /** Applies a settings transform on the app scope (wizard, quick sheets), in call order. */
     fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
-        graph.appScope.launch { graph.settings.update(transform) }
+        settingsWrites.trySend(transform)
+    }
+
+    override fun onCleared() {
+        // Buffered transforms are still drained and applied by the consumer on the app scope.
+        settingsWrites.close()
+        super.onCleared()
     }
 
     // ------------------------------------------------------------------------------------------
@@ -100,7 +135,100 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _drawerOpen.value = false
         _widgetPickerOpen.value = false
         _editMode.value = false
+        _searchOpen.value = false
         _homeRequests.value = _homeRequests.value + 1
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Universal search, hub page, gestures (Phase 4+5)
+    // ------------------------------------------------------------------------------------------
+
+    private val _searchOpen = MutableStateFlow(false)
+
+    /** True while `search.UniversalSearch` is shown (search bar tap, SWIPE_UP_2F by default). */
+    val searchOpen: StateFlow<Boolean> = _searchOpen.asStateFlow()
+
+    fun openSearch() {
+        if (!settings.value.feature(LauncherSettings.FEATURE_SEARCH)) {
+            // Search switched off: the drawer's own search field is the fallback.
+            openDrawer()
+            return
+        }
+        _drawerOpen.value = false
+        _widgetPickerOpen.value = false
+        _searchOpen.value = true
+    }
+
+    fun closeSearch() {
+        _searchOpen.value = false
+    }
+
+    private val _hubRequests = MutableStateFlow(0)
+
+    /** Increments every time a gesture asks for the hub page (`GestureAction.TYPE_HUB`). */
+    val hubRequests: StateFlow<Int> = _hubRequests.asStateFlow()
+
+    fun openHub() {
+        _drawerOpen.value = false
+        _widgetPickerOpen.value = false
+        _searchOpen.value = false
+        _editMode.value = false
+        _hubRequests.value = _hubRequests.value + 1
+    }
+
+    /** Home key pressed twice within 400 ms while the launcher is showing (`GestureKind.HOME_DOUBLE`). */
+    private val homeKeyDoubleTap = HomeKeyDoubleTapDetector()
+
+    /**
+     * Called from `MainActivity.onNewIntent` for every home key press while the launcher is already
+     * showing: returns to the default page, and on a double press performs the HOME_DOUBLE binding
+     * (when the Gestures feature is on and the binding is not "none").
+     */
+    fun onHomeKeyPressed(context: Context) {
+        goHome()
+        if (!homeKeyDoubleTap.onHomePressed()) return
+        val current = settings.value
+        if (!current.feature(LauncherSettings.FEATURE_GESTURES)) return
+        val action = current.gesture(GestureKind.HOME_DOUBLE)
+        if (action.type != GestureAction.TYPE_NONE) performGesture(context, action)
+    }
+
+    /**
+     * Performs a bound gesture action through [GestureActions.perform] with this view model as the
+     * [GestureHost]: drawer, search, hub and edit mode are state here; Settings opens its activity;
+     * TYPE_APP resolves the key against the visible app list (first activity of the package when the
+     * key has none) and falls back to the package's launch intent.
+     */
+    fun performGesture(context: Context, action: GestureAction) {
+        GestureActions.perform(context, action, gestureHost(context))
+    }
+
+    /** The [GestureHost] for [context] (an activity, so Settings and app launches start from it). */
+    fun gestureHost(context: Context): GestureHost = object : GestureHost {
+        override fun openDrawer() = this@LauncherViewModel.openDrawer()
+        override fun openSearch() = this@LauncherViewModel.openSearch()
+        override fun openHub() = this@LauncherViewModel.openHub()
+        override fun openSettings() {
+            runCatching { context.startActivity(SettingsActivity.intent(context, null)) }
+                .onFailure { Log.w(TAG, "Could not open Settings", it) }
+        }
+        override fun enterEditMode() = this@LauncherViewModel.enterEditMode()
+        override fun launch(packageName: String, activityName: String?) {
+            val list = apps.value
+            val app = (if (activityName != null) list.firstOrNull { it.packageName == packageName && it.activityName == activityName } else null)
+                ?: list.firstOrNull { it.packageName == packageName }
+            if (app != null) {
+                this@LauncherViewModel.launch(app)
+                return
+            }
+            val intent = runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }.getOrNull()
+            if (intent == null) {
+                Toast.makeText(context, "That app is no longer installed", Toast.LENGTH_SHORT).show()
+                return
+            }
+            runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { Log.w(TAG, "Could not launch $packageName", it) }
+        }
     }
 
     // ------------------------------------------------------------------------------------------
@@ -114,6 +242,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun enterEditMode() {
         _drawerOpen.value = false
+        _searchOpen.value = false
         _editMode.value = true
     }
 
@@ -193,11 +322,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /**
      * Moves [item] to [col]/[row] on [pageId]. When [stacksOn] and the drop lands on another widget
      * (or widget stack), the two are merged into one stack instead (`LayoutRepository.createStack`).
+     * An APP or PAIR dropped onto another APP / PAIR makes a **folder** in the target's cell
+     * (`items.Folders.createFromDrop`); dropped onto a FOLDER it goes inside (`Folders.addToFolder`).
      * Free-placed items are snapped to the cell and keep their dp size.
      */
     fun moveItem(item: HomeItem, pageId: Long, col: Int, row: Int, stacksOn: Boolean, geometry: GridGeometry) {
         graph.appScope.launch {
             runCatching {
+                if (Folders.canLiveInFolder(item)) {
+                    val target = graph.layouts.items(pageId).first()
+                    val hit = target.firstOrNull { other -> other.id != item.id && other.covers(col, row) }
+                    if (hit != null) {
+                        if (hit.isFolder) {
+                            val count = graph.layouts.children(hit.id).first().size
+                            Folders.addToFolder(graph.layouts, hit, item, count)
+                            return@runCatching
+                        }
+                        if (Folders.canLiveInFolder(hit) && Folders.createFromDrop(graph.layouts, hit, item) != null) {
+                            return@runCatching
+                        }
+                    }
+                }
                 if (stacksOn && item.kind == ItemKind.WIDGET) {
                     val target = graph.layouts.items(pageId).first()
                     val hit = target.firstOrNull { other ->
@@ -293,7 +438,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** Appends a page in [style] to [screen] and scrolls to it. */
     fun addPage(screen: ScreenKind, style: HomeStyle) {
         viewModelScope.launch {
-            val page = runCatching { graph.layouts.addPage(screen, style) }
+            val page = runCatching {
+                graph.layouts.addPage(screen, style).also { added ->
+                    // A new dashboard page starts with real, editable default widgets.
+                    if (style == HomeStyle.DASHBOARD) seedDashboardIfEmpty(added.id, screen)
+                }
+            }
                 .onFailure { Log.w(TAG, "addPage($screen) failed", it) }
                 .getOrNull() ?: return@launch
             selectPage(page.id)

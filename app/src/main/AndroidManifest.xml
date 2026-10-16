@@ -4,8 +4,8 @@
 
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
-        tools:ignore="ProtectedPermissions" />
+    <!-- Uninstall context action (ACTION_DELETE on a package: URI) needs this on targetSdk 28+. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Hosting app widgets. BIND_APPWIDGET is signature|privileged, so a sideloaded launcher is not
          granted it; the real grant comes from the ACTION_APPWIDGET_BIND dialog the host shows once
          per app (the system persists the user's choice per package). Declaring it matches Launcher3. -->
@@ -19,6 +19,21 @@
          READ_MEDIA_IMAGES stays denied; the Photos widget accepts either. -->
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Phase 4+5. Hub > Today / Contacts and universal search read contacts and the call log
+         (runtime, requested from the "Allow" cards). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <!-- Gestures: StatusBarManager.expandNotificationsPanel / expandSettingsPanel (normal). -->
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+    <!-- Profiles: re-arm the schedule alarm after a reboot (ProfileBootReceiver) and switch on the
+         minute when the user grants "Alarms & reminders" (ProfileScheduler). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Mail: Gmail API over HTTPS (GmailApiClient, AppAuth token exchange) and the Gmail app's
+         public label-count provider (normal permission, no sign-in). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.google.android.gm.permission.READ_CONTENT_PROVIDER" />
 
     <queries>
         <intent>
@@ -41,6 +56,20 @@
         </intent>
         <intent>
             <action android:name="com.teslacoilsw.launcher.THEME" />
+        </intent>
+        <!-- Phase 4+5: the Gmail app (label counts, open thread / compose intents), Google Lens
+             (visual search button) and AICore (on-device AI engine check). -->
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.google.ar.lens" />
+        <package android:name="com.google.android.aicore" />
+        <!-- Universal search opens web results and the AI tab starts speech recognition. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
     </queries>
 
@@ -92,8 +121,36 @@
             android:exported="false"
             android:theme="@style/Theme.FoldOS" />
 
+        <!-- Hub > Mail: Google sign-in through AppAuth. The OAuth redirect
+             "com.foldos.launcher:/oauth2redirect" is caught by AppAuth's RedirectUriReceiverActivity,
+             declared in the library manifest through the appAuthRedirectScheme placeholder. -->
+        <activity
+            android:name=".mail.MailAuthActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|uiMode|density"
+            android:theme="@style/Theme.FoldOS" />
+
+        <!-- Profiles: boundary alarm (only our own PendingIntent targets it) and the re-arm receiver
+             for boot, app update, clock / time-zone changes and the exact-alarm grant. -->
+        <receiver
+            android:name=".profiles.ProfileAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".profiles.ProfileBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Notification access unlocks MediaSessionManager.getActiveSessions for the Now Playing
-             widget (and notification badges later). Granted by the user under Settings > Notifications >
+             widget and feeds notification badges, long-press previews and the quiet drawer
+             (notifications.ActiveNotifications). Granted by the user under Settings > Notifications >
              Device & app notifications. -->
         <service
             android:name=".builtins.FoldOsNotificationListener"

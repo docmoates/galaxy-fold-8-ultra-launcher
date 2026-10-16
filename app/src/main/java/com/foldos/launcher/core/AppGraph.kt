@@ -3,10 +3,15 @@ package com.foldos.launcher.core
 import android.appwidget.AppWidgetHost
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.foldos.launcher.core.repo.AiCommandRouter
 import com.foldos.launcher.core.repo.AppsRepository
+import com.foldos.launcher.core.repo.BadgeRepository
 import com.foldos.launcher.core.repo.BuiltInWidgetRegistry
+import com.foldos.launcher.core.repo.HubRepository
 import com.foldos.launcher.core.repo.IconResolver
 import com.foldos.launcher.core.repo.LayoutRepository
+import com.foldos.launcher.core.repo.MailRepository
+import com.foldos.launcher.core.repo.ProfileRepository
 import com.foldos.launcher.core.repo.SettingsRepository
 import com.foldos.launcher.core.repo.WidgetCatalog
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +33,21 @@ interface AppGraph {
 
     /** Icon packs, per-app overrides and shape masking. */
     val icons: IconResolver
+
+    /** Notification badge counts and previews. */
+    val badges: BadgeRepository
+
+    /** Saved launcher profiles and their activation. */
+    val profiles: ProfileRepository
+
+    /** Calendar, calls, contacts and tasks for the Hub page. */
+    val hub: HubRepository
+
+    /** The Hub's Mail tab. */
+    val mail: MailRepository
+
+    /** The Hub's AI tab and natural-language settings commands. */
+    val ai: AiCommandRouter
 
     /**
      * The process-wide host for third-party app widgets, host id [APP_WIDGET_HOST_ID]. Created and

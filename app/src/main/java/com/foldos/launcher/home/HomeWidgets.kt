@@ -42,6 +42,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -173,17 +174,33 @@ fun HomeBuiltInWidget(
 /**
  * A widget stack: the items sharing a `stackId` in one slot, flipped by a horizontal swipe, with
  * the stack dots top-right (mock-up `.stk`). [content] draws one item filling the slot.
+ *
+ * @param smartRules when true (the Smart feature is on) and a member carries a time rule
+ *   (`rule:HH:MM-HH:MM` in its title or built-in id, see [homeTimeRuleOf]), the stack flips to the
+ *   member whose window contains the current time ([homeSmartStackIndex]) and re-evaluates every
+ *   minute; a manual swipe holds until the matching member changes.
  */
 @Composable
 fun HomeStackSlot(
     items: List<HomeItem>,
     modifier: Modifier = Modifier,
+    smartRules: Boolean = false,
     content: @Composable (HomeItem) -> Unit,
 ) {
     val ordered = remember(items) { items.sortedBy { it.stackIndex } }
     if (ordered.isEmpty()) return
     val tokens = LocalFoldOsTokens.current
     val pagerState = rememberPagerState { ordered.size }
+    val hasRules = remember(ordered) { hasHomeSmartRules(ordered) }
+    if (smartRules && hasRules) {
+        val now = rememberHomeClock()
+        val target = remember(ordered, now.hour, now.minute) { homeSmartStackIndex(ordered, now.toLocalTime()) }
+        LaunchedEffect(target) {
+            if (target != null && target in ordered.indices && target != pagerState.currentPage) {
+                pagerState.animateScrollToPage(target)
+            }
+        }
+    }
     Box(modifier) {
         HorizontalPager(
             state = pagerState,

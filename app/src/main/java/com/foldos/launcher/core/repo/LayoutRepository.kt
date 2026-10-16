@@ -12,8 +12,11 @@ interface LayoutRepository {
     /** Pages for one screen, ordered by [HomePage.index]. */
     fun pages(screen: ScreenKind): Flow<List<HomePage>>
 
-    /** Items on one page, ordered by row, column, then stack index. */
+    /** Items placed on one page (folder children excluded), ordered by row, column, then stack index. */
     fun items(pageId: Long): Flow<List<HomeItem>>
+
+    /** Items inside the folder [folderId] (`HomeItem.parentId == folderId`), ordered by row then column. */
+    fun children(folderId: Long): Flow<List<HomeItem>>
 
     /**
      * Creates the default pages and items for [screen] if it has none yet, using [apps] to
@@ -54,4 +57,23 @@ interface LayoutRepository {
      * stack id. Items already in a stack are moved into the new one.
      */
     suspend fun createStack(itemIds: List<Long>): Long
+
+    /**
+     * Creates a FOLDER item titled [title] at [col]/[row] on [pageId] and moves [itemIds] into it
+     * (they leave the grid and any stack; their order inside the folder is list order). Returns the
+     * folder's id.
+     */
+    suspend fun createFolder(pageId: Long, col: Int, row: Int, title: String, itemIds: List<Long>): Long
+
+    /**
+     * Creates a PAIR item (split-screen [a] + [b]) at [col]/[row] on [pageId] and returns its id.
+     * `packageName`/`activityName` hold [a], `packageName2`/`activityName2` hold [b].
+     */
+    suspend fun createPair(pageId: Long, col: Int, row: Int, a: AppInfo, b: AppInfo): Long
+
+    /**
+     * Takes [itemId] out of its folder and places it at [col]/[row] on [toPageId]. A folder left
+     * empty is deleted.
+     */
+    suspend fun removeFromFolder(itemId: Long, toPageId: Long, col: Int, row: Int)
 }
