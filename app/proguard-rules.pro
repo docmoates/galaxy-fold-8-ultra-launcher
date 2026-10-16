@@ -79,12 +79,6 @@
     <fields>;
 }
 
-# ---------------------------------------------------------------------------------------------
-# AppAuth (Gmail sign-in in mail/): authorization service, token requests, redirect receiver.
-# ---------------------------------------------------------------------------------------------
--keep class net.openid.appauth.** { *; }
--dontwarn net.openid.appauth.**
-
 # Encrypted token storage (androidx.security.crypto -> Tink, which uses a shaded protobuf-lite).
 -keep class com.google.crypto.tink.** { *; }
 -keepclassmembers class * extends com.google.crypto.tink.shaded.protobuf.GeneratedMessageLite {

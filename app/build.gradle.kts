@@ -42,14 +42,11 @@ android {
         applicationId = "com.foldos.launcher"
         minSdk = 34
         targetSdk = 35
-        versionCode = 123
-        versionName = "1.2.3"
+        versionCode = 124
+        versionName = "1.2.4"
         vectorDrawables {
             useSupportLibrary = true
         }
-        // AppAuth's RedirectUriReceiverActivity (declared in the library manifest) catches the OAuth
-        // redirect "com.foldos.launcher:/oauth2redirect" used by mail.MailAuthActivity.
-        manifestPlaceholders["appAuthRedirectScheme"] = "com.foldos.launcher"
     }
 
     signingConfigs {
@@ -152,8 +149,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 
-    // Hub > Mail: Gmail API sign-in (AppAuth) and encrypted token storage.
-    implementation(libs.openid.appauth)
+    // Hub > Mail: encrypted storage for the Crosspoint server token.
     implementation(libs.androidx.security.crypto)
 
     // Performance: installs src/main/baseline-prof.txt (AGP packages it as assets/dexopt/baseline.prof)

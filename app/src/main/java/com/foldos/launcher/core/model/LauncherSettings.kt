@@ -71,11 +71,11 @@ data class LauncherSettings(
     val searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(),
     /** Notification badge style: [BADGE_COUNT], [BADGE_DOT] or [BADGE_OFF]. */
     val badgeStyle: String = BADGE_COUNT,
-    /** OAuth client id the Mail tab signs in with; null = mail not configured. */
+    /** Deprecated and unused since 1.2.4 (Mail signs in through the Crosspoint server); kept so old settings backups still load. */
     val mailClientId: String? = null,
     /**
-     * Server the Mail tab asks for a shared OAuth client id when [mailClientId] is empty (the
-     * organization sets it once in its admin portal); null = [DEFAULT_MAIL_SETUP_URL].
+     * Crosspoint server address the Mail tab signs in to and reads the inbox from (the
+     * "Server address" in Settings > Mail); null = [DEFAULT_MAIL_SETUP_URL].
      */
     val mailSetupUrl: String? = null,
     /** AI engine: [AI_MODE_TEMPLATE] (rule-based replies), [AI_MODE_ONDEVICE] (Gemini Nano) or [AI_MODE_OFF]. */

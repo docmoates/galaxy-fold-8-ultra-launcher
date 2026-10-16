@@ -4,6 +4,27 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.2.4] - 2026-10-16
+
+Mail through the Crosspoint server (`versionCode` 124). Written from the source; not yet run on a device. Same signing key; no schema change.
+
+### Changed
+- The Hub Mail tab no longer signs in to Google on the phone. People sign in with their Crosspoint account (email + password),
+  link Gmail once through a browser page on the server (read-only), and the app pulls the inbox from the server
+  (`/api/v1/foldos/*`, default `https://sub.crosspointhealth.org`). After the browser step the app polls the server (about every 2 s,
+  up to 2 minutes) until Gmail shows as linked; the tab also refreshes when it opens and every 3 minutes while visible.
+- `MailState` is now SignedOut, NotLinked, NotConfigured (server has no mail yet), Connecting, Connected, Error. The Mail tab shows a
+  compact sign-in form, a "Connect Gmail" card, or a friendly message for each; the account icon menu has Mail settings, Disconnect
+  Gmail and Sign out. A 401 from the server signs the user out locally. No-network mode makes no requests.
+- Settings > Mail: Crosspoint account (sign in / out), Gmail link (Link / Unlink), Server address (Save / Reset), Refresh now. The
+  Mail tab switch and the Gmail app counts section are unchanged.
+- New small reusable `server/ServerClient` (HttpURLConnection, 10 s timeouts) and `server/ServerAuthStore` (token in
+  EncryptedSharedPreferences with the plain fallback, same excluded-from-backup files as before; never in `LauncherSettings`).
+
+### Removed
+- AppAuth, `MailAuthActivity`, `GmailAuthStore`, `GmailApiClient`, the OAuth client id UI and the 1.2.3 shared-client-id download.
+  `LauncherSettings.mailClientId` stays as a deprecated unused field so old backups load.
+
 ## [1.2.3] - 2026-10-16
 
 Shared Gmail sign-in for the Mail tab (`versionCode` 123). Written from the source; not yet run on a device. Same signing key; no schema change.

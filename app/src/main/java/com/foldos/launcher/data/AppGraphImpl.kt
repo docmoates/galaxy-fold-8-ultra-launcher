@@ -82,7 +82,7 @@ class AppGraphImpl(context: Context) : AppGraph {
     /** CalendarContract, CallLog, ContactsContract and the local task store behind the Hub. */
     override val hub: HubRepository by lazy { FoldOsHubRepository(appContext) }
 
-    /** Gmail API through AppAuth (`LauncherSettings.mailClientId`); Gmail-app label counts without sign-in. */
+    /** Crosspoint server mail (sign-in, one-time Gmail link, inbox); Gmail-app label counts without sign-in. */
     override val mail: MailRepository by lazy { GmailMailRepository(appContext, settings, appScope) }
 
     /**

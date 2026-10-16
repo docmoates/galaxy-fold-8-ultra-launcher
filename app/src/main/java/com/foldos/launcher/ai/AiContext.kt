@@ -104,8 +104,9 @@ data class AiContextSnapshot(
         appendLine(
             when (val m = mail) {
                 is MailState.Connected -> "Mail: ${m.unread} unread of ${m.messages.size} inbox messages"
-                MailState.NotConfigured -> "Mail: not connected"
-                MailState.Disconnected -> "Mail: signed out"
+                MailState.NotConfigured -> "Mail: not set up on the server yet"
+                MailState.SignedOut -> "Mail: not signed in to Crosspoint"
+                MailState.NotLinked -> "Mail: Gmail not linked yet"
                 MailState.Connecting -> "Mail: connecting"
                 is MailState.Error -> "Mail: error (${m.message})"
             },

@@ -342,3 +342,14 @@ Paths under `app/src/main/java/com/foldos/launcher/`.
     height. Now a fixed compact row height with as many rows as fit.
 13. "Not flipping" rows (Not reproduced): the toggles and chips are wired and persisted (`SettingsWriteQueue` -> DataStore);
     Count / Dot sat in a horizontally scrolling chip row, see 3.
+
+# Mail via the Crosspoint server (1.2.4)
+
+- Why: on-phone Google sign-in needed an OAuth client id per person (1.2.3 fetched a shared one). Now the server owns the Google
+  link: `server/ServerClient.kt` (login, logout, me, mail/link, mail/unlink, mail/inbox), token in `server/ServerAuthStore.kt`.
+- `mail/GmailMailRepository` keeps its name but is server-backed. State machine: no token = SignedOut; `/me` mail.available false
+  or 503 = NotConfigured; not linked or 409 not_linked = NotLinked; 502 = Error(server message); IOException = Error("Can't reach...");
+  401 anywhere = token cleared, SignedOut. No-network mode shows the old Error message and sends nothing.
+- Linking: `startLink(activity)` posts mail/link, opens the URL with ACTION_VIEW, then polls `/me` every 2 s for up to 2 minutes
+  (`waitingForLink` in `MailAccount`). The Mail tab also refreshes on resume, which covers returning after the poll window.
+- Not verified on a device: the browser hand-off, IME behaviour of the sign-in form on the cover and inner screens, real server replies.

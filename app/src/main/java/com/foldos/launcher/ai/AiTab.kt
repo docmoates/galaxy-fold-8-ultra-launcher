@@ -328,7 +328,7 @@ private fun suggestedActions(
             AiSuggestedAction(Icons.AutoMirrored.Rounded.Reply, "Reply to ${unread.from.substringBefore(' ')}: “$hint”") {
                 val gmail = graph.mail as? GmailMailRepository
                 val threadId = gmail?.threadIdFor(unread.id)
-                if (threadId != null) GmailIntents.openThread(context, threadId, gmail?.accountEmail?.value) else GmailIntents.openGmail(context)
+                if (threadId != null) GmailIntents.openThread(context, threadId, null) else GmailIntents.openGmail(context)
             },
         )
     }

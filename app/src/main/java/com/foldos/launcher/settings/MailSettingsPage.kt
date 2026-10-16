@@ -4,10 +4,11 @@ import android.accounts.AccountManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material3.Button
@@ -27,46 +28,47 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.core.repo.MailAccount
 import com.foldos.launcher.core.repo.MailState
-import com.foldos.launcher.mail.GmailIntents
 import com.foldos.launcher.mail.GmailMailRepository
 import com.foldos.launcher.mail.GmailProviderClient
-import com.foldos.launcher.mail.MailAuthActivity
 import com.foldos.launcher.mail.findActivity
 import kotlinx.coroutines.launch
 
-/** Settings › Mail (Hub-mail-AI). Route [ROUTE]; Integrate registers it in `SettingsRoot` / `SettingsPages`. */
+/** Settings > Mail. Route [ROUTE]; registered in `SettingsRoot` / `SettingsRootPage`. */
 object MailSettingsRows {
     /** Navigation route of this page (not in `SettingsRoutes`, which the Settings owner keeps). */
     const val ROUTE: String = "mail"
 
-    val clientId = SettingsRowInfo("OAuth client id", "Google Cloud client of type Android for com.foldos.launcher")
-    val connect = SettingsRowInfo("Gmail sign-in", "Google sign-in with read-only access (gmail.readonly)")
-    val account = SettingsRowInfo("Account", "The address FoldOS is signed in as")
-    val refresh = SettingsRowInfo("Refresh inbox", "Reload the 25 newest inbox messages")
+    val account = SettingsRowInfo("Crosspoint account", "Sign in with your Crosspoint email and password")
+    val gmailLink = SettingsRowInfo("Gmail link", "Link or unlink your Gmail (read-only, approved once in the browser)")
+    val server = SettingsRowInfo("Server address", "Crosspoint server the Mail tab uses; default ${LauncherSettings.DEFAULT_MAIL_SETUP_URL}")
+    val refresh = SettingsRowInfo("Refresh now", "Reload the 25 newest inbox messages")
     val mailTab = SettingsRowInfo("Mail tab in the hub", "Inbox list; list and reading pane on the inner screen")
     val gmailApp = SettingsRowInfo("Gmail app counts", "Unread counts per label from the Gmail app; no sign-in needed")
     val chooseAccount = SettingsRowInfo("Account for counts", "Pick the Google account the Gmail app counts come from")
-    val howTo = SettingsRowInfo("How to get a client id", "Google Cloud Console, step by step", advanced = true)
-    val storage = SettingsRowInfo("Token storage", "Where the sign-in tokens are kept", advanced = true)
+    val storage = SettingsRowInfo("Token storage", "Where the Crosspoint sign-in is kept on this phone", advanced = true)
 
     val page = SettingsPageInfo(
         route = ROUTE,
         title = "Mail",
-        subtitle = "Gmail sign-in, OAuth client id, Gmail app counts",
+        subtitle = "Crosspoint sign-in, Gmail link, server address, Gmail app counts",
         icon = Icons.Outlined.Mail,
-        rows = listOf(clientId, connect, account, refresh, mailTab, gmailApp, chooseAccount, howTo, storage),
+        rows = listOf(account, gmailLink, server, refresh, mailTab, gmailApp, chooseAccount, storage),
     )
 }
 
 /**
- * Settings › Mail: the OAuth client id field, Connect / Disconnect / Refresh for the Gmail API,
- * the Mail tab switch, the Gmail app's label counts with an account picker, and the how-to.
+ * Settings > Mail: Crosspoint account (sign in / sign out), Gmail link status with Link / Unlink, the server
+ * address, Refresh now, the Mail tab switch, and the Gmail app's label counts with an account picker.
  * Uses `FoldOsApplication.graph.mail` directly (Settings runs without `LocalAppGraph`).
  */
 @Composable
@@ -83,13 +85,15 @@ fun MailSettingsPage(
     val scope = rememberCoroutineScope()
     val filter = LocalSettingsRowFilter.current
 
-    val state by repo.state.collectAsStateWithLifecycle(initialValue = MailState.NotConfigured)
-    val accountEmail: String? = if (gmail != null) gmail.accountEmail.collectAsStateWithLifecycle().value else null
+    val state by repo.state.collectAsStateWithLifecycle(initialValue = MailState.Connecting)
+    val account by repo.account.collectAsStateWithLifecycle(initialValue = MailAccount())
     val tokensEncrypted: Boolean? = if (gmail != null) gmail.tokensEncrypted.collectAsStateWithLifecycle().value else null
-    val serverId: String = if (gmail != null) gmail.serverClientId.collectAsStateWithLifecycle().value else ""
-    var setupUrlText by rememberSaveable(settings.mailSetupUrl) { mutableStateOf(settings.mailSetupUrl.orEmpty()) }
-    var clientIdText by rememberSaveable(settings.mailClientId) { mutableStateOf(settings.mailClientId.orEmpty()) }
-    var howToOpen by rememberSaveable { mutableStateOf(false) }
+    var serverText by rememberSaveable(settings.mailSetupUrl) { mutableStateOf(settings.mailSetupUrl.orEmpty()) }
+    var emailText by rememberSaveable { mutableStateOf("") }
+    var passwordText by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
     var pickTick by remember { mutableIntStateOf(0) }
     val countsFlow = remember(provider, pickTick) { provider.observeLabelCounts() }
     val counts by countsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -101,36 +105,123 @@ fun MailSettingsPage(
         }
     }
 
-    val saved = settings.mailClientId?.trim().orEmpty()
-    val dirty = clientIdText.trim() != saved
-    val connectLabel = when (state) {
-        MailState.NotConfigured -> "Connect"
-        MailState.Disconnected -> "Connect"
-        MailState.Connecting -> "Connecting…"
-        is MailState.Connected -> "Disconnect"
-        is MailState.Error -> "Connect again"
-    }
+    val signedIn = account.signedInAs != null
     val statusText = when (val s = state) {
-        MailState.NotConfigured -> "Not configured: save a client id, or ask your admin to set the shared one"
-        MailState.Disconnected -> "Signed out"
-        MailState.Connecting -> "Signing in and loading the inbox"
-        is MailState.Connected -> "Connected · ${s.messages.size} messages, ${s.unread} unread"
+        MailState.SignedOut -> "Not signed in"
+        MailState.NotLinked -> "Signed in, Gmail not linked yet"
+        MailState.NotConfigured -> "Your administrator has not set up mail yet"
+        MailState.Connecting -> "Loading"
+        is MailState.Connected -> "Connected, ${s.messages.size} messages, ${s.unread} unread"
         is MailState.Error -> "Problem: ${s.message}"
+    }
+    val submit: () -> Unit = {
+        if (!busy && emailText.isNotBlank() && passwordText.isNotEmpty()) {
+            busy = true
+            message = null
+            scope.launch {
+                val result = repo.signIn(emailText, passwordText)
+                busy = false
+                if (result.ok) passwordText = "" else message = result.message
+            }
+        }
     }
 
     SettingsPageScaffold(title = MailSettingsRows.page.title, onBack = onBack) {
-        SectionHeader(text = "Gmail API")
-        if (filter.shows(MailSettingsRows.clientId)) {
+        SectionHeader(text = "Crosspoint account")
+        if (filter.shows(MailSettingsRows.account)) {
+            if (signedIn) {
+                ListItem(
+                    headlineContent = { Text("Signed in as ${account.signedInAs}") },
+                    supportingContent = { Text(statusText) },
+                    trailingContent = {
+                        OutlinedButton(onClick = { scope.launch { repo.signOut() } }) { Text("Sign out") }
+                    },
+                )
+            } else {
+                ListItem(
+                    headlineContent = { Text(MailSettingsRows.account.title) },
+                    supportingContent = { Text("Use your account from sub.crosspointhealth.org") },
+                )
+                OutlinedTextField(
+                    value = emailText,
+                    onValueChange = { emailText = it },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                )
+                OutlinedTextField(
+                    value = passwordText,
+                    onValueChange = { passwordText = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    trailingIcon = { TextButton(onClick = { showPassword = !showPassword }) { Text(if (showPassword) "Hide" else "Show") } },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+                message?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Button(onClick = submit, enabled = !busy && emailText.isNotBlank() && passwordText.isNotEmpty()) {
+                        Text(if (busy) "Signing in…" else "Sign in")
+                    }
+                }
+            }
+        }
+        if (filter.shows(MailSettingsRows.gmailLink)) {
             ListItem(
-                headlineContent = { Text(MailSettingsRows.clientId.title) },
-                supportingContent = { Text(MailSettingsRows.clientId.subtitle.orEmpty()) },
+                headlineContent = { Text(MailSettingsRows.gmailLink.title) },
+                supportingContent = {
+                    Text(
+                        when {
+                            !signedIn -> "Sign in first"
+                            !account.available -> "Your administrator has not set up mail yet"
+                            account.waitingForLink -> "Waiting for you to finish in the browser…"
+                            account.linked -> "Linked: ${account.gmail ?: "Gmail"}"
+                            else -> "Not linked yet"
+                        },
+                    )
+                },
+                trailingContent = {
+                    if (signedIn && account.available) {
+                        if (account.linked) {
+                            OutlinedButton(onClick = {
+                                scope.launch { message = repo.unlink().message }
+                            }) { Text("Unlink") }
+                        } else {
+                            Button(onClick = {
+                                val activity = context.findActivity()
+                                if (activity != null) scope.launch { message = repo.startLink(activity).message }
+                            }) { Text("Link") }
+                        }
+                    }
+                },
+            )
+            if (signedIn) {
+                message?.let {
+                    Text(text = it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
+                }
+            }
+        }
+        if (filter.shows(MailSettingsRows.server)) {
+            ListItem(
+                headlineContent = { Text(MailSettingsRows.server.title) },
+                supportingContent = { Text("Leave empty for ${LauncherSettings.DEFAULT_MAIL_SETUP_URL}.") },
             )
             OutlinedTextField(
-                value = clientIdText,
-                onValueChange = { clientIdText = it },
+                value = serverText,
+                onValueChange = { serverText = it },
                 singleLine = true,
-                placeholder = { Text("1234567890-abc.apps.googleusercontent.com") },
-                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                placeholder = { Text(LauncherSettings.DEFAULT_MAIL_SETUP_URL) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             )
             Row(
@@ -139,75 +230,25 @@ fun MailSettingsPage(
             ) {
                 Button(
                     onClick = {
-                        val next = clientIdText.trim().ifEmpty { null }
-                        update { it.copy(mailClientId = next) }
-                        if (next == null) scope.launch { repo.disconnect() }
+                        update { it.copy(mailSetupUrl = serverText.trim().ifEmpty { null }) }
+                        scope.launch { repo.refresh() }
                     },
-                    enabled = dirty,
+                    enabled = serverText.trim() != settings.mailSetupUrl.orEmpty(),
                 ) { Text("Save") }
-                if (saved.isNotEmpty()) {
-                    TextButton(onClick = {
-                        clientIdText = ""
-                        update { it.copy(mailClientId = null) }
-                        scope.launch { repo.disconnect() }
-                    }) { Text("Clear") }
-                }
+                TextButton(
+                    onClick = {
+                        serverText = ""
+                        update { it.copy(mailSetupUrl = null) }
+                        scope.launch { repo.refresh() }
+                    },
+                    enabled = serverText.isNotEmpty() || settings.mailSetupUrl != null,
+                ) { Text("Reset") }
             }
         }
-        if (saved.isEmpty() && serverId.isNotEmpty()) {
-            ListItem(
-                headlineContent = { Text("Shared sign-in is set up") },
-                supportingContent = { Text("Your organization provides the Google sign-in. Just tap Connect below; you can still paste your own id above to override it.") },
-            )
-        }
-        ListItem(
-            headlineContent = { Text("Setup server") },
-            supportingContent = { Text("Where the shared Google sign-in id is downloaded from. Leave empty for ${LauncherSettings.DEFAULT_MAIL_SETUP_URL}.") },
-        )
-        OutlinedTextField(
-            value = setupUrlText,
-            onValueChange = { setupUrlText = it },
-            singleLine = true,
-            placeholder = { Text(LauncherSettings.DEFAULT_MAIL_SETUP_URL) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        )
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { update { it.copy(mailSetupUrl = setupUrlText.trim().ifEmpty { null }) } },
-                enabled = setupUrlText.trim() != settings.mailSetupUrl.orEmpty(),
-            ) { Text("Save") }
-            TextButton(onClick = { scope.launch { gmail?.refreshServerConfig() } }) { Text("Check now") }
-        }
-        if (filter.shows(MailSettingsRows.connect)) {
-            ListItem(
-                headlineContent = { Text(MailSettingsRows.connect.title) },
-                supportingContent = { Text(statusText) },
-                trailingContent = {
-                    val connected = state is MailState.Connected
-                    val enabled = (saved.isNotEmpty() || serverId.isNotEmpty()) && state != MailState.Connecting
-                    if (connected) {
-                        OutlinedButton(onClick = { scope.launch { repo.disconnect() } }) { Text(connectLabel) }
-                    } else {
-                        Button(
-                            onClick = {
-                                val activity = context.findActivity()
-                                if (activity != null) scope.launch { repo.connect(activity) }
-                            },
-                            enabled = enabled,
-                        ) { Text(connectLabel) }
-                    }
-                },
-            )
-        }
-        StaticRow(
-            info = MailSettingsRows.account,
-            trailingText = accountEmail ?: "Not signed in",
-            showChevron = false,
-        )
         StaticRow(
             info = MailSettingsRows.refresh,
             onClick = { scope.launch { repo.refresh() } },
-            visible = state is MailState.Connected,
+            visible = signedIn,
         )
         ToggleRow(
             info = MailSettingsRows.mailTab,
@@ -237,9 +278,9 @@ fun MailSettingsPage(
             )
             counts.filter { it.isSystem && it.canonicalName in GmailProviderClient.SYSTEM_LABEL_ORDER }
                 .groupBy { it.account }
-                .forEach { (account, labels) ->
+                .forEach { (accountName, labels) ->
                     ListItem(
-                        headlineContent = { Text(account, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
+                        headlineContent = { Text(accountName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
                         supportingContent = {
                             Text(labels.joinToString(" · ") { "${it.name} ${it.unread}" })
                         },
@@ -251,25 +292,6 @@ fun MailSettingsPage(
             onClick = { runCatching { accountPicker.launch(provider.chooseAccountIntent()) } },
             trailingText = provider.chosenAccount() ?: "Auto",
         )
-        if (filter.shows(MailSettingsRows.howTo)) {
-            StaticRow(info = MailSettingsRows.howTo, onClick = { howToOpen = !howToOpen }, trailingText = if (howToOpen) "Hide" else "Show")
-            if (howToOpen) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    listOf(
-                        "1. Open console.cloud.google.com and create a project (any name).",
-                        "2. APIs & Services › Library: enable the Gmail API.",
-                        "3. APIs & Services › OAuth consent screen: External, add your Google account as a test user, add the scope …/auth/gmail.readonly.",
-                        "4. Credentials › Create credentials › OAuth client ID › Android. Package name com.foldos.launcher; SHA-1 of the certificate that signed this APK (debug keystore for a debug build).",
-                        "5. Copy the client id and paste it above. The redirect is ${MailAuthActivity.REDIRECT_URI}; Android clients need no secret.",
-                        "6. Tap Connect, pick the account, allow read-only access. Testing mode tokens expire after 7 days unless the app is published for verification.",
-                    ).forEach { line -> Text(text = line, style = MaterialTheme.typography.bodySmall) }
-                    TextButton(onClick = { GmailIntents.openGmail(context) }) { Text("Open Gmail") }
-                }
-            }
-        }
         StaticRow(
             info = MailSettingsRows.storage,
             trailingText = when {

@@ -44,6 +44,26 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.foldos.launcher.core.repo.MailAccount
+import com.foldos.launcher.core.repo.MailRepository
+import kotlinx.coroutines.delay
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -94,14 +114,17 @@ import kotlin.math.abs
 private enum class MailFilter(val label: String) { ALL("All"), PRIMARY("Primary"), UPDATES("Updates"), STARRED("Starred") }
 
 /**
- * The Hub's Mail tab (mock-up `mailPage`). Cover screen: header, search, category chips, optional
- * AI summary and the inbox list with a Compose FAB. Inner screen: the list on the left and a
- * reading pane with suggested replies on the right. Reads `LocalAppGraph.current.mail`:
+ * The Hub's Mail tab (mock-up `mailPage`). Mail comes from the Crosspoint server: sign in with a Crosspoint
+ * account, link Gmail once in the browser, then read the inbox. Cover screen: header, search, category chips,
+ * optional AI summary and the inbox list with a Compose FAB. Inner screen: the list on the left and a reading
+ * pane with suggested replies on the right. Reads `LocalAppGraph.current.mail`:
  *
- * - [MailState.NotConfigured]: what a Google Cloud OAuth client is and where to paste its id
- *   (Settings › Mail), plus the Gmail app's per-label unread counts and Open Gmail / Compose.
+ * - [MailState.SignedOut]: a compact Crosspoint sign-in form (plus the Gmail app's unread counts).
+ * - [MailState.NotLinked]: a "Connect Gmail" button (read-only approval, once, in the browser).
+ * - [MailState.NotConfigured]: the server's administrator has not set up mail yet.
  * - [MailState.Connected]: the Gmail inbox; "Reply in Gmail" deep-links into the conversation.
  *
+ * The inbox refreshes when the tab opens and every few minutes while it is visible.
  * Must be composed inside `FoldOsTheme` with `LocalAppGraph` provided (the launcher activity).
  */
 @Composable
@@ -114,23 +137,44 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
     val scope = rememberCoroutineScope()
     // Inference gives T = MailState, R = MailState?, so `state` is MailState? until the first emission.
     val state by repo.state.collectAsStateWithLifecycle(initialValue = null)
+    val account by repo.account.collectAsStateWithLifecycle(initialValue = MailAccount())
     val provider = remember(gmail) { gmail?.provider ?: GmailProviderClient(context) }
-    val accountEmail: String? = if (gmail != null) gmail.accountEmail.collectAsStateWithLifecycle().value else null
+    val accountEmail: String? = account.gmail
     val inner = screen != ScreenKind.COVER
     val aiOn = settings.feature(LauncherSettings.FEATURE_AI)
+    var notice by remember { mutableStateOf<String?>(null) }
+
+    // Refresh when the tab opens (or the app comes back from the browser) and every few minutes while visible.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(repo, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                repo.refresh()
+                delay(MailAutoRefreshMs)
+            }
+        }
+    }
 
     val openMailSettings = { context.startActivity(SettingsActivity.intent(context, MailSettingsRows.ROUTE)) }
     val connect: () -> Unit = {
         val activity = context.findActivity()
-        if (activity != null) scope.launch { repo.connect(activity) }
+        if (activity != null) {
+            notice = null
+            scope.launch {
+                val result = repo.startLink(activity)
+                notice = if (result.ok) null else result.message
+            }
+        }
     }
+    val signOut: () -> Unit = { scope.launch { repo.signOut() }; Unit }
 
     val current = state
     val subtitle = when (current) {
         null -> "Gmail"
-        MailState.NotConfigured -> "Gmail app counts · not signed in"
-        MailState.Disconnected -> "Gmail · signed out"
-        MailState.Connecting -> "Gmail · connecting"
+        MailState.SignedOut -> "Sign in to see your inbox"
+        MailState.NotLinked -> "Signed in · Gmail not linked yet"
+        MailState.NotConfigured -> "Mail is not set up yet"
+        MailState.Connecting -> "Gmail · loading"
         is MailState.Connected -> buildString {
             append("Gmail · ")
             append(if (current.unread == 1) "1 unread" else "${current.unread} unread")
@@ -138,10 +182,15 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
         }
         is MailState.Error -> "Gmail · problem loading"
     }
+    val menuItems = buildList<Pair<String, () -> Unit>> {
+        add("Mail settings" to { openMailSettings() })
+        if (account.linked) add("Disconnect Gmail" to { scope.launch { repo.unlink() }; Unit })
+        if (account.signedInAs != null) add("Sign out" to signOut)
+    }
 
     // The Compose FAB is an overlay, so the content reserves its height (56dp) + 16dp at the bottom
     // whenever it is shown; nothing scrolls or lays out underneath it.
-    val showFab = !inner && (current is MailState.Connected || current == MailState.NotConfigured)
+    val showFab = !inner && current is MailState.Connected
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -154,34 +203,44 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
                 ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            MailPageHeader(title = "Inbox", subtitle = subtitle, onAccount = openMailSettings)
+            MailPageHeader(title = "Inbox", subtitle = subtitle, menuItems = menuItems)
             when (current) {
                 null, MailState.Connecting -> MailCentered {
                     CircularProgressIndicator(color = tokens.accent)
                     Text(
-                        text = if (current == null) "Loading…" else "Connecting to Gmail…",
+                        text = "Loading your mail…",
                         color = tokens.onSurface.copy(alpha = 0.75f),
                         modifier = Modifier.padding(top = 14.dp),
                     )
                 }
-                MailState.NotConfigured -> MailNotConfiguredContent(
-                    provider = provider,
-                    inner = inner,
-                    onOpenSettings = openMailSettings,
-                    modifier = Modifier.weight(1f),
-                )
-                MailState.Disconnected -> MailMessageCard(
-                    title = "Signed out of Gmail",
-                    body = "Your OAuth client id is saved. Connect to load the inbox; FoldOS only asks for read access (gmail.readonly).",
-                    primary = "Connect Gmail" to connect,
-                    secondary = "Open Gmail" to { GmailIntents.openGmail(context) },
-                )
-                is MailState.Error -> MailMessageCard(
-                    title = "Gmail could not be loaded",
-                    body = current.message,
-                    primary = "Try again" to { scope.launch { repo.refresh() }; Unit },
-                    secondary = "Connect again" to connect,
-                )
+                MailState.SignedOut -> MailSetupContent(provider = provider, inner = inner, modifier = Modifier.weight(1f)) {
+                    MailSignInCard(repo)
+                }
+                MailState.NotLinked -> MailSetupContent(provider = provider, inner = inner, modifier = Modifier.weight(1f)) {
+                    MailConnectCard(
+                        signedInAs = account.signedInAs,
+                        waiting = account.waitingForLink,
+                        notice = notice,
+                        onConnect = connect,
+                        onSignOut = signOut,
+                    )
+                }
+                MailState.NotConfigured -> MailSetupContent(provider = provider, inner = inner, modifier = Modifier.weight(1f)) {
+                    MailMessageCard(
+                        title = "Mail is not set up yet",
+                        body = "Your administrator has not set up mail yet. Check back later.",
+                        primary = "Check again" to { scope.launch { repo.refresh() }; Unit },
+                        secondary = "Sign out" to signOut,
+                    )
+                }
+                is MailState.Error -> MailSetupContent(provider = provider, inner = inner, modifier = Modifier.weight(1f)) {
+                    MailMessageCard(
+                        title = "Gmail could not be loaded",
+                        body = current.message,
+                        primary = "Try again" to { scope.launch { repo.refresh() }; Unit },
+                        secondary = "Mail settings" to { openMailSettings() },
+                    )
+                }
                 is MailState.Connected -> MailInboxContent(
                     state = current,
                     gmail = gmail,
@@ -202,6 +261,173 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
                 contentColor = tokens.onAccent,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 8.dp),
             )
+        }
+    }
+}
+
+/** How often the inbox reloads while the Mail tab is visible. */
+private const val MailAutoRefreshMs = 3L * 60L * 1000L
+
+/* ------------------------------------------------------------------------------------------ */
+/* Signed out / not linked cards                                                              */
+/* ------------------------------------------------------------------------------------------ */
+
+@Composable
+private fun mailFieldColors(): TextFieldColors {
+    val tokens = LocalFoldOsTokens.current
+    return OutlinedTextFieldDefaults.colors(
+        focusedTextColor = tokens.onSurface,
+        unfocusedTextColor = tokens.onSurface,
+        cursorColor = tokens.accent,
+        focusedBorderColor = tokens.accent,
+        unfocusedBorderColor = tokens.surfaceBorder,
+        focusedLabelColor = tokens.accent,
+        unfocusedLabelColor = tokens.onSurface.copy(alpha = 0.7f),
+    )
+}
+
+/** Compact Crosspoint sign-in form: email, password with show/hide, error text and a short note. */
+@Composable
+private fun MailSignInCard(repo: MailRepository) {
+    val tokens = LocalFoldOsTokens.current
+    val scope = rememberCoroutineScope()
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val canSubmit = !busy && email.isNotBlank() && password.isNotEmpty()
+    val submit: () -> Unit = {
+        if (canSubmit) {
+            busy = true
+            error = null
+            scope.launch {
+                val result = repo.signIn(email, password)
+                busy = false
+                if (result.ok) password = "" else error = result.message
+            }
+        }
+    }
+    FoldOsSurface(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(18.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.Mail, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(18.dp))
+                Text(
+                    text = "Sign in to read your mail",
+                    color = tokens.onSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                colors = mailFieldColors(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                singleLine = true,
+                visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
+                trailingIcon = {
+                    TextButton(onClick = { show = !show }) { Text(if (show) "Hide" else "Show") }
+                },
+                colors = mailFieldColors(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val message = error
+            if (message != null) {
+                Text(text = message, color = MaterialTheme.colorScheme.error, fontSize = 13.5.sp, lineHeight = 19.sp)
+            }
+            Button(
+                onClick = submit,
+                enabled = canSubmit,
+                colors = ButtonDefaults.buttonColors(containerColor = tokens.accent, contentColor = tokens.onAccent),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (busy) {
+                    CircularProgressIndicator(color = tokens.onAccent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Signing in…")
+                } else {
+                    Text("Sign in")
+                }
+            }
+            Text(
+                text = "Use your Crosspoint account from sub.crosspointhealth.org",
+                color = tokens.onSurface.copy(alpha = 0.7f),
+                fontSize = 12.5.sp,
+                lineHeight = 17.sp,
+            )
+        }
+    }
+}
+
+/** Signed in, Gmail not linked: one button that opens the server's link page in the browser. */
+@Composable
+private fun MailConnectCard(
+    signedInAs: String?,
+    waiting: Boolean,
+    notice: String?,
+    onConnect: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    val tokens = LocalFoldOsTokens.current
+    FoldOsSurface(
+        modifier = Modifier.fillMaxWidth(),
+        color = tokens.highlight,
+        borderColor = Color.Transparent,
+        contentPadding = PaddingValues(18.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.Mail, contentDescription = null, tint = tokens.onHighlight, modifier = Modifier.size(18.dp))
+                Text(
+                    text = "CONNECT GMAIL",
+                    color = tokens.onHighlight.copy(alpha = 0.8f),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                )
+            }
+            if (!signedInAs.isNullOrBlank()) {
+                Text(text = "Signed in as $signedInAs", color = tokens.onHighlight.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 18.sp)
+            }
+            Text(
+                text = "You will approve read-only access to your Gmail once, in your browser. " +
+                    "FoldOS can read your inbox but cannot send, delete or change anything.",
+                color = tokens.onHighlight,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+            if (waiting) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(color = tokens.onHighlight, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = "Waiting for you to finish in the browser…",
+                        color = tokens.onHighlight,
+                        fontSize = 13.5.sp,
+                        lineHeight = 19.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (!notice.isNullOrBlank()) {
+                Text(text = notice, color = tokens.onHighlight, fontSize = 13.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Button(
+                onClick = onConnect,
+                colors = ButtonDefaults.buttonColors(containerColor = tokens.accent, contentColor = tokens.onAccent),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (waiting) "Open the page again" else "Connect Gmail") }
+            TextButton(onClick = onSignOut) { Text("Sign out", color = tokens.onHighlight) }
         }
     }
 }
@@ -237,9 +463,9 @@ private fun MailInboxContent(
             val passesFilter = when (filter) {
                 MailFilter.ALL -> true
                 MailFilter.PRIMARY -> gmail == null ||
-                    GmailApiMessage.LABEL_CATEGORY_PERSONAL in labels || labels.none { it.startsWith("CATEGORY_") }
-                MailFilter.UPDATES -> GmailApiMessage.LABEL_CATEGORY_UPDATES in labels
-                MailFilter.STARRED -> GmailApiMessage.LABEL_STARRED in labels
+                    MailLabels.CATEGORY_PERSONAL in labels || labels.none { it.startsWith("CATEGORY_") }
+                MailFilter.UPDATES -> MailLabels.CATEGORY_UPDATES in labels
+                MailFilter.STARRED -> MailLabels.STARRED in labels
             }
             val q = query.trim()
             val passesQuery = q.isEmpty() ||
@@ -407,7 +633,7 @@ private fun MailReadingPane(
                         fontSize = 13.sp,
                     )
                 }
-                if (GmailApiMessage.LABEL_STARRED in labels) {
+                if (MailLabels.STARRED in labels) {
                     Icon(Icons.Rounded.Star, contentDescription = "Starred", tint = tokens.accent, modifier = Modifier.size(22.dp))
                 }
                 IconButton(onClick = onOpen) {
@@ -472,15 +698,15 @@ private fun MailReadingPane(
 }
 
 /* ------------------------------------------------------------------------------------------ */
-/* Not configured: explanation + Gmail app counts                                             */
+/* Setup states (signed out, not linked, not set up, error) + Gmail app counts                */
 /* ------------------------------------------------------------------------------------------ */
 
 @Composable
-private fun MailNotConfiguredContent(
+private fun MailSetupContent(
     provider: GmailProviderClient,
     inner: Boolean,
-    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    header: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val tokens = LocalFoldOsTokens.current
@@ -495,81 +721,6 @@ private fun MailNotConfiguredContent(
         }
     }
     val gmailInstalled = remember(provider) { provider.gmailInstalled() }
-
-    val explanation: @Composable () -> Unit = {
-        var howOpen by rememberSaveable { mutableStateOf(false) }
-        FoldOsSurface(
-            modifier = Modifier.fillMaxWidth(),
-            color = tokens.highlight,
-            borderColor = Color.Transparent,
-            contentPadding = PaddingValues(18.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Rounded.Mail, contentDescription = null, tint = tokens.onHighlight, modifier = Modifier.size(18.dp))
-                    Text(
-                        text = "CONNECT GMAIL",
-                        color = tokens.onHighlight.copy(alpha = 0.8f),
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 1.sp,
-                    )
-                }
-                Text(
-                    text = "Mail needs a one-time Google sign-in. FoldOS asks for read access only. " +
-                        "Until you connect, this tab shows the unread counts the Gmail app already keeps.",
-                    color = tokens.onHighlight,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                )
-                // Collapsible "How to connect" row (collapsed by default).
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { howOpen = !howOpen }
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "How to connect",
-                        color = tokens.onHighlight,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        imageVector = if (howOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                        contentDescription = if (howOpen) "Hide steps" else "Show steps",
-                        tint = tokens.onHighlight,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-                AnimatedVisibility(visible = howOpen) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(
-                            "1. Create a free Google Cloud project at console.cloud.google.com.",
-                            "2. Enable the Gmail API for that project.",
-                            "3. Create an OAuth client of type Android for com.foldos.launcher with your signing certificate's SHA-1.",
-                            "4. Paste its client id (ends in .apps.googleusercontent.com) under Settings › Mail › OAuth client id.",
-                            "5. Tap Connect.",
-                        ).forEach { step ->
-                            Text(
-                                text = step,
-                                color = tokens.onHighlight.copy(alpha = 0.9f),
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                            )
-                        }
-                        Button(
-                            onClick = onOpenSettings,
-                            colors = ButtonDefaults.buttonColors(containerColor = tokens.accent, contentColor = tokens.onAccent),
-                        ) { Text("Open Settings › Mail") }
-                    }
-                }
-            }
-        }
-    }
 
     val countsCard: @Composable () -> Unit = {
         FoldOsSurface(modifier = Modifier.fillMaxWidth()) {
@@ -648,19 +799,19 @@ private fun MailNotConfiguredContent(
         // empty rounded block beside the Gmail app card on the wide screen.
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Column(
-                Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
+                Modifier.widthIn(max = 640.dp).fillMaxWidth().imePadding().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                explanation()
+                header()
                 countsCard()
             }
         }
     } else {
         Column(
-            modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            modifier = modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            explanation()
+            header()
             countsCard()
         }
     }
@@ -671,8 +822,9 @@ private fun MailNotConfiguredContent(
 /* ------------------------------------------------------------------------------------------ */
 
 @Composable
-private fun MailPageHeader(title: String, subtitle: String, onAccount: () -> Unit) {
+private fun MailPageHeader(title: String, subtitle: String, menuItems: List<Pair<String, () -> Unit>>) {
     val tokens = LocalFoldOsTokens.current
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -696,13 +848,26 @@ private fun MailPageHeader(title: String, subtitle: String, onAccount: () -> Uni
                 )
             }
         }
-        IconButton(onClick = onAccount) {
-            Icon(
-                Icons.Rounded.AccountCircle,
-                contentDescription = "Mail settings",
-                tint = tokens.onSurface.copy(alpha = 0.85f),
-                modifier = Modifier.size(38.dp),
-            )
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Icons.Rounded.AccountCircle,
+                    contentDescription = "Mail menu",
+                    tint = tokens.onSurface.copy(alpha = 0.85f),
+                    modifier = Modifier.size(38.dp),
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                menuItems.forEach { (label, action) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            menuOpen = false
+                            action()
+                        },
+                    )
+                }
+            }
         }
     }
 }

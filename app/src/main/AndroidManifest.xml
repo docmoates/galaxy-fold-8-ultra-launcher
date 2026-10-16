@@ -29,7 +29,7 @@
     <!-- Daily wallpaper: re-arm the daily alarm after a reboot (DailyWallpaperReceiver). The alarm is
          inexact (setAndAllowWhileIdle), so no exact-alarm permission is needed. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Mail: Gmail API over HTTPS (GmailApiClient, AppAuth token exchange) and the Gmail app's
+    <!-- Mail: Gmail API over HTTPS (the Crosspoint server client) and the Gmail app's
          public label-count provider (normal permission, no sign-in). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Daily wallpaper (Settings > Look, off by default): WallpaperManager.setBitmap. Normal permission. -->
@@ -125,16 +125,6 @@
         <activity
             android:name=".onboarding.OnboardingActivity"
             android:exported="false"
-            android:theme="@style/Theme.FoldOS" />
-
-        <!-- Hub > Mail: Google sign-in through AppAuth. The OAuth redirect
-             "com.foldos.launcher:/oauth2redirect" is caught by AppAuth's RedirectUriReceiverActivity,
-             declared in the library manifest through the appAuthRedirectScheme placeholder. -->
-        <activity
-            android:name=".mail.MailAuthActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|uiMode|density"
             android:theme="@style/Theme.FoldOS" />
 
         <!-- Daily wallpaper: the daily alarm (our own PendingIntent) and re-arm after boot, app update,

@@ -15,7 +15,6 @@ coroutines = "1.9.0"
 coreKtx = "1.15.0"
 navigationCompose = "2.8.5"
 # Mail tab: OAuth (AppAuth) for the Gmail API and encrypted token storage.
-appauth = "0.11.1"
 securityCrypto = "1.1.0-alpha06"
 # Installs the hand-written baseline profile (app/src/main/baseline-prof.txt) on first launch and lets
 # Play / sideloaded installs compile it in the background.
@@ -34,7 +33,6 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
-openid-appauth = { group = "net.openid", name = "appauth", version.ref = "appauth" }
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }

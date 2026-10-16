@@ -167,8 +167,9 @@ class FoldOsTemplateAiProvider(
             else "${aiPlural(unread.size, "unread email")}. " + unread.take(3).joinToString(" ") { "${it.from}: “${it.subject}”." } +
                 if (unread.size > 3) " And ${unread.size - 3} more." else ""
         }
-        MailState.NotConfigured -> "Mail isn't connected. Paste a Google Cloud OAuth client id under Settings › Mail and tap Connect; the Mail tab shows the Gmail app's counts meanwhile."
-        MailState.Disconnected -> "You're signed out of Gmail. Connect again from the Mail tab."
+        MailState.NotConfigured -> "Mail isn't set up on the server yet. Your administrator needs to turn it on."
+        MailState.SignedOut -> "You're not signed in. Open the Mail tab and sign in with your Crosspoint account."
+        MailState.NotLinked -> "Gmail isn't linked yet. Open the Mail tab and tap Connect Gmail."
         MailState.Connecting -> "Still loading your inbox; ask again in a moment."
         is MailState.Error -> "Gmail could not be loaded: ${m.message}"
     }
