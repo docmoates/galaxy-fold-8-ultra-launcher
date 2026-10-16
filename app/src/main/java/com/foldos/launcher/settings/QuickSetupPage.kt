@@ -1,5 +1,10 @@
 package com.foldos.launcher.settings
 
+import android.app.role.RoleManager
+import android.content.Intent
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material3.AlertDialog
@@ -8,11 +13,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.foldos.launcher.core.model.LauncherSettings
 
 object QuickSetupRows {
+    val defaultHome = SettingsRowInfo("Set as default home", "Make FoldOS the launcher that opens when you press Home")
     val wizard = SettingsRowInfo("Run setup wizard", "Screens, home style, look, colors, dock; every step picked from a live preview")
     val gallery = SettingsRowInfo("Preset gallery", "Minimal, Dashboard, Productivity, Media, Power user, One UI Classic")
     val importLayout = SettingsRowInfo("Import from current launcher", "Reads Samsung or Pixel layout where permitted")
@@ -23,7 +32,7 @@ object QuickSetupRows {
         title = "Quick setup",
         subtitle = "Re-run the wizard, preset gallery, reset",
         icon = Icons.Outlined.Bolt,
-        rows = listOf(wizard, gallery, importLayout, reset),
+        rows = listOf(defaultHome, wizard, gallery, importLayout, reset),
     )
 }
 
@@ -33,8 +42,34 @@ fun QuickSetupPage(
     onBack: () -> Unit,
 ) {
     var confirmReset by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val roleManager = remember(context) { context.getSystemService(RoleManager::class.java) }
+    // Bumped after the role request returns so the row re-reads whether FoldOS holds the role.
+    var roleVersion by remember { mutableIntStateOf(0) }
+    val isDefaultHome = remember(roleManager, roleVersion) {
+        roleManager?.isRoleHeld(RoleManager.ROLE_HOME) == true
+    }
+    val roleRequest = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        roleVersion++
+    }
+    val defaultHomeRow = remember(isDefaultHome) {
+        QuickSetupRows.defaultHome.copy(
+            subtitle = if (isDefaultHome) "FoldOS is your default home" else "Another launcher is the default; tap to switch to FoldOS",
+        )
+    }
 
     SettingsPageScaffold(title = QuickSetupRows.page.title, onBack = onBack) {
+        StaticRow(
+            info = defaultHomeRow,
+            onClick = {
+                val rm = roleManager
+                if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_HOME) && !rm.isRoleHeld(RoleManager.ROLE_HOME)) {
+                    runCatching { roleRequest.launch(rm.createRequestRoleIntent(RoleManager.ROLE_HOME)) }
+                } else {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) }
+                }
+            },
+        )
         StaticRow(info = QuickSetupRows.wizard)
         StaticRow(info = QuickSetupRows.gallery)
         StaticRow(info = QuickSetupRows.importLayout)

@@ -1,9 +1,12 @@
 package com.foldos.launcher.settings
 
+import android.app.role.RoleManager
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +30,8 @@ import com.foldos.launcher.core.repo.SettingsRepository
  */
 class SettingsActivity : ComponentActivity() {
 
+    private val homeRoleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -37,6 +42,24 @@ class SettingsActivity : ComponentActivity() {
                 SettingsRoot(repo = repo, writeScope = graph.appScope, onClose = { finish() })
             }
         }
+        // This activity carries the app icon, so opening "FoldOS" from the app list lands here;
+        // offer the home role once when another launcher still holds it.
+        if (savedInstanceState == null) maybeRequestHomeRole()
+    }
+
+    private fun maybeRequestHomeRole() {
+        val roleManager = getSystemService(RoleManager::class.java) ?: return
+        if (!roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) return
+        if (roleManager.isRoleHeld(RoleManager.ROLE_HOME)) return
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_PROMPTED, false)) return
+        prefs.edit().putBoolean(KEY_PROMPTED, true).apply()
+        runCatching { homeRoleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)) }
+    }
+
+    private companion object {
+        const val PREFS_NAME = "foldos_launcher"
+        const val KEY_PROMPTED = "home_role_prompted_settings"
     }
 }
 

@@ -40,11 +40,18 @@
             </intent-filter>
         </activity>
 
+        <!-- The home activity never shows in app lists, so Settings carries the launcher icon
+             ("FoldOS") and offers "Set as default home" when opened. -->
         <activity
             android:name=".settings.SettingsActivity"
-            android:exported="false"
-            android:label="@string/settings_title"
-            android:theme="@style/Theme.FoldOS" />
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.FoldOS">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
     </application>
 
