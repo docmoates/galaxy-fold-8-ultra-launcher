@@ -3,6 +3,7 @@ package com.foldos.launcher.mail
 import android.accounts.AccountManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +34,8 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Mail
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
@@ -108,8 +111,8 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
     val context = LocalContext.current
     val tokens = LocalFoldOsTokens.current
     val scope = rememberCoroutineScope()
-    // Flow<T>.collectAsStateWithLifecycle needs an explicit nullable T for a null initial value.
-    val state by repo.state.collectAsStateWithLifecycle<MailState?>(initialValue = null)
+    // Inference gives T = MailState, R = MailState?, so `state` is MailState? until the first emission.
+    val state by repo.state.collectAsStateWithLifecycle(initialValue = null)
     val provider = remember(gmail) { gmail?.provider ?: GmailProviderClient(context) }
     val accountEmail: String? = if (gmail != null) gmail.accountEmail.collectAsStateWithLifecycle().value else null
     val inner = screen != ScreenKind.COVER
@@ -135,9 +138,19 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
         is MailState.Error -> "Gmail · problem loading"
     }
 
+    // The Compose FAB is an overlay, so the content reserves its height (56dp) + 16dp at the bottom
+    // whenever it is shown; nothing scrolls or lays out underneath it.
+    val showFab = !inner && (current is MailState.Connected || current == MailState.NotConfigured)
     Box(modifier = modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 10.dp,
+                    bottom = if (showFab) MailFabClearance else 10.dp,
+                ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             MailPageHeader(title = "Inbox", subtitle = subtitle, onAccount = openMailSettings)
@@ -179,18 +192,24 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
                 )
             }
         }
-        if (!inner && (current is MailState.Connected || current == MailState.NotConfigured)) {
+        if (showFab) {
             ExtendedFloatingActionButton(
                 text = { Text("Compose") },
                 icon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
                 onClick = { GmailIntents.compose(context) },
                 containerColor = tokens.accent,
                 contentColor = tokens.onAccent,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 8.dp),
             )
         }
     }
 }
+
+/** Height of the Compose FAB (Material extended FAB). */
+private val MailFabHeight = 56.dp
+
+/** Bottom content padding while the FAB is shown: FAB height + 16dp. */
+private val MailFabClearance = MailFabHeight + 16.dp
 
 /* ------------------------------------------------------------------------------------------ */
 /* Connected: inbox list and reading pane                                                     */
@@ -477,6 +496,7 @@ private fun MailNotConfiguredContent(
     val gmailInstalled = remember(provider) { provider.gmailInstalled() }
 
     val explanation: @Composable () -> Unit = {
+        var howOpen by rememberSaveable { mutableStateOf(false) }
         FoldOsSurface(
             modifier = Modifier.fillMaxWidth(),
             color = tokens.highlight,
@@ -495,26 +515,57 @@ private fun MailNotConfiguredContent(
                     )
                 }
                 Text(
-                    text = "The inbox here comes from the Gmail API, which Google only serves to an app it knows. " +
-                        "A Google Cloud OAuth client is that registration: a free project at console.cloud.google.com " +
-                        "with the Gmail API enabled and an OAuth client of type Android for com.foldos.launcher and " +
-                        "your signing certificate's SHA-1. Its client id (ends in .apps.googleusercontent.com) is the " +
-                        "only thing FoldOS needs.",
+                    text = "Mail needs a one-time Google sign-in. FoldOS asks for read access only. " +
+                        "Until you connect, this tab shows the unread counts the Gmail app already keeps.",
                     color = tokens.onHighlight,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
                 )
-                Text(
-                    text = "Paste it under Settings › Mail › OAuth client id, then tap Connect. FoldOS asks for read " +
-                        "access only. Until then this tab shows the unread counts the Gmail app already keeps on the phone.",
-                    color = tokens.onHighlight.copy(alpha = 0.85f),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                )
-                Button(
-                    onClick = onOpenSettings,
-                    colors = ButtonDefaults.buttonColors(containerColor = tokens.accent, contentColor = tokens.onAccent),
-                ) { Text("Open Settings › Mail") }
+                // Collapsible "How to connect" row (collapsed by default).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { howOpen = !howOpen }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "How to connect",
+                        color = tokens.onHighlight,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = if (howOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = if (howOpen) "Hide steps" else "Show steps",
+                        tint = tokens.onHighlight,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                AnimatedVisibility(visible = howOpen) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            "1. Create a free Google Cloud project at console.cloud.google.com.",
+                            "2. Enable the Gmail API for that project.",
+                            "3. Create an OAuth client of type Android for com.foldos.launcher with your signing certificate's SHA-1.",
+                            "4. Paste its client id (ends in .apps.googleusercontent.com) under Settings › Mail › OAuth client id.",
+                            "5. Tap Connect.",
+                        ).forEach { step ->
+                            Text(
+                                text = step,
+                                color = tokens.onHighlight.copy(alpha = 0.9f),
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                            )
+                        }
+                        Button(
+                            onClick = onOpenSettings,
+                            colors = ButtonDefaults.buttonColors(containerColor = tokens.accent, contentColor = tokens.onAccent),
+                        ) { Text("Open Settings › Mail") }
+                    }
+                }
             }
         }
     }
@@ -604,7 +655,6 @@ private fun MailNotConfiguredContent(
         ) {
             explanation()
             countsCard()
-            Spacer(Modifier.height(72.dp))
         }
     }
 }

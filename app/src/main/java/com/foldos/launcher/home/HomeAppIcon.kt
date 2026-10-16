@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -137,12 +138,19 @@ fun HomeAppTile(
     badgeStyle: String = LauncherSettings.BADGE_COUNT,
     onLongPressAt: ((anchor: Rect) -> Unit)? = null,
     a11yActions: List<CustomAccessibilityAction> = emptyList(),
+    contentModifier: Modifier = Modifier,
 ) {
     val holder = remember { HomeAnchorHolder() }
     val longPress: (() -> Unit)? = onLongPressAt?.let { report -> { report(holder.bounds() ?: Rect.Zero) } } ?: onLongClick
     Column(
         modifier = modifier
             .fillMaxSize()
+            // The tile fills its (stretched) cell, but only the icon plus label answer touches: a
+            // press on the empty slack below the label belongs to the page (long press = edit mode).
+            // Everything after this line is laid out at the content's own height, top aligned.
+            .wrapContentHeight(Alignment.Top)
+            // [contentModifier] (the drag gesture) sits before the tap gestures so it stays their parent.
+            .then(contentModifier)
             .a11yButton(
                 label = a11yAppLabel(app.label, badge),
                 onActivate = onClick,
@@ -160,7 +168,9 @@ fun HomeAppTile(
         if (showLabel) {
             Spacer(Modifier.height(AppLabelStyle.ICON_GAP))
             // Shared label style: two lines, medium weight, soft shadow, size from Settings > Home.
-            AppLabel(text = app.label, color = labelColor)
+            // The tile is top aligned, so it does not reserve the second line: the touch area ends
+            // where the drawn label ends.
+            AppLabel(text = app.label, color = labelColor, reserveLines = false)
         }
     }
 }

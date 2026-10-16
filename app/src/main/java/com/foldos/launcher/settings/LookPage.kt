@@ -58,9 +58,9 @@ object LookRows {
         ThemeId.BOLD -> 6
     }
 
-    /** Theme colors, one entry per primary color (it has a light and a dark version), Custom. Keys are family ids. */
+    /** Default (the theme's own colors), one entry per primary color (it has a light and a dark version), Custom. Keys are family ids. */
     val schemeOptions: List<Pair<String, String>> =
-        listOf(ColorSchemeConfig.SCHEME_THEME to "Theme colors") +
+        listOf(ColorSchemeConfig.SCHEME_THEME to "Default") +
             ColorSchemes.families.map { family -> family.id to family.name } +
             (ColorSchemeConfig.SCHEME_CUSTOM to "Custom")
 }

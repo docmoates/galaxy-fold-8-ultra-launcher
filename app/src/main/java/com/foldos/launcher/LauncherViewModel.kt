@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * State holder for [MainActivity]. Survives configuration changes (fold / unfold recreates the
@@ -337,6 +338,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             if (result.isFailure) {
                 Log.w(TAG, "ensureDefaultLayout($screen) failed", result.exceptionOrNull())
                 ensuredScreens.remove(screen)
+            } else {
+                // Dashboard pages that were restyled before their widgets were seeded show nothing
+                // (their apps are hidden): give them the default widgets once.
+                runCatching { repairDashboardPages(screen) }
+                    .onFailure { Log.w(TAG, "repairDashboardPages($screen) failed", it) }
             }
         }
     }
@@ -358,10 +364,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      */
     fun moveItem(item: HomeItem, pageId: Long, col: Int, row: Int, stacksOn: Boolean, geometry: GridGeometry) {
         val growsRows = pageStyleOf(pageId).growsRows()
+        val targetStyle = pageStyleOf(pageId)
         graph.appScope.launch {
             runCatching {
+                // A Dashboard page draws widgets only: an app / folder / pair dropped there would vanish.
+                if (targetStyle == HomeStyle.DASHBOARD && item.kind != ItemKind.WIDGET) {
+                    toastDashboardWidgetsOnly()
+                    return@runCatching
+                }
                 if (Folders.canLiveInFolder(item)) {
-                    val target = graph.layouts.items(pageId).first()
+                    val target = graph.layouts.items(pageId).first().visibleOn(targetStyle)
                     val hit = target.firstOrNull { other -> other.id != item.id && other.covers(col, row) }
                     if (hit != null) {
                         if (hit.isFolder) {
@@ -375,7 +387,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
                 if (stacksOn && item.kind == ItemKind.WIDGET) {
-                    val target = graph.layouts.items(pageId).first()
+                    val target = graph.layouts.items(pageId).first().visibleOn(targetStyle)
                     val hit = target.firstOrNull { other ->
                         other.kind == ItemKind.WIDGET &&
                             other.id != item.id &&
@@ -407,7 +419,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (!item.free) {
                     val sx = item.spanX.coerceAtLeast(1)
                     val sy = item.spanY.coerceAtLeast(1)
-                    val others = graph.layouts.items(pageId).first().filter { other ->
+                    // Hidden apps of a Dashboard page sit on the same cells as its widgets: not obstacles.
+                    val others = graph.layouts.items(pageId).first().visibleOn(targetStyle).filter { other ->
                         other.id != item.id && !other.free && (item.stackId == null || other.stackId != item.stackId)
                     }
                     if (others.any { it.overlapsCells(col, row, sx, sy) }) {
@@ -481,8 +494,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun placeDroppedApp(app: AppInfo, pageId: Long, col: Int, row: Int, geometry: GridGeometry) {
         val grows = pageStyleOf(pageId).growsRows()
+        val style = pageStyleOf(pageId)
         graph.appScope.launch {
             runCatching {
+                if (style == HomeStyle.DASHBOARD) {
+                    // A Dashboard page draws widgets only, so an app stored there would never show.
+                    toastDashboardWidgetsOnly()
+                    return@runCatching
+                }
                 val onPage = graph.layouts.items(pageId).first()
                 if (col < 0 || row < 0) {
                     if (hybridPageIsFull(pageId, onPage)) {
@@ -513,6 +532,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /**
      * Puts [app] on the nearest free cell around [col]/[row]. A page with a fixed row count that is full
      * refuses the app with a "No room on this page" toast instead of storing a row nobody draws.
+     *
+     * @return true when the app was placed.
      */
     private suspend fun placeAppOrToast(
         app: AppInfo,
@@ -521,9 +542,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         row: Int,
         geometry: GridGeometry,
         growsRows: Boolean,
-    ) {
+    ): Boolean {
         val placed = graph.layouts.placeApp(app, pageId, col, row, geometry.cols, geometry.rows, growsRows)
         if (!placed) toastNoRoom()
+        return placed
+    }
+
+    private suspend fun toastAddedToHome(app: AppInfo) {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(getApplication<Application>(), "${app.label} added to the home screen", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
@@ -545,6 +573,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private suspend fun toastNoRoom() {
         withContext(Dispatchers.Main) {
             Toast.makeText(getApplication<Application>(), "No room on this page", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private suspend fun toastDashboardWidgetsOnly() {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(
+                getApplication<Application>(),
+                "A Dashboard page holds widgets only. Switch it to Grid to place apps.",
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 
@@ -627,6 +665,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val listLike = pageStyle == HomeStyle.LIST || pageStyle == HomeStyle.HYBRID
         graph.appScope.launch {
             runCatching {
+                if (pageStyle == HomeStyle.DASHBOARD) {
+                    toastDashboardWidgetsOnly()
+                    return@runCatching
+                }
                 if (listLike) {
                     val onPage = graph.layouts.items(pageId).first()
                     if (hybridPageIsFull(pageId, onPage, pageStyle)) {
@@ -635,31 +677,91 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     }
                     val lowest = onPage.maxOfOrNull { it.row + it.spanY.coerceAtLeast(1) - 1 } ?: -1
                     graph.layouts.placeApp(app, pageId, 0, lowest + 1)
+                    toastAddedToHome(app)
                 } else {
-                    placeAppOrToast(app, pageId, 0, 0, geometry, pageStyle.growsRows())
+                    val placed = placeAppOrToast(app, pageId, 0, 0, geometry, pageStyle.growsRows())
+                    if (placed) {
+                        toastAddedToHome(app)
+                    }
                 }
             }.onFailure { Log.w(TAG, "addAppToHome(${app.key}) failed", it) }
         }
     }
 
-    /** Restyles one page (edit mode's segmented control); an empty page turned dashboard is seeded. */
+    /**
+     * Restyles one page (edit mode's segmented control). A page turned dashboard that holds no widget
+     * gets the default dashboard widgets; the apps it had stay in the database, hidden while the
+     * style is Dashboard. Turning a dashboard page back to Grid removes the untouched seeded widgets
+     * again, so they do not sit on top of the apps that come back.
+     */
     fun setPageStyle(pageId: Long, style: HomeStyle, screen: ScreenKind) {
         graph.appScope.launch {
             runCatching {
+                val before = graph.layouts.pages(screen).first().firstOrNull { it.id == pageId }?.style
                 graph.layouts.setPageStyle(pageId, style)
                 if (style == HomeStyle.DASHBOARD) seedDashboardIfEmpty(pageId, screen)
+                if (style == HomeStyle.GRID && before == HomeStyle.DASHBOARD) removeSeededDashboardWidgets(pageId, screen)
             }.onFailure { Log.w(TAG, "setPageStyle($pageId) failed", it) }
         }
     }
 
     /**
-     * Writes [com.foldos.launcher.home.defaultDashboardItems] to [pageId] when it holds no items,
-     * so a page switched to the dashboard style gets real, editable widgets instead of the
-     * non-persisted preview the home draws for an empty dashboard page.
+     * Writes [com.foldos.launcher.home.defaultDashboardItems] to [pageId] when it holds no widget
+     * (apps, folders and pairs do not count: a dashboard draws widgets only), so a page switched to
+     * the dashboard style gets real, editable widgets instead of the non-persisted preview the home
+     * draws for an empty dashboard page.
      */
     private suspend fun seedDashboardIfEmpty(pageId: Long, screen: ScreenKind) {
-        if (graph.layouts.items(pageId).first().isNotEmpty()) return
+        if (graph.layouts.items(pageId).first().any { it.kind == ItemKind.WIDGET }) return
         defaultDashboardItems(screen, pageId).forEach { graph.layouts.upsertItem(it) }
+    }
+
+    /**
+     * A dashboard page turned back to Grid: when it also holds apps / folders / pairs, deletes the
+     * widgets that are still exactly the seeded defaults (same built-in, cell and span, no stack or
+     * free placement). A widget the user added, moved or resized stays where it is.
+     */
+    private suspend fun removeSeededDashboardWidgets(pageId: Long, screen: ScreenKind) {
+        val items = graph.layouts.items(pageId).first()
+        if (items.none { it.kind != ItemKind.WIDGET }) return
+        val seeded = defaultDashboardItems(screen, pageId)
+        items.filter { widget ->
+            widget.kind == ItemKind.WIDGET &&
+                widget.builtinId != null &&
+                widget.appWidgetId == null &&
+                widget.stackId == null &&
+                !widget.free &&
+                seeded.any { s ->
+                    s.builtinId == widget.builtinId && s.col == widget.col && s.row == widget.row &&
+                        s.spanX == widget.spanX && s.spanY == widget.spanY
+                }
+        }.forEach { graph.layouts.deleteItem(it.id) }
+    }
+
+    /**
+     * Repair for pages that were switched to Dashboard before widgets were seeded next to their apps:
+     * a Dashboard page of [screen] that holds apps but no widget gets the default widgets now.
+     *
+     * Runs once per screen for the life of the install: a marker file in the no-backup directory is
+     * written after the first successful run, so a user who later deletes every widget of such a page
+     * does not get the defaults back on the next process start.
+     */
+    private suspend fun repairDashboardPages(screen: ScreenKind) {
+        val markerName = "foldos_dashboard_repaired_${screen.name}"
+        // noBackupFilesDir creates and stats the directory: resolve it off the main thread.
+        val alreadyRepaired = withContext(Dispatchers.IO) {
+            runCatching { java.io.File(getApplication<Application>().noBackupFilesDir, markerName).exists() }.getOrDefault(false)
+        }
+        if (alreadyRepaired) return
+        graph.layouts.pages(screen).first()
+            .filter { it.style == HomeStyle.DASHBOARD }
+            .forEach { page ->
+                val items = graph.layouts.items(page.id).first()
+                if (items.isNotEmpty() && items.none { it.kind == ItemKind.WIDGET }) seedDashboardIfEmpty(page.id, screen)
+            }
+        withContext(Dispatchers.IO) {
+            runCatching { java.io.File(getApplication<Application>().noBackupFilesDir, markerName).createNewFile() }
+        }
     }
 
     /** Appends a page in [style] to [screen] and scrolls to it. */
@@ -677,20 +779,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Deletes [pageId] with its items (releasing any app widget ids) and shows the first remaining page. */
+    /**
+     * Deletes [pageId] with its items (releasing any app widget ids) and shows the page before it (the
+     * new first page when the first one was deleted). A screen always keeps one page: the last page is
+     * never deleted.
+     */
     fun deletePage(pageId: Long, screen: ScreenKind) {
         viewModelScope.launch {
-            val deleted = runCatching {
-                val items = graph.layouts.items(pageId).first()
-                graph.layouts.deletePage(pageId)
-                // Release the host ids only once the rows are gone: a failed delete keeps its widgets alive.
+            val before = graph.layouts.pages(screen).first().sortedBy { it.index }
+            val deletedIndex = before.indexOfFirst { it.id == pageId }
+            if (deletedIndex < 0 || before.size <= 1) return@launch
+            val items = runCatching {
+                graph.layouts.items(pageId).first().also { graph.layouts.deletePage(pageId) }
+            }.onFailure { Log.w(TAG, "deletePage($pageId) failed", it) }.getOrNull() ?: return@launch
+            // The repository ignores an unknown id or a screen's last page without failing, so confirm the
+            // page is really gone before the host ids are released (a surviving row would render blank).
+            val remaining = withTimeoutOrNull(DELETE_PAGE_WAIT_MS) { pages(screen).first { all -> all.none { it.id == pageId } } }
+                ?.sortedBy { it.index } ?: return@launch
+            runCatching {
                 withContext(Dispatchers.Main) {
                     items.forEach { item -> item.appWidgetId?.let { widgetHost.deleteId(it) } }
                 }
-            }.onFailure { Log.w(TAG, "deletePage($pageId) failed", it) }.isSuccess
-            if (deleted) {
-                pages(screen).first { all -> all.none { it.id == pageId } }.firstOrNull()?.let { selectPage(it.id) }
-            }
+            }.onFailure { Log.w(TAG, "deletePage($pageId) host release failed", it) }
+            remaining.getOrNull((deletedIndex - 1).coerceAtLeast(0))?.let { selectPage(it.id) }
         }
     }
 
@@ -758,7 +869,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     ) {
         graph.appScope.launch {
             runCatching {
-                val items = graph.layouts.items(pageId).first()
+                // Hidden apps of a Dashboard page sit on the same cells as its widgets: not obstacles.
+                val items = graph.layouts.items(pageId).first().visibleOn(pageStyleOf(pageId))
                 val sx = spanX.coerceIn(1, cols.coerceAtLeast(1))
                 val sy = spanY.coerceIn(1, rows.coerceAtLeast(1))
                 val (col, row) = firstFreeCell(items, cols, rows, sx, sy)
@@ -800,6 +912,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 .forEach { page ->
                     graph.layouts.setPageStyle(page.id, style)
                     if (style == HomeStyle.DASHBOARD) seedDashboardIfEmpty(page.id, screen)
+                    if (style == HomeStyle.GRID && page.style == HomeStyle.DASHBOARD) removeSeededDashboardWidgets(page.id, screen)
                 }
         }.onFailure { Log.w(TAG, "applyStyleToScreen($screen) failed", it) }
     }
@@ -837,6 +950,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
         /** Extra time past the Undo window before a removed app widget's host id is released. */
         const val WIDGET_RELEASE_MARGIN_MS = 1500L
+
+        /** How long deletePage waits for the page list to drop the deleted page before it stops looking. */
+        const val DELETE_PAGE_WAIT_MS = 3000L
     }
 }
 
@@ -916,3 +1032,10 @@ internal fun firstFreeCell(items: List<HomeItem>, cols: Int, rows: Int, spanX: I
     }
     return 0 to (lowest + 1)
 }
+
+/**
+ * The items of a page that [style] actually draws and lets the user place things among: a Dashboard
+ * page draws widgets only (its apps / folders / pairs stay stored but hidden), every other style all.
+ */
+internal fun List<HomeItem>.visibleOn(style: HomeStyle?): List<HomeItem> =
+    if (style == HomeStyle.DASHBOARD) filter { it.kind == ItemKind.WIDGET } else this

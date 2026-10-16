@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Process
 import android.provider.Settings
 import android.util.Log
 import androidx.compose.foundation.background
@@ -395,28 +394,6 @@ private fun MenuRow(action: ContextAction, onClick: () -> Unit) {
 /* ------------------------------------------------------------------------------------------ */
 /* System helpers                                                                              */
 /* ------------------------------------------------------------------------------------------ */
-
-/** An [AppInfo] built from the package manager for an app that is not (or no longer) in the apps list. */
-private fun fallbackApp(context: Context, packageName: String, activityName: String?): AppInfo? {
-    val pm = context.packageManager
-    val info = try {
-        pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0L))
-    } catch (e: PackageManager.NameNotFoundException) {
-        return null
-    }
-    val label = try {
-        pm.getApplicationLabel(info).toString()
-    } catch (e: Exception) {
-        packageName
-    }
-    return AppInfo(
-        packageName = packageName,
-        activityName = activityName ?: "",
-        label = label,
-        user = Process.myUserHandle(),
-        iconLoader = { pm.getApplicationIcon(info) },
-    )
-}
 
 private fun isSystemPackage(context: Context, packageName: String): Boolean = try {
     val info = context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0L))

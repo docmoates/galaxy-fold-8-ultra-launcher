@@ -184,67 +184,77 @@ private fun DetailPage(entry: WidgetEntry, onAdd: () -> Unit) {
         val innerHeight = minOf(heightForWidth, maxInnerHeight)
         val innerWidth = if (heightForWidth > maxInnerHeight) maxInnerHeight * aspect else wantedWidth
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Spacer(modifier = Modifier.size(2.dp))
-            val cardShape = RoundedCornerShape(24.dp)
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Preview, name, size and description sit centred in all the height the button leaves.
             Box(
                 modifier = Modifier
-                    .size(width = innerWidth + cardPadding * 2, height = innerHeight + cardPadding * 2)
-                    .clip(cardShape)
-                    .background(tokens.onSurface.copy(alpha = 0.07f))
-                    .border(1.dp, tokens.surfaceBorder, cardShape),
+                    .weight(1f)
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
-                WidgetPreview(
-                    entry = entry,
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(cardPadding)
-                        .clearAndSetSemantics { contentDescription = "Preview of ${entry.name}" },
-                    contentScale = ContentScale.Inside,
-                )
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val cardShape = RoundedCornerShape(24.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(width = innerWidth + cardPadding * 2, height = innerHeight + cardPadding * 2)
+                            .clip(cardShape)
+                            .background(tokens.onSurface.copy(alpha = 0.07f))
+                            .border(1.dp, tokens.surfaceBorder, cardShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        WidgetPreview(
+                            entry = entry,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(cardPadding)
+                                .clearAndSetSemantics { contentDescription = "Preview of ${entry.name}" },
+                            contentScale = ContentScale.Inside,
+                        )
+                    }
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text(
+                        text = entry.name,
+                        color = tokens.onSurface,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "Size ${sizeLabel(entry)} · $sourceLabel",
+                        color = tokens.onSurface.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val text = description
+                    if (!text.isNullOrBlank()) {
+                        Text(
+                            text = text,
+                            color = tokens.onSurface.copy(alpha = 0.6f),
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
-            Spacer(modifier = Modifier.size(4.dp))
-            Text(
-                text = entry.name,
-                color = tokens.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "Size ${sizeLabel(entry)} · $sourceLabel",
-                color = tokens.onSurface.copy(alpha = 0.7f),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val text = description
-            if (!text.isNullOrBlank()) {
-                Text(
-                    text = text,
-                    color = tokens.onSurface.copy(alpha = 0.6f),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(modifier = Modifier.size(6.dp))
+            // The button is anchored to the bottom of the sheet with 16dp around it.
             Button(
                 onClick = onAdd,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
                     .heightIn(min = 52.dp)
                     .testTag(TAG_ADD),
                 colors = ButtonDefaults.buttonColors(
@@ -254,7 +264,6 @@ private fun DetailPage(entry: WidgetEntry, onAdd: () -> Unit) {
             ) {
                 Text(text = "Add to home", fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.size(8.dp))
         }
     }
 }

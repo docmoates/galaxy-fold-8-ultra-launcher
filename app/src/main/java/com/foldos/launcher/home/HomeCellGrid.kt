@@ -49,6 +49,12 @@ internal data class HomeCell(
     val yDp: Float? = null,
     val wDp: Float? = null,
     val hDp: Float? = null,
+    /**
+     * True for an app / folder / pair tile. Such a tile only answers presses on its own visible
+     * content (icon and label, which the tile checks itself), not on the whole stretched cell, so
+     * [HomeGridMetrics.itemIndexAt] covers just the top [HomeGridMetrics.tileHitHeightPx] of the cell.
+     */
+    val tile: Boolean = false,
 ) {
     val isFree: Boolean get() = xDp != null && yDp != null && wDp != null && hDp != null
 }
@@ -72,6 +78,13 @@ internal class HomeGridMetrics {
 
     /** Pixels per dp at the last measure; free cells are stored in dp. */
     var density: Float = 1f
+
+    /**
+     * Height in px from the top of a cell that a [HomeCell.tile] always owns (its icon area). The
+     * rest of the tile (its label) claims presses itself by consuming them, and the slack under the
+     * label of a stretched cell belongs to nobody, so a long press there is an empty-space press.
+     */
+    var tileHitHeightPx: Int = Int.MAX_VALUE
 
     /**
      * Exact column under [x] (px from the grid's own left edge), or null when the point is left of
@@ -133,7 +146,13 @@ internal class HomeGridMetrics {
             val left = startX(cell.col)
             val right = max(left + 1, endX(endCol))
             val top = cell.row * cellH
-            val bottom = max(top + 1, endRow * cellH)
+            val cellBottom = max(top + 1, endRow * cellH)
+            // tileHitHeightPx is Int.MAX_VALUE when unset: skip the clamp rather than overflow the sum.
+            val bottom = if (cell.tile && tileHitHeightPx != Int.MAX_VALUE) {
+                min(cellBottom, top + max(1, tileHitHeightPx))
+            } else {
+                cellBottom
+            }
             if (x >= left && x < right && y >= top && y < bottom) return index
         }
         return null
@@ -148,7 +167,9 @@ internal class HomeGridMetrics {
         val left = (xDp * density).roundToInt().coerceIn(0, max(0, widthPx - 1))
         val top = (yDp * density).roundToInt().coerceIn(0, max(0, heightPx - 1))
         val w = (wDp * density).roundToInt().coerceIn(1, max(1, widthPx - left))
-        val h = (hDp * density).roundToInt().coerceIn(1, max(1, heightPx - top))
+        val fullH = (hDp * density).roundToInt().coerceIn(1, max(1, heightPx - top))
+        // A free tile's content is top-aligned, so the slack under it is empty space like in a grid cell.
+        val h = if (cell.tile && tileHitHeightPx != Int.MAX_VALUE) min(fullH, max(1, tileHitHeightPx)) else fullH
         return x >= left && x < left + w && y >= top && y < top + h
     }
 
@@ -215,6 +236,9 @@ private class HomeGridCoordinates {
  *   not over a cell. A press that lands on a child is never reported here, whatever that child does
  *   with it; a child that wants to leave the long press to the page must handle it itself.
  * @param dropTarget when non-null the grid accepts drag-and-drop (see [HomeGridDrop]).
+ * @param tileHitHeight height from the top of a cell that a [HomeCell.tile] counts as covered in the
+ *   empty-space hit test (its icon area); the tile's label claims presses by consuming them. Null =
+ *   the whole cell.
  */
 @Composable
 internal fun HomeCellGrid(
@@ -228,6 +252,7 @@ internal fun HomeCellGrid(
     geometryScreen: ScreenKind? = null,
     onEmptyLongPress: ((col: Int, row: Int) -> Unit)? = null,
     dropTarget: HomeGridDrop? = null,
+    tileHitHeight: Dp? = null,
     content: @Composable (index: Int) -> Unit,
 ) {
     val metrics = remember { HomeGridMetrics() }
@@ -382,6 +407,7 @@ internal fun HomeCellGrid(
         metrics.cellW = cellW
         metrics.cellH = cellH
         metrics.gutterPx = gutterPx
+        metrics.tileHitHeightPx = tileHitHeight?.roundToPx() ?: Int.MAX_VALUE
         metrics.widthPx = width
         metrics.heightPx = height
         // `this.density`: the composable's own `density` local would otherwise shadow the scope's Float.

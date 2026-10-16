@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Star
@@ -141,6 +142,18 @@ internal fun HubContactsTab(
                 )
             }
         }
+    }
+
+    if (!granted) {
+        // Permission missing: only the centred card, with no header, search pill, favourites or list.
+        HubPermissionPanel(
+            icon = Icons.Rounded.People,
+            title = "Contacts access",
+            reason = "Allow access to show your contacts, favourites and photos.",
+            permission = Manifest.permission.READ_CONTACTS,
+            modifier = modifier.padding(horizontal = HubPagePadding).padding(contentPadding),
+        )
+        return
     }
 
     if (!inner) {

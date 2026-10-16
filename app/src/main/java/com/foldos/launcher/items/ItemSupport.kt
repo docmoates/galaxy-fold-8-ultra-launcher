@@ -1,5 +1,8 @@
 package com.foldos.launcher.items
 
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Process
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -41,6 +44,81 @@ internal fun Map<String, AppInfo>.appFor(packageName: String?, activityName: Str
         this["$pkg/$activityName"]?.let { return it }
     }
     return values.firstOrNull { it.packageName == pkg }
+}
+
+/**
+ * An [AppInfo] built from the package manager for an app that is not (or no longer) in the apps
+ * list (a hidden app, an app without a launcher activity, a work-profile app): its application icon
+ * and label. Null when the package is not installed at all.
+ *
+ * [distinctKey] gives the result an empty activity name (key `"package/"`) so its raw, unshaped
+ * icon can never be cached under a real app's `package/activity` key in the icon bitmap cache.
+ */
+internal fun fallbackApp(
+    context: Context,
+    packageName: String,
+    activityName: String?,
+    distinctKey: Boolean = false,
+): AppInfo? {
+    val pm = context.packageManager
+    val info = try {
+        pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0L))
+    } catch (e: PackageManager.NameNotFoundException) {
+        return null
+    }
+    val label = try {
+        pm.getApplicationLabel(info).toString()
+    } catch (e: Exception) {
+        packageName
+    }
+    return AppInfo(
+        packageName = packageName,
+        activityName = if (distinctKey) "" else (activityName ?: ""),
+        label = label,
+        user = Process.myUserHandle(),
+        iconLoader = { pm.getApplicationIcon(info) },
+    )
+}
+
+/**
+ * The apps a folder's preview draws: its children in folder order (`row`, then `col`), each looked up
+ * in [apps] (package/activity key, then any activity of the package) and, when that finds nothing,
+ * built from the package manager through [fallbackApp], so an installed child always has an icon.
+ * Children whose package is not installed are skipped. At most [limit] apps.
+ *
+ * The package-manager fallback only runs once [apps] has loaded (is non-empty): before that every
+ * child would miss the map and cost a main-thread binder call, and its raw icon would be drawn
+ * instead of the themed one. Fallback apps carry a distinct key and are memoised per package.
+ */
+internal fun previewAppsOf(
+    children: List<HomeItem>,
+    apps: Map<String, AppInfo>,
+    context: Context,
+    limit: Int = Folders.PREVIEW_COUNT,
+): List<AppInfo> =
+    children
+        .sortedWith(compareBy<HomeItem> { it.row }.thenBy { it.col })
+        .asSequence()
+        .mapNotNull { child ->
+            apps.firstAppOf(child) ?: if (apps.isEmpty()) {
+                null
+            } else {
+                child.packageName?.let { cachedFallbackApp(context, it, child.activityName) }
+            }
+        }
+        .take(limit)
+        .toList()
+
+private val fallbackPreviewCache = java.util.concurrent.ConcurrentHashMap<String, AppInfo>()
+
+/** [fallbackApp] (distinct key) memoised per package; a missing package is not cached, it may install later. */
+private fun cachedFallbackApp(context: Context, packageName: String, activityName: String?): AppInfo? {
+    fallbackPreviewCache[packageName]?.let { return it }
+    // The cache is process-wide and each AppInfo's icon loader captures the package manager, so build
+    // it from the application context: an Activity context would be kept alive after it is destroyed.
+    val built = fallbackApp(context.applicationContext, packageName, activityName, distinctKey = true) ?: return null
+    fallbackPreviewCache[packageName] = built
+    return built
 }
 
 /** The app of an APP item, or app A of a PAIR item. */

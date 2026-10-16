@@ -84,6 +84,9 @@ import kotlin.math.roundToInt
 /** How long a dragged item must hover past the page edge before the target page switches. */
 internal const val EDGE_SWITCH_DELAY_MS: Long = 600L
 
+/** How long the red "Tap again to delete" page confirmation waits for the second tap. */
+internal const val DELETE_PAGE_CONFIRM_MS: Long = 3000L
+
 /** How long the "removed" snackbar (and its Undo) stays up. */
 internal const val UNDO_WINDOW_MS: Long = 5000L
 
@@ -201,8 +204,19 @@ fun EditModeOverlay(
     val currentIndex = sortedPages.indexOfFirst { it.id == currentPage?.id }.coerceAtLeast(0)
     val style = currentPage?.style ?: settings.styleFor(screen)
     // One entry per slot: the front item of each stack stands for the whole stack.
-    val pageItems = remember(items, currentPageId) {
+    // A list has no cell grid and a dashboard draws widgets only (the page's apps stay in the
+    // database but are hidden), so neither offers cells / hidden apps to select, drag or hit.
+    val pageItems = remember(items, currentPageId, style) {
         items.filter { it.pageId == currentPageId }
+            .filter { item ->
+                when (style) {
+                    // The inner list draws the page's widgets in its right column; keep them selectable
+                    // (their Remove chips are drawn below, since the cell grid does not match that column).
+                    HomeStyle.LIST -> item.kind == ItemKind.WIDGET
+                    HomeStyle.DASHBOARD -> item.kind == ItemKind.WIDGET
+                    else -> true
+                }
+            }
             .sortedBy { it.stackIndex }
             .distinctBy { it.stackId ?: it.id }
     }
@@ -222,12 +236,13 @@ fun EditModeOverlay(
     }
     LaunchedEffect(currentPage?.id, sortedPages) {
         targetPageIndex = currentIndex
-        confirmDeletePage = false
     }
+    // The delete confirmation survives page-list emissions and only resets when the shown page changes.
+    LaunchedEffect(currentPage?.id) { confirmDeletePage = false }
     LaunchedEffect(selectedId) { confirmFolderId = null }
     LaunchedEffect(confirmDeletePage) {
         if (confirmDeletePage) {
-            delay(3000L)
+            delay(DELETE_PAGE_CONFIRM_MS)
             confirmDeletePage = false
         }
     }
@@ -317,10 +332,13 @@ fun EditModeOverlay(
         Canvas(Modifier.fillMaxSize()) {
             val cellCorner = CornerRadius(8.dp.toPx())
             val guide = tokens.onSurface.copy(alpha = 0.10f)
-            for (r in 0 until grid.rows) {
-                for (c in 0 until grid.cols) {
-                    val cell = grid.cellRect(c, r, 1, 1).deflate(3.dp.toPx())
-                    drawRoundRect(guide, cell.topLeft, cell.size, cellCorner, style = Stroke(1.dp.toPx()))
+            // A list has no cell grid (its rows are laid out by the list itself), so it gets no cell guide.
+            if (style != HomeStyle.LIST) {
+                for (r in 0 until grid.rows) {
+                    for (c in 0 until grid.cols) {
+                        val cell = grid.cellRect(c, r, 1, 1).deflate(3.dp.toPx())
+                        drawRoundRect(guide, cell.topLeft, cell.size, cellCorner, style = Stroke(1.dp.toPx()))
+                    }
                 }
             }
             val d = drag
@@ -340,7 +358,7 @@ fun EditModeOverlay(
                     drawRoundRect(tokens.accent.copy(alpha = 0.18f), target.topLeft, target.size, cellCorner)
                     drawRoundRect(tokens.accent, target.topLeft, target.size, cellCorner, style = Stroke(2.dp.toPx()))
                 }
-                null -> if (selected != null) {
+                null -> if (selected != null && style != HomeStyle.LIST) {
                     val rect = grid.rectFor(selected)
                     drawRoundRect(tokens.accent, rect.topLeft, rect.size, cellCorner, style = Stroke(2.dp.toPx()))
                 }
@@ -352,7 +370,8 @@ fun EditModeOverlay(
         val layerLeft = bounds.left - handleHitRadiusPx
         val layerTop = bounds.top - handleHitRadiusPx
         val layerOriginState = rememberUpdatedState(Offset(layerLeft, layerTop))
-        Box(
+        // A list page has no cell grid to select from or drop on: no gesture layer (see pageItems).
+        if (style != HomeStyle.LIST) Box(
             Modifier
                 .offset { IntOffset(layerLeft.roundToInt(), layerTop.roundToInt()) }
                 .size(
@@ -420,7 +439,7 @@ fun EditModeOverlay(
         )
 
         /* ---- controls ON the selected item (hidden while anything is being dragged) ---- */
-        if (selected != null && drag == null) {
+        if (selected != null && drag == null && style != HomeStyle.LIST) {
             val rect = grid.rectFor(selected)
             if (selected.kind == ItemKind.WIDGET) {
                 EditCorner.entries.forEach { corner ->
@@ -462,6 +481,27 @@ fun EditModeOverlay(
             }
         }
 
+        /* ---- list page: its widgets sit in a stacked column, not on the cell grid, so they are removed from here ---- */
+        if (style == HomeStyle.LIST && pageItems.isNotEmpty()) {
+            Column(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .offset { IntOffset(0, chrome.topPx) }
+                    .padding(top = 8.dp, end = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
+                pageItems.forEachIndexed { i, widget ->
+                    EditChip(
+                        label = if (pageItems.size == 1) "Remove widget" else "Remove widget ${i + 1}",
+                        icon = Icons.Rounded.Close,
+                        onClick = { removeSelected(widget) },
+                        modifier = Modifier.testTag(EditTags.REMOVE_ITEM),
+                    )
+                }
+            }
+        }
+
         /* ---- the ONE top bar: style control + page strip (mock-up `.etop`) ---- */
         Column(
             Modifier
@@ -486,7 +526,7 @@ fun EditModeOverlay(
             )
             val dropTarget = targetPage
             val pageLabel = when {
-                confirmDeletePage -> "Delete page?"
+                confirmDeletePage -> "Tap again to delete"
                 drag is EditDrag.Move && dropTarget != null && dropTarget.id != currentPage?.id ->
                     "Drop on page ${targetPageIndex + 1}"
                 drag is EditDrag.Move && edgeSide != 0 -> "Hold to switch"
@@ -515,34 +555,56 @@ fun EditModeOverlay(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        // While confirming, the chip itself is the red confirm target (the trash
+                        // button next to it does the same), so a tap on what reads "Tap again to
+                        // delete" really deletes the page.
+                        val deleteTarget = currentPage?.id
+                        val canConfirmDelete = confirmDeletePage && deleteTarget != null && sortedPages.size > 1
+                        val confirmDelete: (() -> Unit)? = if (canConfirmDelete) {
+                            val deleteCurrentPage: () -> Unit = {
+                                confirmDeletePage = false
+                                selectedId = null
+                                if (deleteTarget != null) onDeletePage(deleteTarget)
+                            }
+                            deleteCurrentPage
+                        } else {
+                            null
+                        }
                         EditChip(
                             label = pageLabel,
-                            onClick = null,
-                            accent = confirmDeletePage || drag is EditDrag.Move,
+                            onClick = confirmDelete,
+                            accent = !confirmDeletePage && drag is EditDrag.Move,
+                            danger = confirmDeletePage,
                             modifier = Modifier
                                 .weight(1f, fill = false)
                                 .testTag(EditTags.PAGE_LABEL),
                         )
-                        EditRoundButton(
-                            icon = Icons.Rounded.ChevronRight,
-                            contentDescription = "Next page",
-                            enabled = currentIndex < sortedPages.lastIndex,
-                            onClick = { sortedPages.getOrNull(currentIndex + 1)?.let { onSelectPage(it.id) } },
-                            modifier = Modifier.testTag(EditTags.PAGE_NEXT),
-                        )
+                        // The long confirmation label needs the width of the next arrow.
+                        if (!confirmDeletePage) {
+                            EditRoundButton(
+                                icon = Icons.Rounded.ChevronRight,
+                                contentDescription = "Next page",
+                                enabled = currentIndex < sortedPages.lastIndex,
+                                onClick = { sortedPages.getOrNull(currentIndex + 1)?.let { onSelectPage(it.id) } },
+                                modifier = Modifier.testTag(EditTags.PAGE_NEXT),
+                            )
+                        }
                     }
                 }
-                EditRoundButton(
-                    icon = Icons.Rounded.Add,
-                    contentDescription = "Add page",
-                    onClick = onAddPage,
-                    modifier = Modifier.testTag(EditTags.ADD_PAGE),
-                )
+                if (!confirmDeletePage) {
+                    EditRoundButton(
+                        icon = Icons.Rounded.Add,
+                        contentDescription = "Add page",
+                        onClick = onAddPage,
+                        modifier = Modifier.testTag(EditTags.ADD_PAGE),
+                    )
+                }
+                // A screen always keeps at least one page, so the last page has no delete button.
                 if (sortedPages.size > 1 && currentPage != null) {
                     EditRoundButton(
                         icon = Icons.Rounded.Delete,
                         contentDescription = if (confirmDeletePage) "Tap again to delete this page" else "Delete page",
-                        accent = confirmDeletePage,
+                        danger = confirmDeletePage,
                         onClick = {
                             if (confirmDeletePage) {
                                 confirmDeletePage = false

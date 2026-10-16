@@ -72,13 +72,13 @@ internal fun HomeListPage(
     val now = rememberHomeClock()
     val pageId = page?.id ?: 0L
     if (!ctx.isInner) {
-        val favorites = remember(items, ctx.sortedApps) { ctx.favorites(items, LIST_COVER_COUNT) }
+        val favorites = remember(items, ctx.sortedApps) { ctx.favorites(items, LIST_COVER_COUNT).sortedAlphabetically() }
         Column(modifier.fillMaxSize()) {
             HomeListHeader(now, timeSize = 66)
             HomeScrubbedFavoriteList(ctx, favorites, items, Modifier.weight(1f).fillMaxWidth())
         }
     } else {
-        val favorites = remember(items, ctx.sortedApps) { ctx.favorites(items, LIST_INNER_COUNT) }
+        val favorites = remember(items, ctx.sortedApps) { ctx.favorites(items, LIST_INNER_COUNT).sortedAlphabetically() }
         val widgetItems = remember(items, pageId) {
             items.filter { it.kind == ItemKind.WIDGET }.take(3)
         }
@@ -190,6 +190,13 @@ private fun HomeScrubbedFavoriteList(
         }
     }
 }
+
+/** The list is A-Z by label (names that do not start with a letter come last), so its scrubber letters run A-Z too. */
+private fun List<AppInfo>.sortedAlphabetically(): List<AppInfo> =
+    sortedWith(
+        compareBy<AppInfo> { it.scrubberLetter() == '#' }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.label.trim() },
+    )
 
 /** First letter of the label in upper case, or '#' when it is not a letter. */
 private fun AppInfo.scrubberLetter(): Char {
@@ -305,17 +312,26 @@ internal fun HomeAlphabetScrubber(
                     },
                 )
             },
-        verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Every letter owns an equal slot of the full height, so the drawn letters are evenly spread and
+        // the slot under the finger ([letterAt]: y / height * count) is exactly the letter drawn there.
         letters.forEach { letter ->
-            Text(
-                text = letter.toString().uppercase(Locale.getDefault()),
-                color = if (letter == active) tokens.accent else tokens.onSurface.copy(alpha = 0.55f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = letter.toString().uppercase(Locale.getDefault()),
+                    color = if (letter == active) tokens.accent else tokens.onSurface.copy(alpha = 0.55f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
         }
     }
 }

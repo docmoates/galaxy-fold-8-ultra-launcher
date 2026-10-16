@@ -95,6 +95,13 @@ fun defaultHybridWidgetItems(screen: ScreenKind, pageId: Long): List<HomeItem> {
 val HomeItem.hasFreeBounds: Boolean
     get() = xDp != null && yDp != null && wDp != null && hDp != null
 
+/**
+ * The items a [HomeStyle.DASHBOARD] page draws and edits: its widgets only. APP / FOLDER / PAIR items of
+ * a page that was a grid stay in the database (switching back to Grid shows them again) but are
+ * never rendered, selected, moved over or counted as occupied cells while the style is Dashboard.
+ */
+fun dashboardWidgetItems(items: List<HomeItem>): List<HomeItem> = items.filter { it.kind == ItemKind.WIDGET }
+
 /** Gives unsaved preview items distinct negative ids so they can be keyed and told apart. */
 internal fun List<HomeItem>.asPreviewItems(): List<HomeItem> =
     mapIndexed { index, item -> if (item.id == 0L) item.copy(id = -(index + 1L)) else item }
@@ -118,10 +125,14 @@ internal fun HomeDashboardPage(
     val free = ctx.freeMode
     val placeholder = page == null
     val shown = remember(items, ctx.screen, pageId, cols, free, placeholder) {
+        // A dashboard draws widgets only. The page's APP / FOLDER / PAIR items (kept in the database
+        // when a grid page is switched to the dashboard style) stay hidden here and come back when
+        // the page goes back to Grid.
+        val widgets = dashboardWidgetItems(items)
         // The preview is only the placeholder shown before any page exists; a persisted page
         // (seeded with the default widgets when it becomes a dashboard) renders its real, editable
         // items, even when the user emptied it.
-        val source = if (items.isNotEmpty() || !placeholder) items else defaultDashboardItems(ctx.screen, pageId).asPreviewItems()
+        val source = if (widgets.isNotEmpty() || !placeholder) widgets else defaultDashboardItems(ctx.screen, pageId).asPreviewItems()
         reflowGridItems(source, cols, skipFree = free)
     }
     val rows = remember(shown, ctx.screen) { max(dashboardRows(shown), if (ctx.isInner) 3 else 4) }

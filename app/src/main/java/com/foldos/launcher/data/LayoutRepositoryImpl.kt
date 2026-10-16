@@ -240,15 +240,20 @@ class LayoutRepositoryImpl(
         dao.setPageStyle(pageId, style.name)
     }
 
-    /** Deletes a page and, through the foreign key, every item on it; then re-indexes the rest. */
+    /**
+     * Deletes a page and every item on it (folder children included), then re-indexes the rest so
+     * the page indices stay 0..n-1. A screen always keeps at least one page: deleting its only page
+     * does nothing. An unknown id does nothing either.
+     */
     override suspend fun deletePage(pageId: Long) {
         db.withTransaction {
-            val page = dao.pageById(pageId)
+            val page = dao.pageById(pageId) ?: return@withTransaction
+            if (dao.countPages(page.screen.name) <= 1) return@withTransaction
+            // Explicit as well as the foreign key cascade, so the items are gone whatever the pragma says.
+            dao.deleteItemsOfPage(pageId)
             dao.deletePage(pageId)
-            if (page != null) {
-                dao.pagesByScreenOnce(page.screen.name).forEachIndexed { index, remaining ->
-                    if (remaining.index != index) dao.setPageIndex(remaining.id, index)
-                }
+            dao.pagesByScreenOnce(page.screen.name).forEachIndexed { index, remaining ->
+                if (remaining.index != index) dao.setPageIndex(remaining.id, index)
             }
         }
     }

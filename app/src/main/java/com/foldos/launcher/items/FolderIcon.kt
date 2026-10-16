@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -33,11 +34,16 @@ import com.foldos.launcher.theme.LocalFoldOsTokens
  * The icon of a FOLDER item on the home grid (icon only; the home tile draws the label).
  *
  * - [LauncherSettings.FOLDER_GRID] (default): a surface tile with the first four children as a
- *   2x2 grid of mini icons (mock-up `.fic`); empty slots are accent dots.
+ *   2x2 grid of their real app icons (mock-up `.fic`); a slot without an app stays empty, a single
+ *   child is drawn as one centred icon.
  * - [LauncherSettings.FOLDER_BIG]: a 2x2 live mini-grid: the first four children drawn at half
  *   the icon size each, no frame, so the folder reads like four small app icons (One UI "big folder").
  * - [LauncherSettings.FOLDER_LIST]: a stacked look: two cards peeking out behind a front card that
  *   carries the first child's icon and the item count.
+ *
+ * Every child resolves to a real icon: the `apps` map first (package/activity, then any activity of
+ * the package), then the package manager (`fallbackApp`) for a child that is not in the launcher's app
+ * list. A slot is never drawn as a coloured placeholder square.
  *
  * @param children the folder's contents from `LayoutRepository.children(folder.id)`, in order.
  * @param apps installed apps keyed by `AppInfo.key` (the home grid's `appsByKey`).
@@ -54,12 +60,10 @@ fun FolderIcon(
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalFoldOsTokens.current
+    val context = LocalContext.current
     val size: Dp = sizeDp.coerceAtLeast(24).dp
-    val preview: List<AppInfo> = remember(children, apps) {
-        children
-            .sortedWith(compareBy<HomeItem> { it.row }.thenBy { it.col })
-            .mapNotNull { apps.firstAppOf(it) }
-            .take(Folders.PREVIEW_COUNT)
+    val preview: List<AppInfo> = remember(children, apps, context) {
+        previewAppsOf(children, apps, context)
     }
     val description = folder.title ?: Folders.DEFAULT_TITLE
     val described = modifier.semantics { contentDescription = "$description, folder with ${children.size} items" }
@@ -77,6 +81,20 @@ private fun FolderGridIcon(preview: List<AppInfo>, size: Dp, tokens: FoldOsToken
     val pad = size * 0.155f
     val gap = size * 0.07f
     val mini = ((size - pad * 2 - gap) / 2).coerceAtLeast(6.dp)
+    if (preview.size == 1) {
+        // One app: a single centred icon instead of a lone mini icon in a corner.
+        Box(
+            modifier = modifier
+                .size(size)
+                .clip(shape)
+                .background(tokens.surface)
+                .border(1.dp, tokens.surfaceBorder, shape),
+            contentAlignment = Alignment.Center,
+        ) {
+            ItemAppIcon(app = preview.first(), size = size * 0.58f, cornerFraction = 0.3f)
+        }
+        return
+    }
     Column(
         modifier = modifier
             .size(size)
@@ -93,11 +111,8 @@ private fun FolderGridIcon(preview: List<AppInfo>, size: Dp, tokens: FoldOsToken
                     if (app != null) {
                         ItemAppIcon(app = app, size = mini, cornerFraction = 0.3f)
                     } else {
-                        Box(
-                            Modifier
-                                .size(mini)
-                                .background(tokens.accent.copy(alpha = 0.35f), RoundedCornerShape(30)),
-                        )
+                        // No app for this slot: leave it empty, never a coloured placeholder.
+                        Spacer(Modifier.size(mini))
                     }
                 }
             }
@@ -110,7 +125,12 @@ private fun FolderGridIcon(preview: List<AppInfo>, size: Dp, tokens: FoldOsToken
 private fun FolderBigIcon(preview: List<AppInfo>, size: Dp, tokens: FoldOsTokens, modifier: Modifier) {
     val gap = size * 0.06f
     val mini = ((size - gap) / 2).coerceAtLeast(8.dp)
-    val slotShape = itemCornerShape(mini, tokens)
+    if (preview.size == 1) {
+        Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+            ItemAppIcon(app = preview.first(), size = size * 0.7f)
+        }
+        return
+    }
     Column(
         modifier = modifier.size(size),
         verticalArrangement = Arrangement.spacedBy(gap),
@@ -122,13 +142,7 @@ private fun FolderBigIcon(preview: List<AppInfo>, size: Dp, tokens: FoldOsTokens
                     if (app != null) {
                         ItemAppIcon(app = app, size = mini)
                     } else {
-                        Box(
-                            Modifier
-                                .size(mini)
-                                .clip(slotShape)
-                                .background(tokens.surface)
-                                .border(1.dp, tokens.surfaceBorder, slotShape),
-                        )
+                        Spacer(Modifier.size(mini))
                     }
                 }
             }
@@ -156,12 +170,6 @@ private fun FolderStackIcon(preview: List<AppInfo>, count: Int, size: Dp, tokens
             val front = preview.firstOrNull()
             if (front != null) {
                 ItemAppIcon(app = front, size = size * 0.56f)
-            } else {
-                Box(
-                    Modifier
-                        .size(size * 0.3f)
-                        .background(tokens.accent.copy(alpha = 0.35f), RoundedCornerShape(30)),
-                )
             }
             if (count > 1) {
                 Text(

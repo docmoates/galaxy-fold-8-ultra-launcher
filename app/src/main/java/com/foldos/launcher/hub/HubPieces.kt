@@ -1,13 +1,16 @@
 package com.foldos.launcher.hub
 
+import android.app.Activity
 import android.content.ContentUris
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.CalendarContract
 import android.provider.ContactsContract
+import android.provider.Settings
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -58,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -444,8 +449,55 @@ internal fun HubIconButton(
 }
 
 /**
+ * What the "Allow" control of a permission card / panel does. [opensSettings] is true once the
+ * system will no longer show the permission dialog (the user denied it until Android stopped asking),
+ * so a tap opens the app's system settings page instead of silently doing nothing.
+ */
+private class HubPermissionTap(val opensSettings: Boolean, val onTap: () -> Unit)
+
+private tailrec fun Context.findHubActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findHubActivity()
+    else -> null
+}
+
+@Composable
+private fun rememberHubPermissionTap(permission: String): HubPermissionTap {
+    val context = LocalContext.current
+    val request = LocalPermissionRequester.current
+    var asked by remember(permission) { mutableStateOf(false) }
+    var blocked by remember(permission) { mutableStateOf(false) }
+    // The permission dialog pauses the launcher, so its outcome always arrives through a resume. After a
+    // request that left the permission denied without a rationale, Android will not prompt again.
+    LifecycleResumeEffect(permission) {
+        if (asked) {
+            val rationale = context.findHubActivity()?.shouldShowRequestPermissionRationale(permission) ?: true
+            blocked = !context.hubPermissionGranted(permission) && !rationale
+        }
+        onPauseOrDispose { }
+    }
+    return HubPermissionTap(
+        opensSettings = blocked,
+        onTap = {
+            val rationale = context.findHubActivity()?.shouldShowRequestPermissionRationale(permission) ?: true
+            if (blocked || (asked && !rationale && !context.hubPermissionGranted(permission))) {
+                blocked = true
+                HubIntents.start(
+                    context,
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                )
+            } else {
+                asked = true
+                request(permission)
+            }
+        },
+    )
+}
+
+/**
  * Card shown in place of live data while [permission] is missing: title, why it is needed and an
- * "Allow" pill that goes through [LocalPermissionRequester].
+ * "Allow" pill that goes through [LocalPermissionRequester] (or opens the app settings once the
+ * system no longer shows the dialog).
  */
 @Composable
 internal fun HubPermissionCard(
@@ -455,7 +507,7 @@ internal fun HubPermissionCard(
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalFoldOsTokens.current
-    val request = LocalPermissionRequester.current
+    val tap = rememberHubPermissionTap(permission)
     HubListCard(modifier = modifier, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Icon(
@@ -469,16 +521,86 @@ internal fun HubPermissionCard(
                 Text(text = body, color = tokens.onSurface.copy(alpha = 0.7f), fontSize = 12.5.sp, lineHeight = 16.sp)
             }
             Text(
-                text = "Allow",
+                text = if (tap.opensSettings) "Settings" else "Allow",
                 color = tokens.onAccent,
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .background(tokens.accent)
-                    .clickable { request(permission) }
+                    .clickable { tap.onTap() }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )
+        }
+    }
+}
+
+/**
+ * Full-tab state shown instead of the normal content while [permission] is missing: one centred
+ * card with a large [icon] in a tinted circle, [title], a one-line [reason] and an "Allow" button
+ * that goes through [LocalPermissionRequester]. Fills its parent; callers apply their own padding.
+ */
+@Composable
+internal fun HubPermissionPanel(
+    icon: ImageVector,
+    title: String,
+    reason: String,
+    permission: String,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = LocalFoldOsTokens.current
+    val tap = rememberHubPermissionTap(permission)
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        HubListCard(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 28.dp),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(88.dp)
+                        .clip(CircleShape)
+                        .background(tokens.accent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(46.dp),
+                        tint = tokens.accent,
+                    )
+                }
+                Text(
+                    text = title,
+                    color = tokens.onSurface,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = reason,
+                    color = tokens.onSurface.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    lineHeight = 19.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (tap.opensSettings) "Open app settings" else "Allow",
+                    color = tokens.onAccent,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(tokens.accent)
+                        .clickable(role = Role.Button) { tap.onTap() }
+                        .padding(horizontal = 28.dp, vertical = 11.dp),
+                )
+            }
         }
     }
 }

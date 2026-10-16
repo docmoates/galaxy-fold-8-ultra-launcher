@@ -145,6 +145,10 @@ interface LayoutDao {
     @Query("DELETE FROM items WHERE id = :id")
     suspend fun deleteItem(id: Long)
 
+    /** Every item of the page, folder children included (the foreign key cascade does the same on a page delete). */
+    @Query("DELETE FROM items WHERE page_id = :pageId")
+    suspend fun deleteItemsOfPage(pageId: Long)
+
     // Backup / restore
 
     @Query("SELECT * FROM pages ORDER BY page_index ASC")

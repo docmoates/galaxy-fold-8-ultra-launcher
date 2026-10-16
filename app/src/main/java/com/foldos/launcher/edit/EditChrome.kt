@@ -198,7 +198,8 @@ internal fun EditActionBar(actions: List<EditAction>, modifier: Modifier = Modif
 
 /**
  * Small frosted pill (page label, "Done", confirmations). [accent] fills it in the accent color;
- * a null [onClick] makes it a static label; [enabled] false dims it and ignores taps.
+ * a null [onClick] makes it a static label; [enabled] false dims it and ignores taps. [danger] fills
+ * it red with white text (a destructive confirmation such as "Tap again to delete").
  */
 @Composable
 internal fun EditChip(
@@ -208,15 +209,18 @@ internal fun EditChip(
     icon: ImageVector? = null,
     accent: Boolean = false,
     enabled: Boolean = true,
+    danger: Boolean = false,
 ) {
     val tokens = LocalFoldOsTokens.current
     val pill = RoundedCornerShape(999.dp)
-    val background = if (accent) tokens.accent else tokens.drawerScrim
-    val foreground = (if (accent) tokens.onAccent else tokens.onSurface).copy(alpha = if (enabled) 1f else 0.45f)
+    val filled = accent || danger
+    val background = if (danger) EditDangerColor else if (accent) tokens.accent else tokens.drawerScrim
+    val onFilled = if (danger) Color.White else tokens.onAccent
+    val foreground = (if (filled) onFilled else tokens.onSurface).copy(alpha = if (enabled) 1f else 0.45f)
     var base = modifier
         .clip(pill)
         .background(background, pill)
-        .border(1.dp, if (accent) Color.Transparent else tokens.surfaceBorder, pill)
+        .border(1.dp, if (filled) Color.Transparent else tokens.surfaceBorder, pill)
     if (onClick != null) base = base.clickable(enabled = enabled, onClick = onClick)
     Row(
         modifier = base
@@ -244,7 +248,13 @@ internal fun EditChip(
     }
 }
 
-/** A round icon-only chip (page arrows, add / delete page). [accent] fills it in the accent color. */
+/** Red of a destructive confirmation (delete page). */
+internal val EditDangerColor: Color = Color(0xFFD93025)
+
+/**
+ * A round icon-only chip (page arrows, add / delete page). [accent] fills it in the accent color,
+ * [danger] in red with a white icon.
+ */
 @Composable
 internal fun EditRoundButton(
     icon: ImageVector,
@@ -253,15 +263,18 @@ internal fun EditRoundButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     accent: Boolean = false,
+    danger: Boolean = false,
 ) {
     val tokens = LocalFoldOsTokens.current
-    val foreground = (if (accent) tokens.onAccent else tokens.onSurface).copy(alpha = if (enabled) 1f else 0.4f)
+    val filled = accent || danger
+    val onFilled = if (danger) Color.White else tokens.onAccent
+    val foreground = (if (filled) onFilled else tokens.onSurface).copy(alpha = if (enabled) 1f else 0.4f)
     Box(
         modifier = modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(if (accent) tokens.accent else tokens.drawerScrim, CircleShape)
-            .border(1.dp, if (accent) Color.Transparent else tokens.surfaceBorder, CircleShape)
+            .background(if (danger) EditDangerColor else if (accent) tokens.accent else tokens.drawerScrim, CircleShape)
+            .border(1.dp, if (filled) Color.Transparent else tokens.surfaceBorder, CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

@@ -330,8 +330,8 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         if (pageId == null) {
             Toast.makeText(context, "No home page to add the app to", Toast.LENGTH_SHORT).show()
         } else {
+            // The view model toasts the outcome (added / no room / widgets only).
             viewModel.addAppToHome(app, pageId, editPageStyle, geometry)
-            Toast.makeText(context, "${app.label} added to the home screen", Toast.LENGTH_SHORT).show()
         }
     }
     val onAddToDock: ((AppInfo) -> Unit)? = if (dockOn) {

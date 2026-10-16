@@ -124,7 +124,7 @@ fun ThemeQuickSheet(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 SchemeSwatch(
-                    label = "Theme colors",
+                    label = "Default",
                     family = null,
                     selected = settings.colors.scheme == ColorSchemeConfig.SCHEME_THEME,
                     onClick = { update { it.copy(colors = it.colors.copy(scheme = ColorSchemeConfig.SCHEME_THEME)) } },

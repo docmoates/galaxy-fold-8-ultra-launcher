@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -69,6 +70,8 @@ internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem, access: HomeItemGr
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Only the icon + label answer touches; the slack of the stretched cell below is empty space.
+            .wrapContentHeight(Alignment.Top)
             .a11yButton(
                 label = a11yAppLabel("$folderName, folder with ${children.size} $itemWord", ctx.badgeFor(children)),
                 onActivate = openFolder,
@@ -99,7 +102,7 @@ internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem, access: HomeItemGr
         }
         if (ctx.labels) {
             Spacer(Modifier.height(AppLabelStyle.ICON_GAP))
-            AppLabel(text = folderName, color = tokens.onSurface)
+            AppLabel(text = folderName, color = tokens.onSurface, reserveLines = false)
         }
         // Pop-ups anchored to this tile: the open folder and the long-press menu.
         if (ctx.hooks.onOpenFolder == null && ctx.folderSheet.value?.id == item.id && item.id > 0) {
@@ -171,6 +174,8 @@ internal fun HomePairTile(ctx: HomeContext, item: HomeItem, access: HomeItemGrid
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Only the icon + label answer touches; the slack of the stretched cell below is empty space.
+            .wrapContentHeight(Alignment.Top)
             .a11yButton(
                 label = a11yAppLabel("$pairName, app pair", ctx.badgeFor(item)),
                 onActivate = launchPair,
@@ -194,7 +199,7 @@ internal fun HomePairTile(ctx: HomeContext, item: HomeItem, access: HomeItemGrid
         }
         if (ctx.labels) {
             Spacer(Modifier.height(AppLabelStyle.ICON_GAP))
-            AppLabel(text = pairName, color = tokens.onSurface)
+            AppLabel(text = pairName, color = tokens.onSurface, reserveLines = false)
         }
         HomeItemPressOverlay(ctx, item)
     }

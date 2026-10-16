@@ -136,18 +136,37 @@ fun SetupWizard(
             LaunchedEffect(step) { scrollState.scrollTo(0) }
             BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 val viewportHeight = maxHeight
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    when (step) {
-                        1 -> ScreensStep(local, change)
-                        2 -> HomeStyleStep(local, change)
-                        3 -> LookStep(local, change)
-                        4 -> ColorsStep(local, change, viewportHeight)
-                        else -> DockStep(local, change)
+                if (step == 4) {
+                    // Colors: the intro and the live preview stay pinned; only the Appearance row and
+                    // the swatch grid below them scroll.
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        ColorsPinnedHeader(local, viewportHeight)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .verticalScroll(scrollState),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            ColorsScrollingControls(local, change)
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        when (step) {
+                            1 -> ScreensStep(local, change)
+                            2 -> HomeStyleStep(local, change)
+                            3 -> LookStep(local, change)
+                            else -> DockStep(local, change)
+                        }
                     }
                 }
             }
@@ -258,37 +277,48 @@ private fun LookStep(local: LauncherSettings, change: ((LauncherSettings) -> Lau
 /* ------------------------------------------------------------------------------------------ */
 /* Step 4: Colors                                                                             */
 /* ------------------------------------------------------------------------------------------ */
+/**
+ * The part of the Colors step that never scrolls: the one-line intro and the live preview, about
+ * 30% of the visible step height (never taller than the whole home would be at that width).
+ */
 @Composable
-private fun ColorsStep(
+private fun ColorsPinnedHeader(local: LauncherSettings, viewportHeight: Dp) {
+    val coverRatio = PREVIEW_COVER_WIDTH.value / PREVIEW_COVER_HEIGHT.value
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        WizardSubtitle("Every color comes in a light and a dark version. Tap one and the preview follows.")
+        val previewHeight = (viewportHeight * 0.30f).coerceIn(120.dp, 260.dp)
+        val previewWidth = previewHeight * coverRatio
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .width(previewWidth)
+                    .height(previewHeight)
+                    .clip(RoundedCornerShape(14.dp)),
+            ) {
+                SampleHomePreview(
+                    style = HomeStyle.DASHBOARD,
+                    theme = local.theme,
+                    colors = local.colors,
+                    modifier = Modifier.fillMaxSize(),
+                    base = local,
+                )
+            }
+        }
+    }
+}
+
+/** The scrolling part of the Colors step: the Dark / Light / Auto row and the swatch grid. */
+@Composable
+private fun ColorsScrollingControls(
     local: LauncherSettings,
     change: ((LauncherSettings) -> LauncherSettings) -> Unit,
-    viewportHeight: Dp,
 ) {
     val tokens = LocalFoldOsTokens.current
     val isDark = tokens.isDark
     val coverRatio = PREVIEW_COVER_WIDTH.value / PREVIEW_COVER_HEIGHT.value
-    WizardSubtitle("Every color comes in a light and a dark version. Tap one and the preview follows.")
-
-    // Live preview: about 40% of the visible step height (never taller than the whole home would be
-    // at that width), so the Appearance cards and the swatches below it stay on screen.
-    val previewHeight = (viewportHeight * 0.40f).coerceIn(140.dp, 300.dp)
-    val previewWidth = previewHeight * coverRatio
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(
-            modifier = Modifier
-                .width(previewWidth)
-                .height(previewHeight)
-                .clip(RoundedCornerShape(14.dp)),
-        ) {
-            SampleHomePreview(
-                style = HomeStyle.DASHBOARD,
-                theme = local.theme,
-                colors = local.colors,
-                modifier = Modifier.fillMaxSize(),
-                base = local,
-            )
-        }
-    }
 
     // Appearance: a compact row of three small whole-phone previews.
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -323,7 +353,7 @@ private fun ColorsStep(
     val tiles = ArrayList<ColorTileSpec>(ColorSchemes.families.size + 2)
     tiles.add(
         ColorTileSpec(
-            name = "Theme colors",
+            name = "Default",
             selected = scheme == ColorSchemeConfig.SCHEME_THEME,
             onClick = { change { it.copy(colors = it.colors.copy(scheme = ColorSchemeConfig.SCHEME_THEME)) } },
             swatch = { ThemeColorsSwatch(theme = local.theme, swatchSize = ColorSwatchSize) },

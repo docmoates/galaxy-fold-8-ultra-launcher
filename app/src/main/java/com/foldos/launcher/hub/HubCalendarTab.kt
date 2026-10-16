@@ -162,6 +162,18 @@ internal fun HubCalendarTab(
         )
     }
 
+    if (!granted) {
+        // Permission missing: only the centred card, with no empty week strip, month grid, lists or FAB.
+        HubPermissionPanel(
+            icon = Icons.Rounded.CalendarMonth,
+            title = "Calendar access",
+            reason = "Allow access to show events from every calendar on this phone.",
+            permission = Manifest.permission.READ_CALENDAR,
+            modifier = modifier.padding(horizontal = HubPagePadding).padding(contentPadding),
+        )
+        return
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         if (screen == ScreenKind.COVER) {
             HubScrollColumn(contentPadding = contentPadding, modifier = Modifier.padding(horizontal = HubPagePadding)) {

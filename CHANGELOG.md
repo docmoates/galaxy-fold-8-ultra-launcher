@@ -4,6 +4,43 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.2.1] - 2026-10-16
+
+Fix round 1.4: cover-screen device test of 1.2.0 (`versionCode` 121). Written from the source; not yet run on a device.
+Installs over 1.2.0 in place (same signing key). No database schema change (Room stays at version 3).
+
+### Fixed
+1. Page switched to Dashboard: a Dashboard page now draws widgets only. The apps it held as a grid page stay in the
+   database, hidden, and come back when the page is switched back to Grid (the untouched default widgets are removed
+   again so they do not sit on the returning apps). A page switched to Dashboard gets the default widgets even when it
+   already held apps, and a page that was switched on 1.2.0 (apps, no widgets) is repaired once at startup. Apps dropped
+   on, or added to, a Dashboard page are refused with a toast.
+2. "List" style in edit mode: no grid outlines over the rows and no hidden selection layer. The list is sorted A-Z
+   (names that do not start with a letter last) and the alphabet scrubber lists the same letters in order, each in an
+   equal slot, so the letter under the finger is the letter drawn there.
+3. Long press just below an icon row: apps, folders and app pairs answer touches on their icon and label only, so a long
+   press on the empty space under the last row enters edit mode instead of opening the icon's menu. Widgets keep their
+   full area.
+4. Delete page: while the confirmation is up the page chip itself turns red, reads "Tap again to delete" and deletes the
+   page when tapped (the trash button turns red too and does the same). The confirmation lasts 3 seconds and no longer
+   resets when the page list updates. The page's items are deleted with it, the page before it is shown afterwards, and a
+   screen's last page cannot be deleted.
+5. Folder icon preview: every child of a folder is drawn with its real app icon (looked up in the app list, then in the
+   package manager for hidden or launcher-less apps). Empty slots draw nothing, a folder with one app shows one centred
+   icon, and the purple placeholder squares are gone.
+6. Setup wizard "Pick your colors": the live preview stays pinned above the scrolling Dark / Light / Auto cards and
+   swatches (about 30% of the step height, 120 to 260 dp).
+7. Hub > Mail without an account: a three-sentence explainer with a collapsed "How to connect" row for the OAuth steps,
+   and the Compose button no longer sits over the Gmail app card's buttons (the content reserves space for it).
+8. Hub > Calendar and Contacts without permission: one centred card with a large icon, a one-line reason and an Allow
+   button instead of an empty week strip, month grid, search pill and list; the New button is hidden too.
+9. Widget picker detail: the "Add to home" button is anchored at the bottom of the sheet and the preview, name, size and
+   description are centred in the space above it, instead of leaving a large blank area under the button.
+
+### Changed
+- The "Theme colors" color scheme is now called "Default" in the wizard, Settings > Colors and Look, and the edit-mode
+  theme sheet (the full word did not fit its tile on the cover screen).
+
 ## [1.2.0] - 2026-10-16
 
 Fix round 1.3 (`versionCode` 120): remove profiles, readable labels, clean widget picker. Written from the source; not yet run on a device.

@@ -223,7 +223,7 @@ Run with TalkBack on for 13.1 to 13.3, then without.
 |---|---|---|
 | 14.1 | Switch each of the four themes | Home, dock, drawer, settings, Hub all follow; no unreadable text. |
 | 14.2 | Appearance Dark / Light / Auto | Auto follows the system (or sunrise and sunset when chosen). |
-| 14.3 | Color schemes: Theme colors, each of the twelve primary colors (Blue, Teal, Green, Lime, Amber, Orange, Red, Pink, Purple, Indigo, Slate, Mono), Custom, in Dark and in Light | Accent, highlight cards and wallpaper gradient follow; each primary color shows its light version in Light and its dark version in Dark. |
+| 14.3 | Color schemes: Default, each of the twelve primary colors (Blue, Teal, Green, Lime, Amber, Orange, Red, Pink, Purple, Indigo, Slate, Mono), Custom, in Dark and in Light | Accent, highlight cards and wallpaper gradient follow; each primary color shows its light version in Light and its dark version in Dark. |
 | 14.4 | Icon pack and icon shape | Installed packs are listed; icons change on home at once (drawer on next launch). |
 | 14.5 | Settings > Look > Daily wallpaper on | Home wallpaper changes to a generated gradient at once; change the date or wait until after midnight and it changes again; off stops it. Reboot with it on: next change still happens. |
 
@@ -270,7 +270,7 @@ second pass over 1.0.0 data to test the duplicate-page cleanup). Both screens un
 | 16.23 | Long-press a home app tile and drag it past the touch slop | The popup closes and the tile is carried; drop on another cell moves it, on another app makes a folder, on the dock puts the app in the dock and removes the tile from the page. |
 | 16.24 | Open Settings from the launcher | It opens on the sample cards (Screens, Home style, Look, Colors, Dock, App drawer, Widget picker, Icons) with a search icon in the top bar; tapping a card applies it and the preview updates; "More settings" lists Quick setup, Screens, Home, Dock, Hub, Look, Widgets, Gestures, Search, Hidden apps, Mail, AI, Backup, Accessibility, Features and About, and each opens. |
 | 16.25 | Edit mode > Dock, and a result from the settings search | Open the matching Dock page or detailed page directly. |
-| 16.26 | Settings > Colors | Twelve primary colors drawn as light / dark split swatches plus Theme colors and Custom. Pick Blue in dark mode: dark blue home. Switch Appearance to Light: the same Blue entry shows its light version (pale wallpaper, deeper accent); text stays readable in both. The wizard's Colors step shows the same tiles. |
+| 16.26 | Settings > Colors | Twelve primary colors drawn as light / dark split swatches plus Default and Custom. Pick Blue in dark mode: dark blue home. Switch Appearance to Light: the same Blue entry shows its light version (pale wallpaper, deeper accent); text stays readable in both. The wizard's Colors step shows the same tiles. |
 | 16.27 | Theme sheet in edit mode | Lists the light and dark versions of the primary colors; the current one is highlighted. |
 
 ## 17. Fix round 1.3 scenarios (1.2.0)
@@ -290,6 +290,37 @@ Install 1.2.0 over 1.1.x (same signing key) and over a build that still had prof
 | 17.9 | Widgets from the edit bar: open an app with several widgets (for example Google Clock) | Detail view shows its widgets one per page with a real preview (a small preview stays small, never blown up); swiping changes the name, size and dots. |
 | 17.10 | Add a built-in widget and an app widget from the new picker | Built-in lands at the first free cell; the app widget goes through the bind dialog and configure screen; cancelling configure removes the pending widget. Reopen the picker: the widget shows under Recently used when Recent grouping is on. |
 | 17.11 | Back button in the picker on the cover (list, detail) and on the inner screen | Detail on the cover goes back to the list; otherwise it closes the picker. Tapping the dimmed backdrop closes it. |
+
+## 18. Fix round 1.4 scenarios (1.2.1)
+
+Install 1.2.1 over 1.2.0 (same signing key). Run on the cover screen first (the screen these fixes came from), then on the inner screen.
+
+| # | Action | Expected |
+|---|---|---|
+| 18.1 | Edit mode on a page of apps, tap the Dashboard segment | The page shows the default widgets (glance, weather, devices, calendar, media, to-do, focus, news) in two columns on the cover; no cramped app tiles, no clipped labels. |
+| 18.2 | On that Dashboard page, tap, drag and long-press where the apps used to be | Only widgets can be selected or moved; nothing invisible reacts. |
+| 18.3 | Drag an app from the app pop-up onto the Dashboard page, and use "Add to home screen" on an app while a Dashboard page is shown | A toast says a Dashboard page holds widgets only; no app is added. |
+| 18.4 | Switch the same page back to Grid | The original apps are back in their cells; the seeded widgets are gone; a widget you added or moved yourself is still there. |
+| 18.5 | Switch an empty page to Dashboard, then to Grid | Default widgets appear, then disappear again; the page is empty. |
+| 18.6 | Update from 1.2.0 with a page that was already switched to Dashboard (apps, no widgets), then open the launcher | The page shows the default widgets after startup. |
+| 18.7 | Edit mode on a List page | No grid outlines over the rows and no selection handles; the list is A-Z and the scrubber letters are in alphabetical order, evenly spread. |
+| 18.8 | Drag a finger down the scrubber and tap single letters | The letter under the finger is the one highlighted, and the list jumps to the first app starting with it. |
+| 18.9 | Long press on the empty space just below the last icon row of a Grid page (a few millimetres under the last label) | Edit mode opens with that cell highlighted; no item menu appears. |
+| 18.10 | Long press on an icon, on its label, and on a folder and an app pair | The item's menu opens each time; a press beside the icon at icon height inside the same cell still counts as the item. A widget opens edit mode from anywhere on it. |
+| 18.11 | Edit mode with three pages, go to page 3 and tap the trash button | The page chip turns red and reads "Tap again to delete"; the trash button turns red; the Next arrow and Add button hide. |
+| 18.12 | Tap the red chip | The page is deleted, the page strip reads "Page 2/2", the home shows the page before the deleted one, and the dots update. Repeat with the trash button as the second tap. |
+| 18.13 | Tap the trash button, wait 3 seconds, or swipe to another page | The confirmation clears by itself (after 3 seconds, or when the shown page changes); nothing is deleted. |
+| 18.14 | Delete pages until one is left | The last page has no trash button; it cannot be deleted. Restart the launcher: the page count did not change back. |
+| 18.15 | Drop an app onto another app to make a folder (try with a hidden app and with an app without a launcher icon, if you have one) | The folder icon shows the real icons of its apps in a 2x2 grid; empty slots are empty, never purple squares. |
+| 18.16 | Make a folder with one app only (remove the other from the folder sheet) | A single centred icon in the folder tile. Check the Big and List folder styles in Settings > Home too. |
+| 18.17 | Open Hub > Calendar with the Calendar permission denied | One centred card with a calendar icon, a short reason and an Allow button; no week strip, month grid, upcoming list or New button. Tap Allow and grant: the normal calendar appears. |
+| 18.18 | Open Hub > Contacts with the Contacts permission denied | One centred card with a people icon, a short reason and Allow; no header, search pill or list. Grant it: the contact list appears. Check on the inner screen too. |
+| 18.19 | Hub > Today with a permission missing | Today still shows its small permission cards as before. |
+| 18.20 | Hub > Mail with no Google client id (cover) | A short card (three sentences) and a collapsed "How to connect" row; tapping it shows the five OAuth steps and "Open Settings > Mail". The Gmail app card below it and its buttons ("Choose account", "Open Gmail") are fully visible above the Compose button after scrolling, and the Compose button never covers them. |
+| 18.21 | Setup wizard (Settings > Quick setup, or a fresh install), step 4 "Pick your colors" | The live preview stays on screen while you scroll the Dark / Light / Auto cards and swatches; the first swatch tile reads "Default" in full. Tapping a swatch updates the pinned preview. |
+| 18.22 | Wizard steps 1, 2, 3 and 5 | Unchanged: the whole step scrolls under the title and above the Back / Continue bar. |
+| 18.23 | Widget picker: open an app with a widget, look at the detail page on the cover | "Add to home" sits at the bottom of the sheet with 16 dp around it; preview, name, size and description are centred above it; the dots stay under the pager. A tall description scrolls instead of pushing the button off the sheet. |
+| 18.24 | Edit mode > Themes, Settings > Colors and Settings > Look > Color scheme | The first scheme is called "Default" everywhere and still follows the theme's own colors. |
 
 ## Reporting
 

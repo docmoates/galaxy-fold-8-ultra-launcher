@@ -96,10 +96,12 @@ internal class HomeSlot(val items: List<HomeItem>) {
     /** Grid cell for this slot; a free cell when [freeMode] and the anchor carries dp bounds. */
     fun toCell(freeMode: Boolean): HomeCell {
         val a = anchor
+        // App / folder / pair tiles only answer presses on their own icon and label (see HomeCell.tile).
+        val tile = !isStack && a.kind != ItemKind.WIDGET
         return if (freeMode && a.free && a.hasFreeBounds) {
-            HomeCell(a.col, a.row, a.spanX, a.spanY, a.xDp, a.yDp, a.wDp, a.hDp)
+            HomeCell(a.col, a.row, a.spanX, a.spanY, a.xDp, a.yDp, a.wDp, a.hDp, tile = tile)
         } else {
-            HomeCell(a.col, a.row, a.spanX.coerceAtLeast(1), a.spanY.coerceAtLeast(1))
+            HomeCell(a.col, a.row, a.spanX.coerceAtLeast(1), a.spanY.coerceAtLeast(1), tile = tile)
         }
     }
 }
@@ -178,6 +180,9 @@ internal fun HomeItemsGrid(
         geometryScreen = if (publishGeometry) ctx.screen else null,
         onEmptyLongPress = { col, row -> ctx.emptyLongPress(pageId, col, row) },
         dropTarget = dropTarget,
+        // A tile owns its icon area (4dp padding + icon) for the empty-space test; its label claims
+        // presses itself, and the stretched slack under it is empty space.
+        tileHitHeight = ctx.iconSize + 4.dp,
     ) { index ->
         val slot = slots[index]
         if (slot.isStack && ctx.stacksOn) {
@@ -323,7 +328,7 @@ internal fun HomeItemTile(
                     } else {
                         Modifier
                     }
-                    Box(Modifier.fillMaxSize().then(dragModifier)) {
+                    Box(Modifier.fillMaxSize()) {
                         HomeAppTile(
                             app = app,
                             iconSize = ctx.iconSize,
@@ -333,6 +338,9 @@ internal fun HomeItemTile(
                             badgeStyle = ctx.badgeStyle,
                             onLongPressAt = { anchor -> ctx.longPress(item, anchor) },
                             a11yActions = rememberHomeItemActions(ctx, item, access),
+                            // The drag starts only on the visible icon + label, never on the empty
+                            // slack of the stretched cell below it.
+                            contentModifier = dragModifier,
                         )
                         HomeItemPressOverlay(ctx, item)
                     }

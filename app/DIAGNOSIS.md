@@ -189,3 +189,121 @@ Shared contracts for 6 and 11 are already in `core/` (see `app/CONTRACTS.md`, "F
   (`LauncherViewModel.hybridPageIsFull`). List pages stay unbounded.
 - Manual JSON backup now also carries the per-screen dock apps and the app pop-up groups (optional fields, older files still import).
   The daily-wallpaper and widget-ids-checked DataStores are intentionally not part of Auto Backup (per-device state).
+
+---
+
+# Round 1.4 diagnosis (cover-screen device test of 1.2.0, folded Fold 1080x2520)
+
+Read from the code only (no device). Paths are under `app/src/main/java/com/foldos/launcher/`. "Confirmed" = the cause is
+visible in the source; "Likely" = the source shows the gap but the exact device trigger is inferred.
+
+Agents: **home-edit** = `home/`, `edit/`, `items/`, `data/LayoutRepositoryImpl` (plus the two view-model functions named in bug 1, which belong
+to the same fix); **hub-wizard** = `onboarding/`, `hub/`, `mail/`, `picker/`. No bug needs a Room schema change (version stays 3) or a `core/` contract change.
+
+## 1. Page switched to "Dashboard" shows the apps in two cramped columns (Confirmed) - home-edit
+
+- `LauncherViewModel.kt` L660-663 `seedDashboardIfEmpty`: `if (graph.layouts.items(pageId).first().isNotEmpty()) return`. A GRID page holds APP items, so the check
+  returns early and no widgets are seeded. It is called from `setPageStyle` (L646-652), `addPage` (L666-675) and `applyStyleToScreen` (L797-805).
+- `home/HomeDashboard.kt` L109-142 `HomeDashboardPage`: lays out every item of the page (`items`, L124) on `dashboardColumns(screen)` = 2 columns on the cover (L15). The apps
+  keep their grid cells (cols 0..3), `reflowGridItems` (`home/HomePages.kt` ~L243) folds them into two columns, and icon tiles are drawn in half-width cells: squeezed, clipped labels.
+- Fix:
+  - `seedDashboardIfEmpty`: seed `defaultDashboardItems(screen, pageId)` when the page has **no WIDGET item** (`items.none { it.kind == ItemKind.WIDGET }`), not when it has no item at all.
+    Never delete the apps.
+  - `HomeDashboardPage`: render only `items.filter { it.kind == ItemKind.WIDGET }` (APP / FOLDER / PAIR stay in the database, hidden). Keep the `placeholder` preview only for `page == null`.
+  - Same filter wherever a DASHBOARD page's items are used: `edit/EditModeOverlay.kt` `pageItems` (~L207; `style` is L202) so hidden apps cannot be selected or hit by the gesture layer;
+    `LauncherViewModel.placeWidget` (L748-), the overlap checks in `moveItem` (L395-410) and `firstFreeCell` must ignore the hidden APP / FOLDER / PAIR items of a DASHBOARD page (they sit on
+    the same cells as the seeded widgets); the a11y grid info in `HomeItemsGrid` (`home/HomePages.kt` L152).
+  - Switching back to Grid restores the apps (never touched). The seeded widgets would then overlap them in `HomeGridPage` (it draws every item). In `setPageStyle`, when the new style is GRID
+    and the page has APP / FOLDER / PAIR items, delete the WIDGET items that are still exactly the untouched `defaultDashboardItems` (same builtinId, col, row, spans); a widget the user
+    added or moved stays and is moved to the nearest free cell with `nearestFreeCell` (as `moveItem` does).
+
+## 2. "List" style in edit mode: grid outlines over the rows, scattered alphabet scrubber (Confirmed) - home-edit
+
+- Outlines: `edit/EditModeOverlay.kt` L320-325 draws a rounded outline for every cell of `grid.rows x grid.cols` whatever the page style. A settled LIST page has no measured grid
+  (`home/HomePages.kt` L60-62 removes it), so `rememberGridGeometry` falls back to `estimateGridGeometry` (`home/HomeGeometry.kt` L110-111, L133: 1 column, `heightDp / 46` rows, guessed bars) and
+  the overlay paints 46dp-pitch boxes that do not line up with the real rows (`home/HomeListPage.kt` L201-212: 36sp line height plus 10dp padding). Fix: skip the guide loop (and the selection
+  outline / gesture hit areas that depend on that grid) when `style == HomeStyle.LIST`; a list gets no cell guide.
+- Scrubber: `home/HomeListPage.kt` L175 `letters = favorites.map { it.scrubberLetter() }.distinct()`. `favorites` (`home/HomeSupport.kt` L276-285) is the page's APP items in `row, col` order, and the
+  seed order is the `preferredHomeApps` priority list (browser, mail, photos, maps ... `home/HomeDefaultApps.kt` L68), not alphabetical. So the letters come out in list order (for example C G P M ...) with
+  repeats dropped, and the list itself is unsorted. `HomeAlphabetScrubber` (L264-325) spreads them with `Arrangement.SpaceBetween` while `letterAt` maps y by `y / height * letters.size`, so touch slots
+  and drawn letters drift apart.
+- Fix: for LIST pages sort the shown apps by label (`favorites.sortedBy { it.label.lowercase() }`, both the list and the scrubber input) so the list is A-Z; build `letters` from that sorted list
+  (`distinct()` keeps them in order); in `HomeAlphabetScrubber` give every letter an equal slot (`Modifier.weight(1f)`) with the glyph centred, so the hit slot equals the drawn slot and the spacing is even.
+
+## 3. Long press just below the last icon row opens the icon's menu instead of edit mode (Confirmed) - home-edit
+
+- The hit area of a tile is the whole grid cell, which is taller than the icon plus label:
+  - `home/HomeCellGrid.kt` L369-378: `rows = maxHeight / minCellHeightPx`, then `cellH = height / rows`, so the cells stretch to fill the page.
+  - `home/HomePages.kt` L222: `minCellHeight = iconSize + appLabelBlockHeight + 20.dp`; the label block always reserves two lines (`home/AppLabelStyle.kt` L204), so a one-line label leaves another
+    ~14dp unused, on top of the 20dp margin.
+  - `home/HomeAppIcon.kt` L128-160 `HomeAppTile`: the outer `Column` is `fillMaxSize()` with `homeTapGestures(onTap, onLongPress)` (L154) and top-aligned content (4dp padding), so everything under the
+    label up to the cell edge belongs to the tile. Same in `HomeFolderTile` (`home/HomeFolderPair.kt` L81) and `HomePairTile` (L183). `homeItemDrag` sits on the full-size `Box` (`home/HomePages.kt` ~L316).
+  - `HomeGridMetrics.itemIndexAt` (`home/HomeCellGrid.kt` ~L137-153) tests the full cell rectangle, so the grid's own empty-space long press (~L292-326) ignores a press anywhere in a cell. At 4 columns
+    and ~2.6 px/dp the slack under the label is the 40-80 px band seen on the device (a press 100+ px lower lands in the empty cell below, which is why that one works).
+- Fix: make the hit area the visible content. In `HomeAppTile` / `HomeFolderTile` / `HomePairTile` attach `homeTapGestures` (and the semantics) to an inner node sized to icon + label
+  (`Column(Modifier.fillMaxWidth().wrapContentHeight(Alignment.Top))` inside the cell) and make `HomeGridMetrics.itemIndexAt` use the same content height for 1x1 APP / FOLDER / PAIR cells (add a
+  `tileContentHeightPx` parameter to `HomeCellGrid`, = `iconSize + AppLabelStyle.ICON_GAP + labelBlockHeight + 8.dp`; widgets keep the full span). The grid's `onEmptyLongPress` then fires on the slack
+  and enters edit mode. At most 8-12dp of extra tolerance.
+
+## 4. Delete page: the confirm tap does nothing (Confirmed UI cause; persistence path checked) - home-edit
+
+- `edit/EditModeOverlay.kt` L489 turns the **page chip** into "Delete page?" (`EditChip(label = pageLabel, onClick = null, ...)`, L518-520). The only control that runs the delete is the separate trash
+  `EditRoundButton` (~L541-556, `onDeletePage(currentPage.id)` at L550). A user who taps the chip that now reads "Delete page?" taps a static label (`onClick = null` makes `EditChip` non-clickable,
+  `edit/EditChrome.kt` ~L217); after 3 s (`delay(3000L)`, L230) `confirmDeletePage` resets. The page count stays 3, matching the report.
+- The confirm state is also reset by `LaunchedEffect(currentPage?.id, sortedPages)` (L223-226) whenever the current page or the page list changes, which can silently undo it.
+- Persistence path: `LauncherRoot.kt` L485 -> `LauncherViewModel.deletePage` (L681-695) -> `LayoutRepositoryImpl.deletePage` (L244-253: `DELETE FROM pages`, items follow through `ForeignKey.CASCADE`,
+  the remaining pages are re-indexed in the same transaction). Nothing there fails for the last page and nothing re-adds pages (`ensureDefaultLayout` only seeds a screen with 0 pages). No defect found.
+- Fix: while `confirmDeletePage`, make the chip itself the confirm target: label "Tap again to delete", red container (e.g. 0xFFD93025 with white text) and
+  `onClick = { confirmDeletePage = false; selectedId = null; onDeletePage(currentPage.id) }` (add a `danger` / `containerColor` parameter to `EditChip` in `edit/EditChrome.kt`); tint the trash button red
+  too and keep its second tap working. Raise the timeout to about 5 s and reset only when the current page id changes, not on every `sortedPages` emission.
+
+## 5. Dropped-on folder: mini preview shows blank purple squares instead of the apps' icons (Likely) - home-edit (items/)
+
+- `items/FolderIcon.kt` L58-63 builds `preview` with `children.sortedWith(row, col).mapNotNull { apps.firstAppOf(it) }`; `FolderGridIcon` (L75-108) always draws four slots and every slot beyond
+  `preview` is an `tokens.accent.copy(alpha = 0.35f)` rounded square (L99; the stack style does the same at L163). A two-app folder therefore always shows two accent-tinted blank squares, and any child whose app
+  is not in `ctx.appsByKey` (hidden app, an app without a launcher activity such as AICore, work-profile or uninstalled app) is dropped silently by `mapNotNull` and shows as a blank slot too. While a
+  bitmap loads, `ItemAppIcon` (`items/ItemSupport.kt` L77-96) shows `tokens.surface`.
+- The data path is sound: `createFolder` / `placeInFolder` (`data/LayoutRepositoryImpl.kt` L280-296) and `placeDroppedApp` (`LauncherViewModel.kt` ~L495-515) store both children with `packageName`,
+  `activityName` and `parentId`. I found no write that loses them. Could not confirm without a device whether the top row also rendered blank; if it did, the app lookup above is the cause.
+- Fix (items/): resolve each child with the key lookup and then a `PackageManager` fallback (reuse the `fallbackApp` logic of `items/ItemContextMenu.kt` L400, move it to `ItemSupport.kt` as `internal`) so a
+  child always gets an icon; draw unused slots as nothing (or a faint `onSurface` at 0.08 alpha), never accent squares; with a single child draw one centred icon.
+
+## 6. Wizard "Pick your colors": preview scrolls away, "Theme colors" truncated (Confirmed) - hub-wizard
+
+- `onboarding/SetupWizard.kt` L137-155: every step, including `4 -> ColorsStep(...)` (L149), is drawn inside one `Column(...verticalScroll(scrollState))` (L142), and `ColorsStep` (L262-) puts the
+  live `SampleHomePreview` (L274-295) as the first scrolling child, so it leaves the screen as soon as the swatches are scrolled.
+- Label: `ColorTile` (~L390-420) is one quarter of the width on the cover (`tiles.chunked(4)`, ~L354) with `maxLines = 1`, `TextOverflow.Ellipsis`, 12sp; "Theme colors" (L326) does not fit and shows as "Theme col...".
+- Fix: for step 4 compose the preview (about 30% of `viewportHeight`, `coerceIn(120.dp, 260.dp)`, centred, same `SampleHomePreview` / aspect ratio) **above** the scrolling Column inside the
+  `BoxWithConstraints` (L137), with the Appearance cards and swatches in the `verticalScroll` area below it. Rename the tile to "Default" (L326). The same label also exists in
+  `edit/ThemeQuickSheet.kt` L127 (home-edit's package) and `settings/SettingsHomePage.kt` L482 (outside both agents' packages); change the ThemeQuickSheet one too for consistency.
+
+## 7. Hub > Mail without an account: long explainer, Compose FAB overlaps the Gmail app card buttons (Confirmed) - hub-wizard
+
+- `mail/MailTab.kt` L479-518 `explanation`: a "CONNECT GMAIL" card with a six-line OAuth paragraph (L498-505), a three-line paragraph (L508-511) and a button; on the cover it stacks above the "Gmail app"
+  card (L520-) in one scrolling Column (L599-609), which pushes that card's button row ("Choose account", "Open Gmail") to the bottom edge of the viewport.
+- The FAB is an overlay: `ExtendedFloatingActionButton` (L183-192) is aligned `BottomEnd` in the root `Box` of `MailTab` (L142-193) and reserves no layout space. The only reserve is a `Spacer(72.dp)`
+  at the end of the scroll content (L607), which helps only after scrolling to the very end, so at rest the FAB sits over the buttons.
+- Fix: `explanation` becomes a short card of 3 short sentences (for example "Mail needs a Google sign-in. Until you connect, this tab shows the unread counts the Gmail app already keeps. Setup is a one-time step.")
+  plus an expandable row "How to connect" (`AnimatedVisibility`) holding the OAuth steps (Cloud project, Gmail API, Android OAuth client for `com.foldos.launcher` with the SHA-1, paste the client id under
+  Settings > Mail, tap Connect) and the "Open Settings > Mail" button. Replace the overlay with layout space: `Column { content(Modifier.weight(1f)); FAB row aligned end with
+  padding(end = 20.dp, bottom = 20.dp) }`, or keep the Box and give the scrolling content a bottom padding of about 88dp (FAB 56dp + 2 x 16dp) in every state that shows the FAB (NotConfigured and Connected, cover only).
+
+## 8. Hub > Calendar / Contacts: large blank area when permission is missing (Confirmed) - hub-wizard
+
+- Calendar (`hub/HubCalendarTab.kt`): with `granted == false` the cover layout (L163-176) still draws the header, the empty `HubWeekStrip` card (L169-173) and then `dayCard`, which is only a small
+  `HubPermissionCard` (L127-134); `upcomingCard` is empty (L153-155) and the "New" FAB (L207-212) still shows. The rest of the scroll column is blank.
+- Contacts (`hub/HubContactsTab.kt`): header, search pill (L152 / L162) and `list(...weight(1f))` (L126-137) draw the permission card inside a `HubListCard` at the top of a `weight(1f)` area
+  (`HubPermissionCard`, `hub/HubPieces.kt` L451-484: a small lock icon, text and Allow pill in one row), so everything below it is blank.
+- Fix: when the permission is missing render one centred permission state instead of the normal content: update `HubPermissionCard` (hub/HubPieces.kt) to a vertical layout with a large illustration icon
+  (for example `Icons.Rounded.CalendarMonth` / `Icons.Rounded.People` in a 72dp tinted circle), a one-line explanation and the Allow pill, placed in `Box(Modifier.fillMaxSize().padding(contentPadding),
+  contentAlignment = Alignment.Center)`. In `HubCalendarTab` skip the week strip, month grid, upcoming card and FAB when `!granted`; in `HubContactsTab` skip the search pill, favourites and list (keep or drop the header)
+  and, on the inner screen, replace the right pane text with the same card. The Today tab already guards its sections.
+
+## 9. Widget picker detail: large empty area after "Add to home" (Confirmed) - hub-wizard
+
+- `picker/WidgetPickerDetail.kt` L169-260 `DetailPage`: the page is `Column(Modifier.fillMaxSize().verticalScroll(...), verticalArrangement = Arrangement.spacedBy(8.dp))` (L188-194), so preview, name,
+  size line, description and the button are stacked from the top and the button ends right after the content (L248-256). The `HorizontalPager` above gets `weight(1f)` (L142-) of a tall sheet (about 78% of
+  2520 px on the cover), so all the remaining height is blank below the button.
+- Fix: make `DetailPage` a `Column(Modifier.fillMaxSize())`: a `Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center)` holding the preview card, name, size and description (inside its own
+  `verticalScroll` column with `Arrangement.spacedBy(8.dp)`, centred horizontally; the Box centres it vertically), then the "Add to home" `Button` as the last child with
+  `Modifier.padding(horizontal = 20.dp, vertical = 12.dp)` so it stays anchored near the bottom above the page indicator. `maxInnerHeight` (0.42 x page height, L180) can stay.

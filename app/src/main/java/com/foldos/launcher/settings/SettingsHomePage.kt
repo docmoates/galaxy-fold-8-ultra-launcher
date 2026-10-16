@@ -479,7 +479,7 @@ private fun ColorsSection(settings: LauncherSettings, update: SettingsUpdater, i
         val tiles = ArrayList<ColorTileSpec>(ColorSchemes.families.size + 2)
         tiles.add(
             ColorTileSpec(
-                name = "Theme colors",
+                name = "Default",
                 selected = scheme == ColorSchemeConfig.SCHEME_THEME,
                 onClick = { update { it.copy(colors = it.colors.copy(scheme = ColorSchemeConfig.SCHEME_THEME)) } },
                 swatch = { ThemeColorsSwatch(theme = settings.theme) },
