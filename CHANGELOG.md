@@ -4,6 +4,18 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.2.3] - 2026-10-16
+
+Shared Gmail sign-in for the Mail tab (`versionCode` 123). Written from the source; not yet run on a device. Same signing key; no schema change.
+
+### Added
+- The Mail tab no longer needs each person to paste a Google OAuth client id. The organization sets it once in the Crosspoint
+  platform admin portal (Admin > Settings > FoldOS Mail); FoldOS downloads it from
+  `https://sub.crosspointhealth.org/api/v1/public/foldos-mail` at launch (and when the setup address or No-network mode changes),
+  caches it, and uses it whenever no id is saved on the phone. An id pasted in Settings > Mail still wins.
+- Settings > Mail: "Setup server" address (`mailSetupUrl`, default above) with a "Check now" button, a "Shared sign-in is set up" note,
+  and Connect is enabled when either id exists. No-network mode never contacts the server.
+
 ## [1.2.2] - 2026-10-16
 
 Fix round 1.5: device test of 1.2.1 on the cover and inner screens (`versionCode` 122). Written from the source; not yet run

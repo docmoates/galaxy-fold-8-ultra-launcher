@@ -86,6 +86,8 @@ fun MailSettingsPage(
     val state by repo.state.collectAsStateWithLifecycle(initialValue = MailState.NotConfigured)
     val accountEmail: String? = if (gmail != null) gmail.accountEmail.collectAsStateWithLifecycle().value else null
     val tokensEncrypted: Boolean? = if (gmail != null) gmail.tokensEncrypted.collectAsStateWithLifecycle().value else null
+    val serverId: String = if (gmail != null) gmail.serverClientId.collectAsStateWithLifecycle().value else ""
+    var setupUrlText by rememberSaveable(settings.mailSetupUrl) { mutableStateOf(settings.mailSetupUrl.orEmpty()) }
     var clientIdText by rememberSaveable(settings.mailClientId) { mutableStateOf(settings.mailClientId.orEmpty()) }
     var howToOpen by rememberSaveable { mutableStateOf(false) }
     var pickTick by remember { mutableIntStateOf(0) }
@@ -109,7 +111,7 @@ fun MailSettingsPage(
         is MailState.Error -> "Connect again"
     }
     val statusText = when (val s = state) {
-        MailState.NotConfigured -> "Not configured: save a client id first"
+        MailState.NotConfigured -> "Not configured: save a client id, or ask your admin to set the shared one"
         MailState.Disconnected -> "Signed out"
         MailState.Connecting -> "Signing in and loading the inbox"
         is MailState.Connected -> "Connected · ${s.messages.size} messages, ${s.unread} unread"
@@ -152,13 +154,37 @@ fun MailSettingsPage(
                 }
             }
         }
+        if (saved.isEmpty() && serverId.isNotEmpty()) {
+            ListItem(
+                headlineContent = { Text("Shared sign-in is set up") },
+                supportingContent = { Text("Your organization provides the Google sign-in. Just tap Connect below; you can still paste your own id above to override it.") },
+            )
+        }
+        ListItem(
+            headlineContent = { Text("Setup server") },
+            supportingContent = { Text("Where the shared Google sign-in id is downloaded from. Leave empty for ${LauncherSettings.DEFAULT_MAIL_SETUP_URL}.") },
+        )
+        OutlinedTextField(
+            value = setupUrlText,
+            onValueChange = { setupUrlText = it },
+            singleLine = true,
+            placeholder = { Text(LauncherSettings.DEFAULT_MAIL_SETUP_URL) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        )
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { update { it.copy(mailSetupUrl = setupUrlText.trim().ifEmpty { null }) } },
+                enabled = setupUrlText.trim() != settings.mailSetupUrl.orEmpty(),
+            ) { Text("Save") }
+            TextButton(onClick = { scope.launch { gmail?.refreshServerConfig() } }) { Text("Check now") }
+        }
         if (filter.shows(MailSettingsRows.connect)) {
             ListItem(
                 headlineContent = { Text(MailSettingsRows.connect.title) },
                 supportingContent = { Text(statusText) },
                 trailingContent = {
                     val connected = state is MailState.Connected
-                    val enabled = saved.isNotEmpty() && state != MailState.Connecting
+                    val enabled = (saved.isNotEmpty() || serverId.isNotEmpty()) && state != MailState.Connecting
                     if (connected) {
                         OutlinedButton(onClick = { scope.launch { repo.disconnect() } }) { Text(connectLabel) }
                     } else {

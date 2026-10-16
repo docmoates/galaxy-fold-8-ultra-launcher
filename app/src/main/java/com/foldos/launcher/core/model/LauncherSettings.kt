@@ -73,6 +73,11 @@ data class LauncherSettings(
     val badgeStyle: String = BADGE_COUNT,
     /** OAuth client id the Mail tab signs in with; null = mail not configured. */
     val mailClientId: String? = null,
+    /**
+     * Server the Mail tab asks for a shared OAuth client id when [mailClientId] is empty (the
+     * organization sets it once in its admin portal); null = [DEFAULT_MAIL_SETUP_URL].
+     */
+    val mailSetupUrl: String? = null,
     /** AI engine: [AI_MODE_TEMPLATE] (rule-based replies), [AI_MODE_ONDEVICE] (Gemini Nano) or [AI_MODE_OFF]. */
     val aiMode: String = AI_MODE_TEMPLATE,
     /** Default folder style: [FOLDER_GRID], [FOLDER_LIST] or [FOLDER_BIG]; a `HomeItem.folderStyle` overrides it. */
@@ -157,6 +162,9 @@ data class LauncherSettings(
     }
 
     companion object {
+        /** Where the Mail tab looks for the organization's shared Google sign-in id (Admin > Settings > FoldOS Mail). */
+        const val DEFAULT_MAIL_SETUP_URL: String = "https://sub.crosspointhealth.org"
+
         /** Easy mode: columns on the cover screen. */
         const val EASY_COVER_COLS: Int = 3
 

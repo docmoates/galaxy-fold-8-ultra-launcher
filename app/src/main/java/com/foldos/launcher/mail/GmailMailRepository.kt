@@ -85,8 +85,48 @@ class GmailMailRepository(
      */
     val tokensEncrypted: StateFlow<Boolean?> = _tokensEncrypted.asStateFlow()
 
+    private val serverPrefs = appContext.getSharedPreferences(SERVER_PREFS, Context.MODE_PRIVATE)
+    private val _serverClientId = MutableStateFlow(serverPrefs.getString(KEY_SERVER_CLIENT_ID, "").orEmpty())
+
+    /** The shared client id downloaded from the setup server (empty when the server has none). */
+    val serverClientId: StateFlow<String> = _serverClientId.asStateFlow()
+
+    /**
+     * Downloads the shared Google sign-in id from `<setup server>/api/v1/public/foldos-mail`. Only an
+     * explicit answer from the server changes the cached id; no network or a bad reply keeps the old one.
+     * Never runs in No-network mode.
+     */
+    suspend fun refreshServerConfig() {
+        val current = settings.settings.first()
+        if (current.noNetwork) return
+        val base = current.mailSetupUrl?.trim()?.trimEnd('/').takeUnless { it.isNullOrEmpty() }
+            ?: com.foldos.launcher.core.model.LauncherSettings.DEFAULT_MAIL_SETUP_URL
+        val reply = withContext(Dispatchers.IO) {
+            runCatching {
+                val conn = java.net.URL("$base/api/v1/public/foldos-mail").openConnection() as java.net.HttpURLConnection
+                try {
+                    conn.connectTimeout = 8_000
+                    conn.readTimeout = 8_000
+                    conn.requestMethod = "GET"
+                    if (conn.responseCode != 200) return@runCatching null
+                    org.json.JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                } finally {
+                    conn.disconnect()
+                }
+            }.onFailure { Log.i(TAG, "Mail setup server not reachable: ${it.message}") }.getOrNull()
+        } ?: return
+        val id = if (reply.optBoolean("configured", false)) reply.optString("client_id").trim() else ""
+        if (id != _serverClientId.value) {
+            serverPrefs.edit().putString(KEY_SERVER_CLIENT_ID, id).apply()
+            _serverClientId.value = id
+        }
+    }
+
     override val state: Flow<MailState> = combine(
-        settings.settings.map { it.mailClientId?.trim().orEmpty() }.distinctUntilChanged(),
+        combine(
+            settings.settings.map { it.mailClientId?.trim().orEmpty() }.distinctUntilChanged(),
+            _serverClientId,
+        ) { own, shared -> own.ifEmpty { shared } }.distinctUntilChanged(),
         internalState,
         storeFlow,
         settings.settings.map { it.noNetwork }.distinctUntilChanged(),
@@ -110,6 +150,10 @@ class GmailMailRepository(
             storeFlow.value = store
             if (store.signedIn) refreshInternal() else internalState.value = MailState.Disconnected
         }
+        // Ask the setup server for the shared sign-in id at start, and again when its address or No-network mode changes.
+        scope.launch {
+            settings.settings.map { it.mailSetupUrl?.trim().orEmpty() to it.noNetwork }.distinctUntilChanged().collect { refreshServerConfig() }
+        }
         // Leaving No-network mode: pick the inbox up again (the early return in loadInbox left the state untouched).
         scope.launch {
             settings.settings.map { it.noNetwork }.distinctUntilChanged().drop(1).collect { offline ->
@@ -130,7 +174,9 @@ class GmailMailRepository(
     override suspend fun connect(activity: Activity) {
         val current = settings.settings.first()
         if (current.noNetwork) return
-        val clientId = current.mailClientId?.trim().orEmpty()
+        // Make sure the shared id is as fresh as possible before signing in.
+        if (current.mailClientId.isNullOrBlank() && _serverClientId.value.isEmpty()) refreshServerConfig()
+        val clientId = current.mailClientId?.trim().orEmpty().ifEmpty { _serverClientId.value }
         if (clientId.isEmpty()) {
             internalState.value = MailState.NotConfigured
             return
@@ -266,6 +312,8 @@ class GmailMailRepository(
 
     private companion object {
         const val TAG = "GmailMailRepository"
+        const val SERVER_PREFS = "foldos_mail_server"
+        const val KEY_SERVER_CLIENT_ID = "client_id"
         const val INBOX_PAGE_SIZE = 25
         const val SIGN_IN_TIMEOUT_MS = 10L * 60L * 1000L
         const val NO_NETWORK_MESSAGE = "No-network mode is on. Turn it off in Settings > Features to use Gmail."
