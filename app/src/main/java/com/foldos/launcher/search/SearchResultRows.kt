@@ -285,12 +285,13 @@ private fun DrawableIcon(drawable: Drawable?, fallback: ImageVector) {
             }
         }
     }
-    if (bitmap == null) {
+    val loaded = bitmap
+    if (loaded == null) {
         GlyphIcon(fallback)
     } else {
         val percent = (tokens.iconCornerFraction * 100f).toInt().coerceIn(0, 50)
         Image(
-            bitmap = bitmap,
+            bitmap = loaded,
             contentDescription = null,
             modifier = Modifier.size(40.dp).clip(RoundedCornerShape(percent = percent)),
             contentScale = ContentScale.Fit,
