@@ -263,7 +263,7 @@ Preset gallery available in Settings afterwards (Minimal, Dashboard, Productivit
 | Phase | Scope |
 |---|---|
 | **0 — Design** (done) | This plan, static and interactive mock-up, launcher research, widget catalog |
-| **1 — Core launcher** | Home role, app drawer, dock, folders, grid pages, cover/inner separate layouts, settings skeleton, Simple/Advanced |
+| **1 — Core launcher** (first build passing) | Home role, app drawer, dock, folders, grid pages, cover/inner separate layouts, settings skeleton, Simple/Advanced. Commit `eb42c92`: 62 Kotlin files, debug APK built by GitHub Actions (`foldos-debug-apk` artifact). Not yet run on a device; folders and Flex-mode layout still to verify. |
 | **2 — Widgets** | AppWidgetHost, built-in Glance/Clock/Weather/Calendar/Battery, stacks, free placement, live edit |
 | **3 — Looks & styles** | 4 themes, 4 home styles, icon packs, wizard, presets |
 | **4 — Power** | Gestures, universal search, app pairs, profiles, smart widget rules |
