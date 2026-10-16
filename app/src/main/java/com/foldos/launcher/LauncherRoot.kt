@@ -77,7 +77,6 @@ import com.foldos.launcher.widgets.WidgetSizing
 import com.foldos.launcher.widgets.rememberAddAppWidgetFlow
 import com.foldos.launcher.widgets.rememberWidgetHostController
 import kotlinx.coroutines.flow.flowOf
-import java.util.Locale
 
 /**
  * Everything inside the launcher window. Until the first-run wizard has finished it shows the
@@ -210,7 +209,11 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                 editSelectId = item.id.takeIf { it > 0L }
                 viewModel.enterEditMode()
             },
-            onEmptyLongPress = { _, _, _ -> viewModel.enterEditMode() },
+            onEmptyLongPress = { _, _, _ ->
+                // An empty spot selects nothing: drop the item an earlier long press left behind.
+                editSelectId = null
+                viewModel.enterEditMode()
+            },
         )
     }
 
@@ -590,43 +593,10 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
 /* Default dock contents                                                                       */
 /* ------------------------------------------------------------------------------------------ */
 
-/** Package name fragments tried in order to pick sensible dock apps on a fresh install. */
-private val DOCK_PRIORITY: List<List<String>> = listOf(
-    listOf("dialer", "contacts.phone", ".phone"),
-    listOf("messaging", "messages", ".mms"),
-    listOf("chrome", "sbrowser", "browser"),
-    listOf("camera"),
-    listOf("photos", "gallery"),
-    listOf("gmail", "email"),
-    listOf("maps"),
-    listOf("youtube"),
-    listOf("spotify", "music"),
-    listOf("calendar"),
-    listOf("vending", "galaxyapps", "samsungapps"),
-    listOf("android.settings"),
-)
-
 /**
  * Picks [count] apps for the dock until the user pins their own: well-known apps first (phone,
- * messages, browser, camera, ...), then the alphabetical list.
+ * messages, browser, camera, ...), then the alphabetical list. The preference logic lives in
+ * `home/HomeDefaultApps.kt`, shared with the first-page seeding.
  */
-fun defaultDockApps(apps: List<AppInfo>, count: Int): List<AppInfo> {
-    if (count <= 0 || apps.isEmpty()) return emptyList()
-    val picked = ArrayList<AppInfo>(count)
-    val usedKeys = HashSet<String>()
-    for (keywords in DOCK_PRIORITY) {
-        if (picked.size >= count) break
-        val match = apps.firstOrNull { app ->
-            app.key !in usedKeys && keywords.any { app.packageName.lowercase(Locale.ROOT).contains(it) }
-        }
-        if (match != null) {
-            picked.add(match)
-            usedKeys.add(match.key)
-        }
-    }
-    for (app in apps) {
-        if (picked.size >= count) break
-        if (usedKeys.add(app.key)) picked.add(app)
-    }
-    return picked
-}
+fun defaultDockApps(apps: List<AppInfo>, count: Int): List<AppInfo> =
+    com.foldos.launcher.home.preferredDockApps(apps, count)

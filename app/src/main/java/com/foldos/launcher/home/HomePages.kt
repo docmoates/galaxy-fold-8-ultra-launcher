@@ -337,8 +337,15 @@ internal fun HomeItemTile(
                         HomeItemPressOverlay(ctx, item)
                     }
                 }
-                ctx.isHiddenItem(item) -> Spacer(Modifier.fillMaxSize())
-                else -> HomeMissingTile(ctx.iconSize)
+                // Nothing to open here: the cell looks empty, so a long press on it enters edit mode
+                // (the grid ignores presses on cells that hold an item, so the tile has to do it).
+                ctx.isHiddenItem(item) -> Spacer(
+                    Modifier.fillMaxSize().homeLongPress { ctx.emptyLongPress(item.pageId, item.col, item.row) },
+                )
+                else -> HomeMissingTile(
+                    ctx.iconSize,
+                    Modifier.homeLongPress { ctx.emptyLongPress(item.pageId, item.col, item.row) },
+                )
             }
         }
         ItemKind.FOLDER -> HomeFolderTile(ctx, item, access)

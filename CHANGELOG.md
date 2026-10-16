@@ -4,6 +4,29 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.1.1] - 2026-10-16
+
+Fix round 1.2: on-device test results on 1.1.0 (`versionCode` 111). Written from the source; not yet run on a device.
+
+### Fixed
+1. Stable signing key: debug and release builds are signed with the same committed key (`app/foldos-signing.p12`), so
+   installs update in place instead of failing with a signature mismatch. Builds made before this one used a different
+   key per CI run, so 1.1.0 must be uninstalled once before 1.1.1 goes on.
+2. Status bar visible on dark and light: the clock and icons follow the launcher's Appearance (light icons on a dark
+   launcher, dark icons on a light one) instead of the system dark mode, in the launcher, the setup wizard and Settings.
+3. Setup wizard Colors step layout: the live preview shrank to about 40% of the visible height, the Dark / Light / Auto
+   cards are compact whole-phone thumbnails and the swatches sit in a four-column grid, so the cards and the first
+   swatches show without scrolling; the title and the Back / Continue bar stay pinned.
+4. Empty-cell long-press hit test: a long press on an empty cell opens edit mode on that cell and no longer selects or
+   opens the menu of a neighbouring item (exact cell under the finger, children handle their own presses, a stale
+   selection from an earlier press is cleared).
+5. Useful default home apps and dock: a fresh home page is seeded with up to 16 useful apps (Chrome, Gmail, Photos,
+   Maps, YouTube, Calendar, ...) instead of the first apps alphabetically, and the default dock prefers phone,
+   messages, Chrome and camera. Existing layouts are not changed.
+6. Snackbar placement: the "Widget removed / Undo" snackbar sits just above the edit-mode bottom bar.
+7. Settings preview ghosting: the pop-up app drawer samples draw the home dimmed behind an opaque sheet, so labels no
+   longer show through; the full-screen sample does not draw the home.
+
 ## [1.1.0] - 2026-10-16
 
 Fix round 1.1: device feedback on 1.0.0 (`versionCode` 110). Written from the source; not yet run on a device.

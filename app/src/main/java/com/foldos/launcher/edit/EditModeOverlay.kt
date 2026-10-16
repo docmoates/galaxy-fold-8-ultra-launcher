@@ -603,10 +603,17 @@ fun EditModeOverlay(
                     selectedId = pending.item.id
                     removed = null
                 },
+                // Anchored to the TOP of the bottom action bar (the computed chrome: bar height plus the
+                // navigation inset; the measured bar height also includes the status-bar inset that
+                // windowInsetsPadding adds on top, so it would float the snackbar too high) and lifted
+                // by EditSnackbarGap, instead of a fixed padding that could sit on the scaled home's dock.
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .windowInsetsPadding(WindowInsets.systemBars)
-                    .padding(start = 16.dp, end = 16.dp, bottom = EditBottomBarHeight + 8.dp),
+                    .padding(horizontal = 16.dp)
+                    .offset {
+                        val barPx = chrome.bottomPx
+                        IntOffset(0, -(barPx + EditSnackbarGap.roundToPx()))
+                    },
             )
         }
     }
@@ -624,6 +631,8 @@ private fun removedMessage(item: HomeItem): String = when (item.kind) {
     ItemKind.PAIR -> "App pair removed"
 }
 
+/** Space between the top of the bottom action bar and the bottom of the "removed / Undo" snackbar. */
+private val EditSnackbarGap = 12.dp
 private val RemoveHitSize = 44.dp
 private val ConfirmPillWidth = 150.dp
 private val ConfirmPillHeight = 40.dp

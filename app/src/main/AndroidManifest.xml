@@ -99,7 +99,7 @@
             android:resizeableActivity="true"
             android:clearTaskOnLaunch="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|uiMode|density"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustNothing"
             android:theme="@style/Theme.FoldOS">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

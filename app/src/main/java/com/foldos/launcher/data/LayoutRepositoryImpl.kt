@@ -13,6 +13,7 @@ import com.foldos.launcher.data.db.LayoutDao
 import com.foldos.launcher.data.db.LayoutDatabase
 import com.foldos.launcher.data.db.PageEntity
 import com.foldos.launcher.home.defaultDashboardItems
+import com.foldos.launcher.home.preferredHomeApps
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -21,11 +22,12 @@ import java.io.File
 
 /**
  * [LayoutRepository] on top of [LayoutDatabase]. On first run each screen gets [DEFAULT_PAGE_COUNT]
- * pages (one populated, one empty), and the first page is filled with the first apps in a grid: the
+ * pages (one populated, one empty), and the first page is filled with up to 16 useful apps in a grid
+ * (see [preferredHomeApps]: browser, mail, photos, maps, ... first, then the rest alphabetically): the
  * caller's column count (Settings > Home > Cover / Inner columns) times 4 rows on the cover or 3 rows
- * on the inner screen (a dashboard first page gets the default widgets instead).
+ * on the inner screen, capped at 16 (a dashboard first page gets the default widgets instead).
  * Without a column count the LauncherSettings defaults apply (4 columns / 16 apps on the cover,
- * 6 columns / 18 apps on the inner screen).
+ * 6 columns / 16 of 18 cells on the inner screen).
  *
  * Stacks use the first (anchor) item's row id as the stack id, so stack ids never collide with
  * each other and survive the anchor being flipped to the back.
@@ -111,7 +113,9 @@ class LayoutRepositoryImpl(
         } else {
             val cols = columns?.coerceAtLeast(1) ?: defaultColumns(screen)
             val count = cols * defaultRows(screen)
-            apps.take(count).mapIndexed { position, app ->
+            // Useful apps first (browser, mail, photos, maps, ...), then the rest alphabetically;
+            // never more than HOME_SEED_APP_LIMIT (16) however large the grid is.
+            preferredHomeApps(apps, count).mapIndexed { position, app ->
                 ItemEntity(
                     pageId = pageId,
                     kind = ItemKind.APP,
@@ -130,8 +134,8 @@ class LayoutRepositoryImpl(
      * Version 1.0.0 seeded three pages per screen and refilled every empty dashboard page with the
      * default widgets, so an inner screen ended up with three identical dashboards. Deletes the pages
      * after the first one whose items are identical (same kind, app / built-in, cell and span) to the
-     * first page's, and the extra trailing empty pages (a 1.0.0 cover install has a populated first page
-     * plus two empty ones): at most one trailing empty page is kept. A page that differs in any way or
+     * first page's and, only when such duplicates exist, the extra trailing empty pages: at most one
+     * trailing empty page is kept. A screen without duplicates is never trimmed. A page that differs in any way or
      * holds an item or a hosted app widget is never touched. When that leaves a single page, one empty
      * page of the same style is added back, so the result is the same "one populated page plus one
      * empty page" a fresh install gets. Running it again finds nothing to do.
@@ -154,7 +158,10 @@ class LayoutRepositoryImpl(
         val trailingEmpty = kept.drop(1).reversed()
             .takeWhile { page -> dao.allItemsByPageOnce(page.id).isEmpty() }
             .reversed()
-        val extraEmpty = trailingEmpty.drop(1)
+        // Only a screen that really has 1.0.0's identical duplicate pages is trimmed: without a duplicate,
+        // extra empty pages were added by the user (this runs once on layouts of any version, e.g. after
+        // updating from 1.1.0 or restoring a backup) and are left alone.
+        val extraEmpty = if (duplicates.isEmpty()) emptyList() else trailingEmpty.drop(1)
         if (duplicates.isEmpty() && extraEmpty.isEmpty()) return
         (duplicates + extraEmpty).forEach { dao.deletePage(it.id) }
         val remaining = dao.pagesByScreenOnce(key)

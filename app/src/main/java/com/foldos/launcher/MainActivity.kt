@@ -8,7 +8,6 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
@@ -20,9 +19,12 @@ import com.foldos.launcher.builtins.LocalPermissionRequester
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.hub.FoldOsHubRepository
+import com.foldos.launcher.onboarding.SystemBarsEffect
+import com.foldos.launcher.onboarding.enableLauncherEdgeToEdge
 import com.foldos.launcher.perf.ReportFullyDrawnOnFirstFrame
 import com.foldos.launcher.perf.StartupTracker
 import com.foldos.launcher.theme.FoldOsTheme
+import com.foldos.launcher.theme.isDarkAppearance
 import com.foldos.launcher.widgets.WidgetHostController
 
 /**
@@ -47,11 +49,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         StartupTracker.onActivityCreate()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Transparent bars; the icon colors follow the launcher's own Appearance (SystemBarsEffect below),
+        // not the system dark mode that enableEdgeToEdge() would use.
+        enableLauncherEdgeToEdge()
         val graph = FoldOsApplication.from(this).graph
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val loadedSettings by viewModel.loadedSettings.collectAsStateWithLifecycle()
+            // Until DataStore has answered, `settings` is the default (Dark) and would flip the icons of a
+            // Light launcher for a few frames; the dark starting style from enableLauncherEdgeToEdge stays.
+            if (loadedSettings != null) SystemBarsEffect(dark = isDarkAppearance(settings.appearance))
             // Built-in widgets (calendar, photos, Bluetooth battery) ask for one permission at a
             // time through this; the widget re-checks the grant when the activity resumes, and the
             // Hub's provider flows re-check on this bump (they never poll).

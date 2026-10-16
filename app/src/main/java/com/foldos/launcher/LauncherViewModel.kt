@@ -83,14 +83,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val apps: StateFlow<List<AppInfo>> = graph.apps.apps
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val pageFlows = HashMap<ScreenKind, StateFlow<List<HomePage>>>()
+    // Read from background coroutines (hybridPageIsFull) while the main thread may add a screen's flow.
+    private val pageFlows = java.util.concurrent.ConcurrentHashMap<ScreenKind, StateFlow<List<HomePage>>>()
 
     /** The process-wide widget host controller (ids, binding, configure results). */
     private val widgetHost: WidgetHostController
         get() = WidgetHostController.from(getApplication<Application>(), graph)
 
     /** Home pages of one layout store, shared for the life of the view model. */
-    fun pages(screen: ScreenKind): StateFlow<List<HomePage>> = pageFlows.getOrPut(screen) {
+    fun pages(screen: ScreenKind): StateFlow<List<HomePage>> = pageFlows.computeIfAbsent(screen) {
         graph.layouts.pages(screen).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     }
 

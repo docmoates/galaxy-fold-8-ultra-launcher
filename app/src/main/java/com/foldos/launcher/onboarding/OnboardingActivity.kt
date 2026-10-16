@@ -5,13 +5,13 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import com.foldos.launcher.a11y.A11yRoot
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.theme.FoldOsTheme
+import com.foldos.launcher.theme.isDarkAppearance
 import com.foldos.launcher.settings.SettingsWriteQueue
 
 /**
@@ -26,7 +26,7 @@ class OnboardingActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableLauncherEdgeToEdge()
         val graph = FoldOsApplication.from(this).graph
         val gallery = intent?.getStringExtra(EXTRA_MODE) == MODE_GALLERY
         val update: ((LauncherSettings) -> LauncherSettings) -> Unit = { transform ->
@@ -38,6 +38,8 @@ class OnboardingActivity : ComponentActivity() {
             }
             val current = settings
             if (current != null) {
+                // Status / navigation bar icons follow the launcher's Appearance, not the system dark mode.
+                SystemBarsEffect(dark = isDarkAppearance(current.appearance))
                 FoldOsTheme(settings = current) {
                     A11yRoot(settings = current) {
                         if (gallery) {

@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -344,8 +345,15 @@ internal fun DrawerSample(
     ) {
         CompositionLocalProvider(LocalDragController provides rememberDragController()) {
             FoldOsTheme(settings = candidate) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    SampleCoverHome(settings = candidate)
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+                    // The pop-up shows the home dimmed to 35% behind an opaque sheet. It is one layer, so the
+                    // wallpaper, icons and labels dim together and nothing is drawn twice. The full-screen
+                    // drawer covers the whole home, so the home is not drawn at all.
+                    if (popup) {
+                        Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = DRAWER_BEHIND_ALPHA }) {
+                            SampleCoverHome(settings = candidate)
+                        }
+                    }
                     DrawerSheetSample(popup = popup)
                 }
             }
@@ -353,13 +361,16 @@ internal fun DrawerSample(
     }
 }
 
+/** How strongly the home shows through behind the pop-up drawer sample (the rest is black). */
+private const val DRAWER_BEHIND_ALPHA: Float = 0.35f
+
 @Composable
 private fun DrawerSheetSample(popup: Boolean) {
     val tokens = LocalFoldOsTokens.current
+    // The theme's drawer fill is slightly translucent (0.86 to 0.98); the sample sheet must be opaque or
+    // the dimmed home (and its labels) shows through it.
+    val sheetFill = tokens.drawerScrim.copy(alpha = 1f)
     Box(modifier = Modifier.fillMaxSize()) {
-        if (popup) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f)))
-        }
         val sheetModifier = if (popup) {
             Modifier
                 .align(Alignment.BottomCenter)
@@ -371,7 +382,7 @@ private fun DrawerSheetSample(popup: Boolean) {
         }
         Column(
             modifier = sheetModifier
-                .background(tokens.drawerScrim)
+                .background(sheetFill)
                 .padding(start = 18.dp, end = 18.dp, top = if (popup) 14.dp else 40.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

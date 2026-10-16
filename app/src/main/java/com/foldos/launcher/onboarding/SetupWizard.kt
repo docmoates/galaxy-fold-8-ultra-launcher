@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foldos.launcher.core.model.Appearance
@@ -126,19 +130,25 @@ fun SetupWizard(
                 fontWeight = FontWeight.Medium,
                 lineHeight = 34.sp,
             )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                when (step) {
-                    1 -> ScreensStep(local, change)
-                    2 -> HomeStyleStep(local, change)
-                    3 -> LookStep(local, change)
-                    4 -> ColorsStep(local, change)
-                    else -> DockStep(local, change)
+            // The step content scrolls; the title above and the Back / Continue bar below stay pinned.
+            // BoxWithConstraints hands the visible height to steps that size their preview from it.
+            val scrollState = rememberScrollState()
+            LaunchedEffect(step) { scrollState.scrollTo(0) }
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val viewportHeight = maxHeight
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    when (step) {
+                        1 -> ScreensStep(local, change)
+                        2 -> HomeStyleStep(local, change)
+                        3 -> LookStep(local, change)
+                        4 -> ColorsStep(local, change, viewportHeight)
+                        else -> DockStep(local, change)
+                    }
                 }
             }
             WizardNav(
@@ -249,15 +259,26 @@ private fun LookStep(local: LauncherSettings, change: ((LauncherSettings) -> Lau
 /* Step 4: Colors                                                                             */
 /* ------------------------------------------------------------------------------------------ */
 @Composable
-private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> LauncherSettings) -> Unit) {
+private fun ColorsStep(
+    local: LauncherSettings,
+    change: ((LauncherSettings) -> LauncherSettings) -> Unit,
+    viewportHeight: Dp,
+) {
     val tokens = LocalFoldOsTokens.current
     val isDark = tokens.isDark
+    val coverRatio = PREVIEW_COVER_WIDTH.value / PREVIEW_COVER_HEIGHT.value
     WizardSubtitle("Every color comes in a light and a dark version. Tap one and the preview follows.")
+
+    // Live preview: about 40% of the visible step height (never taller than the whole home would be
+    // at that width), so the Appearance cards and the swatches below it stay on screen.
+    val previewHeight = (viewportHeight * 0.40f).coerceIn(140.dp, 300.dp)
+    val previewWidth = previewHeight * coverRatio
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.78f)
-                .height(380.dp),
+                .width(previewWidth)
+                .height(previewHeight)
+                .clip(RoundedCornerShape(14.dp)),
         ) {
             SampleHomePreview(
                 style = HomeStyle.DASHBOARD,
@@ -269,8 +290,8 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
         }
     }
 
-    // Appearance: three preview cards.
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Appearance: a compact row of three small whole-phone previews.
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(
             Appearance.DARK to "Dark",
             Appearance.LIGHT to "Light",
@@ -282,13 +303,15 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
                 onClick = { change { it.copy(appearance = appearance) } },
                 modifier = Modifier.weight(1f),
             ) {
-                AppearanceSample(
-                    appearance = appearance,
-                    base = local,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(PREVIEW_COVER_WIDTH.value / PREVIEW_COVER_HEIGHT.value),
-                )
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    AppearanceSample(
+                        appearance = appearance,
+                        base = local,
+                        modifier = Modifier
+                            .width(AppearanceThumbWidth)
+                            .aspectRatio(coverRatio),
+                    )
+                }
             }
         }
     }
@@ -303,7 +326,7 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
             name = "Theme colors",
             selected = scheme == ColorSchemeConfig.SCHEME_THEME,
             onClick = { change { it.copy(colors = it.colors.copy(scheme = ColorSchemeConfig.SCHEME_THEME)) } },
-            swatch = { ThemeColorsSwatch(theme = local.theme) },
+            swatch = { ThemeColorsSwatch(theme = local.theme, swatchSize = ColorSwatchSize) },
         ),
     )
     ColorSchemes.families.forEach { family ->
@@ -312,7 +335,7 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
                 name = family.name,
                 selected = selectedFamily == family.id,
                 onClick = { change { it.copy(colors = colorsForFamily(it.colors, family, isDark)) } },
-                swatch = { SplitColorSwatch(family = family) },
+                swatch = { SplitColorSwatch(family = family, swatchSize = ColorSwatchSize) },
             ),
         )
     }
@@ -321,7 +344,7 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
             name = "Custom",
             selected = scheme == ColorSchemeConfig.SCHEME_CUSTOM,
             onClick = { change { it.copy(colors = colorsForCustom(it.colors, isDark)) } },
-            swatch = { CustomColorSwatch() },
+            swatch = { CustomColorSwatch(swatchSize = ColorSwatchSize) },
         ),
     )
     tiles.chunked(4).forEach { rowItems ->
@@ -355,6 +378,12 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
         )
     }
 }
+
+/** Width of one Dark / Light / Auto thumbnail on the Colors step (a whole phone, drawn small). */
+private val AppearanceThumbWidth = 64.dp
+
+/** Edge of one color swatch tile on the Colors step (four tiles per row). */
+private val ColorSwatchSize = 50.dp
 
 /** One tile on the Colors step: a swatch with its name under it. */
 private class ColorTileSpec(

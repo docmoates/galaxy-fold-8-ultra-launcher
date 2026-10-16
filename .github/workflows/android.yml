@@ -73,8 +73,9 @@ jobs:
       #   FOLDOS_KEYSTORE_PASSWORD  keystore password
       #   FOLDOS_KEY_ALIAS          key alias
       #   FOLDOS_KEY_PASSWORD       key password (defaults to the keystore password when empty)
-      # Without them (and on pull requests from forks, where secrets are withheld) the build falls
-      # back to the debug keystore so it still produces an installable APK.
+      # Without them (and on pull requests from forks, where secrets are withheld) the build signs
+      # with the committed stable key app/foldos-signing.p12, the same key the debug job uses, so
+      # every APK from this workflow updates the previous one in place.
       - name: Prepare release keystore
         id: keystore
         env:
@@ -88,7 +89,7 @@ jobs:
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No release keystore secrets set; the release APK is signed with the debug key."
+            echo "::notice::No release keystore secrets set; the release APK is signed with the committed stable key."
           fi
 
       - name: Build release APK
@@ -121,6 +122,6 @@ jobs:
           notes="FoldOS ${TAG}. See CHANGELOG.md for what changed."
           if [ "$SIGNED" != "true" ]; then
             flags="--prerelease"
-            notes="$notes This APK is signed with the debug key (no release keystore configured), so it cannot update a build signed with a different key."
+            notes="$notes This APK is signed with the committed project key (no private release keystore configured); it updates other builds signed with the same key in place."
           fi
           gh release create "$TAG" "$asset" --title "FoldOS ${TAG}" --notes "$notes" $flags

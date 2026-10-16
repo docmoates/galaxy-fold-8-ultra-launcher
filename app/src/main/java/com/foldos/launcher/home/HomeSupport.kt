@@ -1,6 +1,7 @@
 package com.foldos.launcher.home
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -182,6 +183,7 @@ internal class HomeContext(
      * long press over through [HomeItemHooks.onItemLongPress].
      */
     fun widgetLongPress(item: HomeItem, anchor: Rect? = null) {
+        HomeLongPressClock.itemPressed()
         if (!editMode) {
             val hook = hooks.onItemLongPress
             if (hook != null && hook(item, anchor)) return
@@ -195,8 +197,14 @@ internal class HomeContext(
         if (hook != null) hook(item) else onLongPressHome()
     }
 
-    /** Long press on empty space; col/row are -1 when the cell is unknown. */
+    /**
+     * Long press on empty space; col/row are -1 when the cell is unknown. Ignored when an item long
+     * press fired a moment ago: a widget watches the press before its parents ([homeLongPressFirst])
+     * without consuming it, so the page's own empty-space detector times out right after it and must
+     * not undo the item's edit selection.
+     */
     fun emptyLongPress(pageId: Long, col: Int, row: Int) {
+        if (HomeLongPressClock.itemPressedRecently()) return
         val hook = callbacks.onEmptyLongPress
         if (hook != null) hook(pageId, col, row) else onLongPressHome()
     }
@@ -289,6 +297,21 @@ internal class HomeContext(
                 title = app.label,
             )
         }
+}
+
+/**
+ * When an item (widget) long press last fired, so the empty-space detectors of the page can tell
+ * that the same press is already taken. Main-thread only; plain field, not snapshot state.
+ */
+internal object HomeLongPressClock {
+    private const val WINDOW_MS = 400L
+    private var itemAtMs: Long = -WINDOW_MS * 4
+
+    fun itemPressed() {
+        itemAtMs = SystemClock.uptimeMillis()
+    }
+
+    fun itemPressedRecently(): Boolean = SystemClock.uptimeMillis() - itemAtMs < WINDOW_MS
 }
 
 /**

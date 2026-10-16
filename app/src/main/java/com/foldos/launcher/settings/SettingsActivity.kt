@@ -6,7 +6,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +25,8 @@ import com.foldos.launcher.a11y.A11yRoot
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.Appearance
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.onboarding.SystemBarsEffect
+import com.foldos.launcher.onboarding.enableLauncherEdgeToEdge
 import com.foldos.launcher.core.repo.SettingsRepository
 
 /**
@@ -39,7 +40,7 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableLauncherEdgeToEdge()
         val graph = FoldOsApplication.from(this).graph
         val repo: SettingsRepository = graph.settings
         val startRoute: String? = intent?.getStringExtra(EXTRA_ROUTE)
@@ -101,6 +102,8 @@ private fun SettingsAppTheme(
         Appearance.LIGHT -> false
         Appearance.AUTO -> systemDark
     }
+    // Status / navigation bar icons follow the launcher's Appearance, not the system dark mode.
+    SystemBarsEffect(dark = dark)
     val context = LocalContext.current
     val dynamicScheme = remember(context, dark) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

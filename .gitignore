@@ -37,3 +37,6 @@ desktop.ini
 *.log
 *.hprof
 *.orig
+
+# signing keys never go in git unless added deliberately
+app/foldos-signing.p12

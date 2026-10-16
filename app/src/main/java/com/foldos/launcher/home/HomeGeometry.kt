@@ -10,6 +10,7 @@ import com.foldos.launcher.core.model.DockPosition
 import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
+import kotlin.math.floor
 import kotlin.math.max
 
 /**
@@ -45,11 +46,11 @@ data class GridGeometry(
         val half = cols / 2
         val gutterStart = half * cellWidthDp
         val col = when {
-            gutterDp > 0 && cols % 2 == 0 && x >= gutterStart + gutterDp -> ((x - gutterDp) / cellWidthDp).toInt()
+            gutterDp > 0 && cols % 2 == 0 && x >= gutterStart + gutterDp -> floor((x - gutterDp) / cellWidthDp).toInt()
             gutterDp > 0 && cols % 2 == 0 && x >= gutterStart -> half
-            else -> (x / cellWidthDp).toInt()
+            else -> floor(x / cellWidthDp).toInt()
         }.coerceIn(0, cols - 1)
-        val row = (y / cellHeightDp).toInt().coerceIn(0, rows - 1)
+        val row = floor(y / cellHeightDp).toInt().coerceIn(0, rows - 1)
         return col to row
     }
 

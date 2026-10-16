@@ -1,6 +1,7 @@
 package com.foldos.launcher.home
 
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
@@ -29,6 +30,7 @@ import com.foldos.launcher.core.ui.DragPayload
 import com.foldos.launcher.core.ui.dragTarget
 import com.foldos.launcher.edit.LocalEditHomeRoot
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -64,6 +66,96 @@ internal class HomeGridMetrics {
     var cellH: Int = 1
     var gutterPx: Int = 0
 
+    /** Measured size of the grid node in px (cells plus the unused remainder at the right / bottom edge). */
+    var widthPx: Int = 1
+    var heightPx: Int = 1
+
+    /** Pixels per dp at the last measure; free cells are stored in dp. */
+    var density: Float = 1f
+
+    /**
+     * Exact column under [x] (px from the grid's own left edge), or null when the point is left of
+     * the grid, in the hinge gutter, or in the unused remainder right of the last column. Floor
+     * division by the cell pitch; the gutter is skipped, never rounded into a neighbouring column.
+     */
+    fun colAtExact(x: Float): Int? {
+        if (x < 0f) return null
+        val col: Int = if (gutterPx > 0) {
+            val gutterStart = (cols / 2 * cellW).toFloat()
+            when {
+                x < gutterStart -> floor(x / cellW).toInt()
+                x < gutterStart + gutterPx -> return null
+                else -> floor((x - gutterPx) / cellW).toInt()
+            }
+        } else {
+            floor(x / cellW).toInt()
+        }
+        return if (col in 0 until cols) col else null
+    }
+
+    /** Exact row under [y] (px from the grid's own top edge), or null above / below the cells. */
+    fun rowAtExact(y: Float): Int? {
+        if (y < 0f) return null
+        val row = floor(y / cellH).toInt()
+        return if (row in 0 until rows) row else null
+    }
+
+    /** The (col, row) cell under a grid-local point, or null in the gutter / outside the cells. */
+    fun cellAt(x: Float, y: Float): Pair<Int, Int>? {
+        val col = colAtExact(x) ?: return null
+        val row = rowAtExact(y) ?: return null
+        return col to row
+    }
+
+    /** Right edge of the column range ending before [colEnd] (exclusive), hinge gutter included. */
+    fun endX(colEnd: Int): Int {
+        val half = cols / 2
+        return colEnd * cellW + (if (gutterPx > 0 && colEnd > half) gutterPx else 0)
+    }
+
+    /**
+     * Index in [cells] of the topmost child that covers the grid-local point ([x], [y]) in px, or
+     * null when the point is over no child (an empty cell, the gutter, the unused remainder at the
+     * edge). A child covers exactly the rectangle the layout places it in: its span clamped to the
+     * grid, so a cell outside its span never matches and a child that is not placed (its cell is
+     * outside the grid) never matches. Later children are drawn on top, so they are tested first.
+     */
+    fun itemIndexAt(cells: List<HomeCell>, x: Float, y: Float): Int? {
+        for (index in cells.indices.reversed()) {
+            val cell = cells[index]
+            if (cell.isFree) {
+                if (freeContains(cell, x, y)) return index
+                continue
+            }
+            if (cell.col < 0 || cell.row < 0 || cell.col >= cols || cell.row >= rows) continue
+            val endCol = min(cols, cell.col + max(1, cell.spanX))
+            val endRow = min(rows, cell.row + max(1, cell.spanY))
+            val left = startX(cell.col)
+            val right = max(left + 1, endX(endCol))
+            val top = cell.row * cellH
+            val bottom = max(top + 1, endRow * cellH)
+            if (x >= left && x < right && y >= top && y < bottom) return index
+        }
+        return null
+    }
+
+    /** The same dp rectangle the layout gives a free cell, clamped to the grid bounds. */
+    private fun freeContains(cell: HomeCell, x: Float, y: Float): Boolean {
+        val xDp = cell.xDp ?: return false
+        val yDp = cell.yDp ?: return false
+        val wDp = cell.wDp ?: return false
+        val hDp = cell.hDp ?: return false
+        val left = (xDp * density).roundToInt().coerceIn(0, max(0, widthPx - 1))
+        val top = (yDp * density).roundToInt().coerceIn(0, max(0, heightPx - 1))
+        val w = (wDp * density).roundToInt().coerceIn(1, max(1, widthPx - left))
+        val h = (hDp * density).roundToInt().coerceIn(1, max(1, heightPx - top))
+        return x >= left && x < left + w && y >= top && y < top + h
+    }
+
+    /**
+     * Clamped column for drops and the drop highlight: the nearest column, so a point in the gutter
+     * or past the edge still lands on a cell. Use [colAtExact] to find out what is really under a point.
+     */
     fun colAt(x: Int): Int {
         val half = cols / 2
         val gutterStart = half * cellW
@@ -118,7 +210,10 @@ private class HomeGridCoordinates {
  *   when the list is reordered.
  * @param geometryScreen when non-null, the grid publishes its measured [GridGeometry] for that
  *   screen into the store read by [rememberGridGeometry].
- * @param onEmptyLongPress a long press that no child consumed, with the cell under the finger.
+ * @param onEmptyLongPress a long press on a point that no child covers (an empty cell, the hinge
+ *   gutter, the unused edge), with the exact cell under the finger, or -1 / -1 when the finger is
+ *   not over a cell. A press that lands on a child is never reported here, whatever that child does
+ *   with it; a child that wants to leave the long press to the page must handle it itself.
  * @param dropTarget when non-null the grid accepts drag-and-drop (see [HomeGridDrop]).
  */
 @Composable
@@ -208,13 +303,48 @@ internal fun HomeCellGrid(
     // The callback is usually a fresh lambda per recomposition; read the latest one inside a
     // detector that is keyed only on whether a callback exists.
     val latestEmptyLongPress by rememberUpdatedState(onEmptyLongPress)
+    val latestCells by rememberUpdatedState(cells)
+    // Empty-space long press. The hit test runs in the grid's own coordinate space (the pointer is
+    // relative to this node), exactly: a press that lands on a child (whatever its span) is that
+    // child's business (its tile opens its own menu or edit mode), so this detector ignores it and
+    // never reports another cell. It only fires when nothing covers the point; the reported cell is
+    // the exact one, or -1 / -1 for the hinge gutter / the unused edge of the grid.
     val press = if (onEmptyLongPress != null) {
         Modifier.pointerInput(metrics) {
-            detectTapGestures(
-                onLongPress = { offset ->
-                    latestEmptyLongPress?.invoke(metrics.colAt(offset.x.roundToInt()), metrics.rowAt(offset.y.roundToInt()))
-                },
-            )
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = true)
+                if (metrics.itemIndexAt(latestCells, down.position.x, down.position.y) != null) {
+                    return@awaitEachGesture
+                }
+                down.consume()
+                val slop = viewConfiguration.touchSlop
+                val early = withTimeoutOrNull<Boolean>(viewConfiguration.longPressTimeoutMillis) {
+                    var over = false
+                    while (!over) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null ||
+                            !change.pressed ||
+                            event.changes.count { it.pressed } > 1 ||
+                            change.isConsumed ||
+                            (change.position - down.position).getDistance() > slop
+                        ) {
+                            over = true
+                        }
+                    }
+                    true
+                }
+                if (early != null) return@awaitEachGesture
+                val cell = metrics.cellAt(down.position.x, down.position.y)
+                latestEmptyLongPress?.invoke(cell?.first ?: -1, cell?.second ?: -1)
+                // Swallow the rest of the gesture so nothing else reacts to the release.
+                var stillDown = true
+                while (stillDown) {
+                    val event = awaitPointerEvent()
+                    event.changes.forEach { it.consume() }
+                    stillDown = event.changes.any { it.pressed }
+                }
+            }
         }
     } else {
         Modifier
@@ -252,6 +382,10 @@ internal fun HomeCellGrid(
         metrics.cellW = cellW
         metrics.cellH = cellH
         metrics.gutterPx = gutterPx
+        metrics.widthPx = width
+        metrics.heightPx = height
+        // `this.density`: the composable's own `density` local would otherwise shadow the scope's Float.
+        metrics.density = this.density
 
         fun startX(col: Int): Int = col * cellW + (if (gutterPx > 0 && col >= half) gutterPx else 0)
         fun endX(colEnd: Int): Int = colEnd * cellW + (if (gutterPx > 0 && colEnd > half) gutterPx else 0)
