@@ -272,6 +272,9 @@ Preset gallery available in Settings afterwards (Minimal, Dashboard, Productivit
 
 ---
 
+## 7.1 Build status (2026-10-16)
+All six roadmap phases are implemented and compile in GitHub Actions; release 1.0.0 is `releases/FoldOS-1.0.0-debug.apk` (debug and release CI jobs both green). Nothing has been run on a device beyond the early Phase 1 and 0.1.1 installs, so the manual test plan in `docs/TESTING.md` is the next step. Known gaps: on-device Gemini Nano is stubbed as unavailable; Gmail API needs the user's own Google OAuth client ID; weather uses sample data until a provider and key are added.
+
 ## 8. Build readiness
 
 ### 8.1 Defaults the build starts from (all changeable in Settings)
