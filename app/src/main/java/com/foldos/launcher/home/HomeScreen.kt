@@ -15,11 +15,15 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -56,6 +60,14 @@ import kotlin.math.max
  * @param searchBar optional search bar shown at the top of every home page.
  * @param hub optional hub page content; a placeholder is shown when null and the hub is on.
  * @param homeRequest a counter; every increment scrolls the pager back to the first home page.
+ * @param perPageStyle when true each page renders with its own [HomePage.style] (mix and match);
+ *   when false (default) every page follows Settings > Home > Cover / Inner screen style.
+ * @param onCurrentPageChanged reports the home page the pager has settled on (null while the hub
+ *   page is showing), so edit mode and the widget picker know which page they work on.
+ * @param pageSelectRequest scrolls the pager to the requested page whenever a new request arrives
+ *   (the edit overlay's page arrows and edge drops).
+ *
+ * Edit-mode hooks are read from [LocalHomeCallbacks]; provide it around this composable.
  */
 @Composable
 fun HomeScreen(
@@ -73,11 +85,15 @@ fun HomeScreen(
     hub: @Composable (() -> Unit)?,
     homeRequest: Int = 0,
     modifier: Modifier = Modifier,
+    perPageStyle: Boolean = false,
+    onCurrentPageChanged: ((HomePage?) -> Unit)? = null,
+    pageSelectRequest: PageSelectRequest? = null,
 ) {
     val appsByKey = remember(apps) { apps.associateBy { it.key } }
     val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
     val sortedPages = remember(pages) { pages.sortedBy { it.index } }
     var origin by remember { mutableStateOf(Offset.Zero) }
+    val callbacks = LocalHomeCallbacks.current
 
     // FoldStateObserver reports FLEX only for HALF_OPENED with a horizontal hinge (table-top).
     val flex = fold.kind == ScreenKind.FLEX && fold.hingeBounds != null
@@ -94,6 +110,8 @@ fun HomeScreen(
         onOpenDrawer = onOpenDrawer,
         onLongPressHome = onLongPressHome,
         hingeGutter = gutter,
+        callbacks = callbacks,
+        perPageStyle = perPageStyle,
     )
 
     Box(
@@ -105,6 +123,8 @@ fun HomeScreen(
         if (flex) {
             val first = sortedPages.firstOrNull()
             val items = homePageItems(first, itemsForPage)
+            val reportPage = rememberUpdatedState(onCurrentPageChanged)
+            LaunchedEffect(first?.id) { reportPage.value?.invoke(first) }
             HomeFlexLayout(
                 ctx = ctx,
                 firstPage = first,
@@ -123,10 +143,19 @@ fun HomeScreen(
                 searchBar = searchBar,
                 hub = hub,
                 homeRequest = homeRequest,
+                onCurrentPageChanged = onCurrentPageChanged,
+                pageSelectRequest = pageSelectRequest,
             )
         }
     }
 }
+
+/**
+ * A request to scroll the home pager to [pageId]. [serial] makes consecutive requests for the same
+ * page distinct, so each one is honoured.
+ */
+@Immutable
+data class PageSelectRequest(val pageId: Long, val serial: Int)
 
 @Composable
 private fun HomePagedLayout(
@@ -137,6 +166,8 @@ private fun HomePagedLayout(
     searchBar: @Composable (() -> Unit)?,
     hub: @Composable (() -> Unit)?,
     homeRequest: Int,
+    onCurrentPageChanged: ((HomePage?) -> Unit)?,
+    pageSelectRequest: PageSelectRequest?,
 ) {
     val hubOn = ctx.settings.hubOn
     val hubLeft = ctx.settings.hubPos == LauncherSettings.HUB_POS_LEFT
@@ -157,6 +188,27 @@ private fun HomePagedLayout(
     LaunchedEffect(homeRequest) {
         if (homeRequest > 0 && pagerState.currentPage != firstHome) pagerState.animateScrollToPage(firstHome)
     }
+    // Report the settled page (null for the hub) whenever it, or the page list, changes.
+    val reportPage = rememberUpdatedState(onCurrentPageChanged)
+    LaunchedEffect(pagerState, pages, hubIndex, firstHome) {
+        snapshotFlow { pagerState.currentPage }.collect { index ->
+            reportPage.value?.invoke(if (index == hubIndex) null else pages.getOrNull(index - firstHome))
+        }
+    }
+    // Edit overlay page arrows / edge drops. Each request is honoured once: `pages` stays in the
+    // key only so a request for a page that has not arrived yet (addPage) is retried when the
+    // list re-emits, never so an old request snaps the pager back after the user swiped away.
+    var handledSerial by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pageSelectRequest, pages) {
+        val request = pageSelectRequest ?: return@LaunchedEffect
+        if (request.serial == handledSerial) return@LaunchedEffect
+        val index = pages.indexOfFirst { it.id == request.pageId }
+        if (index < 0) return@LaunchedEffect
+        handledSerial = request.serial
+        if (index + firstHome != pagerState.currentPage) {
+            pagerState.animateScrollToPage(index + firstHome)
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         HorizontalPager(
@@ -169,7 +221,10 @@ private fun HomePagedLayout(
             if (index == hubIndex) {
                 HomeHubPage(hub)
             } else {
-                HomePageColumn(ctx, pages.getOrNull(index - firstHome), itemsForPage, searchBar)
+                // Only the settled current page publishes its grid geometry, so a page sliding by
+                // never reports a moving origin to the edit overlay.
+                val settled = index == pagerState.currentPage && !pagerState.isScrollInProgress
+                HomePageColumn(ctx, pages.getOrNull(index - firstHome), itemsForPage, searchBar, settled)
             }
         }
 
@@ -194,12 +249,15 @@ private fun HomePageColumn(
     page: HomePage?,
     itemsForPage: (Long) -> Flow<List<HomeItem>>,
     searchBar: @Composable (() -> Unit)?,
+    publishGeometry: Boolean,
 ) {
     val items = homePageItems(page, itemsForPage)
+    val pageId = page?.id ?: 0L
     Column(
         Modifier
             .fillMaxSize()
-            .homeLongPress(ctx.onLongPressHome)
+            // Outside the item grid the cell is unknown (-1 / -1); the grid reports exact cells.
+            .homeLongPress { ctx.emptyLongPress(pageId, -1, -1) }
             .homeSwipeUp(ctx.onOpenDrawer)
             .padding(horizontal = HomeSidePadding, vertical = 10.dp),
     ) {
@@ -207,7 +265,7 @@ private fun HomePageColumn(
             searchBar()
             Spacer(Modifier.height(14.dp))
         }
-        HomePageBody(ctx, page, items, Modifier.weight(1f).fillMaxWidth())
+        HomePageBody(ctx, page, items, Modifier.weight(1f).fillMaxWidth(), publishGeometry)
     }
 }
 

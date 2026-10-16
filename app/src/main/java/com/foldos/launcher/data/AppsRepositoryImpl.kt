@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
+import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -11,6 +12,7 @@ import android.os.UserHandle
 import android.util.Log
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.repo.AppsRepository
+import com.foldos.launcher.core.repo.IconResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,8 +27,16 @@ import kotlinx.coroutines.sync.withLock
  * [AppsRepository] on top of [LauncherApps] for the current user. The list is loaded on first
  * collection and refreshed whenever LauncherApps reports a package change; the callback is
  * registered exactly once for the lifetime of the process.
+ *
+ * @param iconResolver supplies the graph's [IconResolver] (icon packs, overrides, shape) lazily,
+ *   so every `AppInfo.iconLoader` returns the themed icon; null (the default) keeps the raw system
+ *   icon. The resolver receives an [AppInfo] whose own `iconLoader` is the raw icon, so a resolver
+ *   that falls back to `app.iconLoader()` cannot recurse into itself.
  */
-class AppsRepositoryImpl(context: Context) : AppsRepository {
+class AppsRepositoryImpl(
+    context: Context,
+    private val iconResolver: () -> IconResolver? = { null },
+) : AppsRepository {
 
     private val appContext: Context = context.applicationContext
     private val launcherApps: LauncherApps = appContext.getSystemService(LauncherApps::class.java)
@@ -109,13 +119,30 @@ class AppsRepositoryImpl(context: Context) : AppsRepository {
     private fun toAppInfo(info: LauncherActivityInfo): AppInfo {
         val component = info.componentName
         val dpi = densityDpi
+        val rawIcon: () -> Drawable = { info.getIcon(dpi) }
+        val packageName = component.packageName
+        val activityName = component.className
+        val label = info.label?.toString() ?: component.packageName
+        val user = info.user
+        // The resolver sees this instance, whose iconLoader is the raw icon.
+        val raw = AppInfo(packageName, activityName, label, user, rawIcon)
         return AppInfo(
-            packageName = component.packageName,
-            activityName = component.className,
-            label = info.label?.toString() ?: component.packageName,
-            user = info.user,
-            iconLoader = { info.getIcon(dpi) },
+            packageName = packageName,
+            activityName = activityName,
+            label = label,
+            user = user,
+            iconLoader = { resolvedIcon(raw, rawIcon) },
         )
+    }
+
+    private fun resolvedIcon(raw: AppInfo, rawIcon: () -> Drawable): Drawable {
+        val resolver = iconResolver() ?: return rawIcon()
+        return try {
+            resolver.icon(raw)
+        } catch (e: Exception) {
+            Log.w(TAG, "Icon resolver failed for ${raw.key}; using the system icon", e)
+            rawIcon()
+        }
     }
 
     private companion object {

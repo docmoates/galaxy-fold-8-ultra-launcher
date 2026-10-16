@@ -44,7 +44,7 @@ internal fun HomeFlexLayout(
             Modifier
                 .fillMaxWidth()
                 .height(topHeight)
-                .homeLongPress(ctx.onLongPressHome)
+                .homeLongPress { ctx.emptyLongPress(firstPage?.id ?: 0L, -1, -1) }
                 .homeSwipeUp(ctx.onOpenDrawer)
                 .padding(horizontal = HomeSidePadding, vertical = 10.dp),
         ) {
@@ -52,7 +52,7 @@ internal fun HomeFlexLayout(
                 searchBar()
                 Spacer(Modifier.height(14.dp))
             }
-            HomePageBody(ctx, firstPage, items, Modifier.weight(1f).fillMaxWidth())
+            HomePageBody(ctx, firstPage, items, Modifier.weight(1f).fillMaxWidth(), publishGeometry = true)
         }
         Spacer(Modifier.height(hingeHeight))
         Column(
@@ -70,6 +70,7 @@ internal fun HomeFlexLayout(
                     .fillMaxWidth()
                     .height(ctx.iconSize + (if (ctx.labels) 44.dp else 20.dp))
                     .padding(horizontal = HomeSidePadding),
+                items = items,
             )
             Spacer(Modifier.weight(1f))
             dock()

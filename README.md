@@ -25,9 +25,15 @@ app/                        The single Gradle module (com.foldos.launcher)
     dock/                   Dock composable: 20 presets, every trait mixable
     drawer/                 Pop-up and full-screen app drawer with search and backdrop blur
     settings/               SettingsActivity with Simple / Advanced rows and search
-    MainActivity.kt         ROLE_HOME activity
-    LauncherViewModel.kt    Hot flows for settings, apps and pages; drawer and home-key state
-    LauncherRoot.kt         Wires wallpaper, HomeScreen, dock, search bar, hub placeholder and drawer
+    widgets/                AppWidgetHost wrapper: bind / configure flow, hosted widget view, stacks, sizing
+    builtins/               FoldOS built-in widgets (Clock, Glance, Weather, Calendar, Devices, To-do, Now Playing, Focus, Photos, News)
+    picker/                 Widget catalog (built-ins + installed providers, 17 categories) and the "Add a widget" picker
+    edit/                   Live edit mode: drag, resize, delete, page style / add / delete, theme and wallpaper sheets
+    icons/                  Icon pack parser (appfilter.xml), per-app overrides, icon shape masking, Settings sheets
+    onboarding/             First-run setup wizard (5 steps) and the preset gallery
+    MainActivity.kt         ROLE_HOME activity; permission requester, widget configure results, host start/stop
+    LauncherViewModel.kt    Hot flows for settings, apps and pages; drawer, edit mode, picker and layout mutations
+    LauncherRoot.kt         Wizard gate, then wallpaper, HomeScreen, dock, edit overlay, widget picker and drawer
 .github/workflows/android.yml   CI: assembles the debug APK on every push
 ```
 
@@ -76,6 +82,47 @@ On first launch FoldOS asks once to become the default home through the system's
 To go back to One UI Home pick it in the same place. Uninstall with
 `adb uninstall com.foldos.launcher`.
 
+## Phase 2+3: widgets, looks and styles
+
+What this phase adds:
+
+- **Setup wizard on first run.** Five steps (screens, home style, look, colors, dock), each answered
+  by tapping a live preview; Skip or Finish marks it done. Re-run it, or open the **preset gallery**
+  (Minimal, Dashboard, Productivity, Media, Power user, One UI Classic), from Settings > Quick setup.
+- **Live edit mode.** Long-press the home background or any item. Drag items between cells (hold
+  past the page edge to switch pages), resize widgets from their corners, remove with the X chip,
+  change the current page's style (Grid / Dashboard / List / Panels), add or delete pages, and use
+  the bottom bar for Wallpaper, Themes, Widgets, Dock and Settings. Drop a widget onto another one
+  to make a **stack** (swipe the stack to flip; Settings > Widgets > Widget stacks switches it off).
+- **Widget picker.** A bottom sheet on the cover screen, a wide card on the inner screen; grouped
+  by category, app, or recently used (Settings > Widgets). Built-in widgets are placed at once;
+  Android app widgets go through the system bind dialog the first time and the provider's configure
+  activity when it has one.
+- **Built-in widgets.** Clock, Glance, Weather (static sample data until a provider is wired),
+  Calendar agenda, Devices battery, To-do, Now Playing, Focus timer, Photos and News, every one
+  themed by the launcher and adapting to its cell size. A fresh dashboard page starts with the
+  default set from the plan.
+- **Icon packs and shapes.** Settings > Look > Icon pack lists every installed pack (Nova / ADW /
+  Apex / Lawnchair format); Icon shape masks the remaining icons (circle, squircle, rounded,
+  teardrop, system).
+
+### Permissions
+
+| Permission | Why | When |
+|---|---|---|
+| `BIND_APPWIDGET` (declared) | Hosting app widgets; the real grant is the per-app system dialog | Adding an app widget |
+| `READ_CALENDAR` | Calendar agenda widget | "Allow calendar access" button on the widget |
+| `READ_MEDIA_IMAGES` | Photos widget | "Allow photo access" button on the widget |
+| `BLUETOOTH_CONNECT` | Devices battery widget (Watch, Buds) | "Allow" button on the widget |
+| Notification access (`FoldOsNotificationListener`) | Now Playing widget reads active media sessions | Settings > Notifications > Device & app notifications > FoldOS |
+| `QUERY_ALL_PACKAGES`, `PACKAGE_USAGE_STATS` | App list, widget providers, icon packs; usage stats for later phases | Install time |
+
+### Known limits in this phase
+
+- Weather is a static sample; the real provider arrives with the integrations phase.
+- Drawer and dock icons pick up an icon pack change on the next launch; home-screen icons update at once.
+- Free placement snaps to the cell grid while dragging; pixel-exact placement comes later.
+
 ## Phase 1 scope and limits
 
 What works in this build:
@@ -94,18 +141,16 @@ What works in this build:
 - Four themes (Material You, Glass, One UI, Bold), dark / light / auto, six color schemes plus
   custom colors, all live from Settings.
 - Hub page on either side of home with the Today greeting and placeholder briefing cards.
-- Settings app with Simple / Advanced levels and search; long-press the home background to open it.
+- Settings app with Simple / Advanced levels and search; reachable from edit mode's bottom bar.
 
 Not in this build (later phases):
 
-- Drag-and-drop editing of home pages, folders and app pairs; the long-press opens Settings.
-- Hosting Android app widgets; dashboard cards are placeholders with a live clock and date.
+- Folders and app pairs beyond their tiles; dragging apps is in, folder creation is not.
 - Real hub tabs (AI, Mail, Calendar, Contacts), notification badges, recent apps in the taskbar,
-  media controls, smart dock suggestions, drawer categories beyond "All", icon packs, profiles
+  media controls in the dock, smart dock suggestions, drawer categories beyond "All", profiles
   and gesture mapping. Their switches exist in Settings but only change the UI shell.
-- The setup wizard and preset gallery.
 - Frosted "blur behind" on Glass / One UI surfaces is a translucent fill for now; only the
-  drawer's backdrop blur uses a RenderEffect.
+  drawer's and picker's backdrop blur use a RenderEffect.
 
 Nothing in this repository is compiled on the authoring machine; GitHub Actions is the source
 of truth for whether a commit builds.

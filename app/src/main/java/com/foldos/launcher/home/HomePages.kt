@@ -2,10 +2,10 @@ package com.foldos.launcher.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,26 +15,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DateRange
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Timer
-import androidx.compose.material.icons.rounded.WbSunny
-import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foldos.launcher.core.model.AppInfo
@@ -43,12 +34,14 @@ import com.foldos.launcher.core.model.HomePage
 import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.theme.LocalFoldOsTokens
-import java.time.LocalDateTime
+import kotlin.math.max
 
 /**
- * Renders one home page by the [HomeStyle] configured for the screen (Settings > Home > Cover /
- * Inner screen style). [HomePage.style] is not consulted: every page is persisted with a non-null
- * style at creation, so it can not express "follow the setting" yet.
+ * Renders one home page by its [HomeStyle]: the per-screen setting (Settings > Home > Cover /
+ * Inner screen style), or [HomePage.style] when `HomeScreen(perPageStyle = true)`.
+ *
+ * @param publishGeometry true for the settled current page, so its item grid publishes the
+ *   [GridGeometry] the edit overlay reads through [rememberGridGeometry].
  */
 @Composable
 internal fun HomePageBody(
@@ -56,13 +49,99 @@ internal fun HomePageBody(
     page: HomePage?,
     items: List<HomeItem>,
     modifier: Modifier = Modifier,
+    publishGeometry: Boolean = false,
 ) {
-    val style = ctx.settings.styleFor(ctx.screen)
-    when (style) {
-        HomeStyle.GRID -> HomeGridPage(ctx, page, items, modifier)
-        HomeStyle.DASHBOARD -> HomeDashboardPage(ctx, modifier)
-        HomeStyle.LIST -> HomeListPage(ctx, items, modifier)
-        HomeStyle.HYBRID -> HomeHybridPage(ctx, items, modifier)
+    when (ctx.styleFor(page)) {
+        HomeStyle.GRID -> HomeGridPage(ctx, page, items, modifier, publishGeometry)
+        HomeStyle.DASHBOARD -> HomeDashboardPage(ctx, page, items, modifier, publishGeometry)
+        HomeStyle.LIST -> HomeListPage(ctx, page, items, modifier)
+        HomeStyle.HYBRID -> HomeHybridPage(ctx, page, items, modifier, publishGeometry)
+    }
+}
+
+/* ---------------- Slots: one grid cell, holding an item or a stack ---------------- */
+
+/** The items that share one grid slot: a single item, or a stack ordered by `stackIndex`. */
+internal class HomeSlot(val items: List<HomeItem>) {
+    val anchor: HomeItem get() = items.first()
+    val isStack: Boolean get() = items.size > 1
+
+    /** Grid cell for this slot; a free cell when [freeMode] and the anchor carries dp bounds. */
+    fun toCell(freeMode: Boolean): HomeCell {
+        val a = anchor
+        return if (freeMode && a.free && a.hasFreeBounds) {
+            HomeCell(a.col, a.row, a.spanX, a.spanY, a.xDp, a.yDp, a.wDp, a.hDp)
+        } else {
+            HomeCell(a.col, a.row, a.spanX.coerceAtLeast(1), a.spanY.coerceAtLeast(1))
+        }
+    }
+}
+
+/** Groups [items] into slots: standalone items first in order, then one slot per `stackId`. */
+internal fun groupHomeSlots(items: List<HomeItem>): List<HomeSlot> {
+    val result = ArrayList<HomeSlot>(items.size)
+    val stacks = LinkedHashMap<Long, MutableList<HomeItem>>()
+    for (item in items) {
+        val stackId = item.stackId
+        if (stackId == null) {
+            result.add(HomeSlot(listOf(item)))
+        } else {
+            stacks.getOrPut(stackId) { ArrayList() }.add(item)
+        }
+    }
+    for (members in stacks.values) {
+        result.add(HomeSlot(members.sortedBy { it.stackIndex }))
+    }
+    return result
+}
+
+/**
+ * Lays out [items] as slots on a [cols]-column grid: widgets span their cells, stacks flip in one
+ * slot, and in free mode items with dp bounds leave the grid. Long presses on items go to
+ * `HomeCallbacks.onItemLongPress`, those on empty cells to `onEmptyLongPress(pageId, col, row)`.
+ *
+ * @param heroHighlight draw the first glance / clock built-in with the highlight colors.
+ */
+@Composable
+internal fun HomeItemsGrid(
+    ctx: HomeContext,
+    pageId: Long,
+    items: List<HomeItem>,
+    cols: Int,
+    modifier: Modifier = Modifier,
+    fixedRows: Int? = null,
+    minCellHeight: Dp = 96.dp,
+    gutter: Dp = 0.dp,
+    cellPadding: Dp = 6.dp,
+    heroHighlight: Boolean = false,
+    publishGeometry: Boolean = false,
+) {
+    val slots = remember(items) { groupHomeSlots(items) }
+    val free = ctx.freeMode
+    val cells = remember(slots, free) { slots.map { it.toCell(free) } }
+    val keys = remember(slots) { slots.map { slot -> slot.anchor.stackId ?: slot.anchor.id } }
+    val heroId = remember(slots) {
+        slots.firstOrNull { HomeBuiltInIds.isHero(it.anchor.builtinId) }?.anchor?.id
+    }
+    HomeCellGrid(
+        cols = cols,
+        cells = cells,
+        modifier = modifier,
+        fixedRows = fixedRows,
+        minCellHeight = minCellHeight,
+        gutter = gutter,
+        keys = keys,
+        geometryScreen = if (publishGeometry) ctx.screen else null,
+        onEmptyLongPress = { col, row -> ctx.emptyLongPress(pageId, col, row) },
+    ) { index ->
+        val slot = slots[index]
+        if (slot.isStack && ctx.stacksOn) {
+            HomeStackSlot(slot.items, Modifier.fillMaxSize()) { item ->
+                HomeItemTile(ctx, item, cellPadding, highlight = heroHighlight && item.id == heroId)
+            }
+        } else {
+            HomeItemTile(ctx, slot.anchor, cellPadding, highlight = heroHighlight && slot.anchor.id == heroId)
+        }
     }
 }
 
@@ -74,42 +153,47 @@ internal fun HomeGridPage(
     page: HomePage?,
     items: List<HomeItem>,
     modifier: Modifier = Modifier,
+    publishGeometry: Boolean = false,
 ) {
     val cols = ctx.cols
     val pageId = page?.id ?: 0L
+    val free = ctx.freeMode
     // Only the first page (or the placeholder shown before any page exists) is auto-filled while
     // the repository has nothing for it; other pages render empty when they are empty.
     val firstPage = page == null || page.index == 0
-    val gridItems = remember(items, cols, pageId, firstPage, ctx.sortedApps) {
+    val gridItems = remember(items, cols, pageId, firstPage, free, ctx.sortedApps) {
         val source = if (items.isEmpty() && firstPage) ctx.autoGridItems(pageId, cols, maxRows = 8) else items
-        reflowGridItems(source, cols)
-    }
-    val cells = remember(gridItems) {
-        gridItems.map { HomeCell(it.col, it.row, it.spanX, it.spanY) }
+        reflowGridItems(source, cols, skipFree = free)
     }
     val labelHeight = if (ctx.labels) 24.dp else 0.dp
-    HomeCellGrid(
+    HomeItemsGrid(
+        ctx = ctx,
+        pageId = pageId,
+        items = gridItems,
         cols = cols,
-        cells = cells,
         modifier = modifier.fillMaxSize(),
         minCellHeight = ctx.iconSize + labelHeight + 20.dp,
         gutter = ctx.hingeGutter,
-    ) { index ->
-        HomeItemTile(ctx, gridItems[index])
-    }
+        publishGeometry = publishGeometry,
+    )
 }
 
 /**
- * Moves every item that does not fit the current column count (negative coordinates, `col >= cols`,
+ * Moves every slot that does not fit the current column count (negative coordinates, `col >= cols`,
  * or a span that runs past the last column) into the first free cell in reading order, so lowering
- * "Cover columns" / "Inner columns" in Settings below the seeded count never hides items. Items that
- * fit keep their stored position; nothing is written back to the repository.
+ * "Cover columns" / "Inner columns" in Settings below the seeded count never hides items. Slots that
+ * fit keep their stored position; stack mates move together; nothing is written back to the
+ * repository. With [skipFree], items carrying free-placement bounds are left where they are.
  */
-internal fun reflowGridItems(items: List<HomeItem>, cols: Int): List<HomeItem> {
+internal fun reflowGridItems(items: List<HomeItem>, cols: Int, skipFree: Boolean = false): List<HomeItem> {
     val columns = cols.coerceAtLeast(1)
-    fun fits(item: HomeItem): Boolean =
-        item.col >= 0 && item.row >= 0 && item.col + item.spanX.coerceAtLeast(1) <= columns
-    if (items.all(::fits)) return items
+    val slots = groupHomeSlots(items)
+    fun isFree(slot: HomeSlot): Boolean = skipFree && slot.anchor.free && slot.anchor.hasFreeBounds
+    fun fits(slot: HomeSlot): Boolean {
+        val a = slot.anchor
+        return isFree(slot) || (a.col >= 0 && a.row >= 0 && a.col + a.spanX.coerceAtLeast(1) <= columns)
+    }
+    if (slots.all(::fits)) return items
 
     val occupied = HashSet<Pair<Int, Int>>()
     fun mark(col: Int, row: Int, spanX: Int, spanY: Int) {
@@ -124,15 +208,19 @@ internal fun reflowGridItems(items: List<HomeItem>, cols: Int): List<HomeItem> {
         return true
     }
 
-    val kept = items.filter(::fits)
-    kept.forEach { mark(it.col, it.row, it.spanX.coerceAtLeast(1), it.spanY.coerceAtLeast(1)) }
+    val kept = slots.filter(::fits)
+    kept.filterNot(::isFree).forEach { slot ->
+        val a = slot.anchor
+        mark(a.col, a.row, a.spanX.coerceAtLeast(1), a.spanY.coerceAtLeast(1))
+    }
 
-    val moved = items
+    val moved = slots
         .filterNot(::fits)
-        .sortedWith(compareBy<HomeItem> { it.row }.thenBy { it.col })
-        .map { item ->
-            val spanX = item.spanX.coerceIn(1, columns)
-            val spanY = item.spanY.coerceAtLeast(1)
+        .sortedWith(compareBy<HomeSlot> { it.anchor.row }.thenBy { it.anchor.col })
+        .flatMap { slot ->
+            val a = slot.anchor
+            val spanX = a.spanX.coerceIn(1, columns)
+            val spanY = a.spanY.coerceAtLeast(1)
             var row = 0
             var col = 0
             var placed = false
@@ -148,13 +236,22 @@ internal fun reflowGridItems(items: List<HomeItem>, cols: Int): List<HomeItem> {
                 if (!placed) row++
             }
             mark(col, row, spanX, spanY)
-            item.copy(col = col, row = row, spanX = spanX, spanY = spanY)
+            slot.items.map { it.copy(col = col, row = row, spanX = spanX, spanY = spanY) }
         }
-    return kept + moved
+    return kept.flatMap { it.items } + moved
 }
 
+/**
+ * One item filling its slot: app, folder, pair or widget. Widgets get [widgetPadding] around them
+ * (the grid gap of the mock-up) and a long-press hook; apps keep the Phase 1 tile.
+ */
 @Composable
-internal fun HomeItemTile(ctx: HomeContext, item: HomeItem) {
+internal fun HomeItemTile(
+    ctx: HomeContext,
+    item: HomeItem,
+    widgetPadding: Dp = 6.dp,
+    highlight: Boolean = false,
+) {
     when (item.kind) {
         ItemKind.APP -> {
             val app = ctx.appFor(item)
@@ -164,21 +261,23 @@ internal fun HomeItemTile(ctx: HomeContext, item: HomeItem) {
                     iconSize = ctx.iconSize,
                     showLabel = ctx.labels,
                     onClick = { ctx.onLaunch(app) },
-                    onLongClick = ctx.onLongPressHome,
+                    onLongClick = { ctx.longPress(item) },
                 )
             } else {
                 HomeMissingTile(ctx.iconSize)
             }
         }
         ItemKind.FOLDER -> HomeFolderTile(ctx, item)
-        ItemKind.WIDGET -> HomeDashCard(
-            title = item.title ?: "Widget",
-            icon = Icons.Rounded.Widgets,
-            body = item.title ?: "Widget",
-            modifier = Modifier.fillMaxSize().padding(6.dp),
-            caption = "Widget hosting arrives in phase 2",
-            bodySize = 18,
-        )
+        ItemKind.WIDGET -> Box(
+            Modifier
+                .fillMaxSize()
+                .padding(widgetPadding)
+                .pointerInput(item.id) {
+                    detectTapGestures(onLongPress = { ctx.longPress(item) })
+                },
+        ) {
+            HomeWidgetItem(item, Modifier.fillMaxSize(), highlight = highlight)
+        }
         ItemKind.PAIR -> HomePairTile(ctx, item)
     }
 }
@@ -192,7 +291,7 @@ private fun HomeFolderTile(ctx: HomeContext, item: HomeItem) {
         modifier = Modifier
             .fillMaxSize()
             // Opening a folder arrives with the folder UI; a plain tap does nothing for now.
-            .homeTapGestures(onTap = {}, onLongPress = ctx.onLongPressHome)
+            .homeTapGestures(onTap = {}, onLongPress = { ctx.longPress(item) })
             .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -239,7 +338,7 @@ private fun HomePairTile(ctx: HomeContext, item: HomeItem) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .homeTapGestures(onTap = { if (app != null) ctx.onLaunch(app) }, onLongPress = ctx.onLongPressHome)
+            .homeTapGestures(onTap = { if (app != null) ctx.onLaunch(app) }, onLongPress = { ctx.longPress(item) })
             .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -273,201 +372,88 @@ private fun HomePairTile(ctx: HomeContext, item: HomeItem) {
     }
 }
 
-/* ---------------- Widget dashboard ---------------- */
+/* ---------------- Hybrid panels ---------------- */
 
 /**
- * Placeholder dashboard. Cover: 2 columns x 3 rows; inner: 4 columns x 2 rows with the middle gap
- * over the hinge. Cards: Clock (highlighted), Weather, Calendar, Media (+ Tasks, Focus on inner).
+ * Hybrid panels (mock-up `HOME.*.hybrid`). Cover: a widget panel (glance over calendar, or the
+ * page's widget items) above an apps panel of 4 x 2 favorites. Inner: the apps panel (4 x 4) on
+ * the left and a column of widgets (clock, calendar, media, or the page's widget items) on the
+ * right, split at the hinge.
  */
 @Composable
-internal fun HomeDashboardPage(ctx: HomeContext, modifier: Modifier = Modifier) {
-    val now = rememberHomeClock()
-    val inner = ctx.isInner
-    val cols = if (inner) 4 else 2
-    val rows = if (inner) 2 else 3
-    val cells = remember(inner) {
-        if (inner) {
-            listOf(
-                HomeCell(0, 0, 2, 1), HomeCell(2, 0), HomeCell(3, 0),
-                HomeCell(0, 1, 2, 1), HomeCell(2, 1), HomeCell(3, 1),
-            )
-        } else {
-            listOf(
-                HomeCell(0, 0, 2, 1),
-                HomeCell(0, 1), HomeCell(1, 1),
-                HomeCell(0, 2, 2, 1),
-            )
-        }
+internal fun HomeHybridPage(
+    ctx: HomeContext,
+    page: HomePage?,
+    items: List<HomeItem>,
+    modifier: Modifier = Modifier,
+    publishGeometry: Boolean = false,
+) {
+    val pageId = page?.id ?: 0L
+    val free = ctx.freeMode
+    val widgetItems = remember(items, ctx.screen, pageId, free) {
+        val own = items.filter { it.kind == ItemKind.WIDGET }
+        val source = if (own.isEmpty()) defaultHybridWidgetItems(ctx.screen, pageId).asPreviewItems() else own
+        reflowGridItems(source, HYBRID_WIDGET_COLUMNS, skipFree = free)
     }
-    HomeCellGrid(
-        cols = cols,
-        cells = cells,
-        modifier = modifier.fillMaxSize(),
-        fixedRows = rows,
-        gutter = ctx.hingeGutter,
-    ) { index ->
-        val cardModifier = Modifier.fillMaxSize().padding(6.dp)
-        when (index) {
-            0 -> HomeClockCard(now, cardModifier)
-            1 -> HomeDashCard("Weather", Icons.Rounded.WbSunny, "--°", cardModifier, caption = "Connect a weather source")
-            2 -> HomeDashCard("Calendar", Icons.Rounded.DateRange, now.dayOfMonth.toString(), cardModifier, caption = "No events yet")
-            3 -> HomeMediaCard(cardModifier)
-            4 -> HomeDashCard("Tasks", Icons.Rounded.CheckCircle, "0", cardModifier, caption = "Due today")
-            else -> HomeDashCard("Focus", Icons.Rounded.Timer, "25:00", cardModifier, caption = "Deep work")
-        }
-    }
-}
+    val widgetRows = remember(widgetItems) { max(1, dashboardRows(widgetItems)) }
 
-@Composable
-private fun HomeClockCard(now: LocalDateTime, modifier: Modifier) {
-    HomeDashCard(
-        title = "Clock",
-        icon = Icons.Rounded.Schedule,
-        body = now.homeTimeText(),
-        modifier = modifier,
-        caption = now.homeDateText(long = true),
-        highlight = true,
-        bodySize = 44,
-    )
-}
-
-@Composable
-private fun HomeCalendarCard(now: LocalDateTime, modifier: Modifier) {
-    HomeDashCard(
-        title = "Calendar",
-        icon = Icons.Rounded.DateRange,
-        body = now.homeDateText(long = false),
-        modifier = modifier,
-        caption = "No events yet",
-        bodySize = 24,
-    )
-}
-
-@Composable
-private fun HomeMediaCard(modifier: Modifier) {
-    HomeDashCard(
-        title = "Media",
-        icon = Icons.Rounded.MusicNote,
-        body = "Nothing playing",
-        modifier = modifier,
-        caption = "Media controls appear here",
-        bodySize = 20,
-    )
-}
-
-/* ---------------- Minimal list ---------------- */
-
-/** Large text list of favorites. Inner screen: list on the left, clock and cards on the right. */
-@Composable
-internal fun HomeListPage(ctx: HomeContext, items: List<HomeItem>, modifier: Modifier = Modifier) {
-    val now = rememberHomeClock()
     if (!ctx.isInner) {
-        Column(modifier.fillMaxSize()) {
-            HomeListHeader(now, timeSize = 66)
-            HomeFavoriteList(ctx, ctx.favorites(items, 9), Modifier.weight(1f).fillMaxWidth())
+        Column(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            HomeSurfacePanel(Modifier.weight(1.15f).fillMaxWidth(), contentPadding = 10.dp) {
+                HomeItemsGrid(
+                    ctx = ctx,
+                    pageId = pageId,
+                    items = widgetItems,
+                    cols = HYBRID_WIDGET_COLUMNS,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    fixedRows = widgetRows,
+                    cellPadding = 4.dp,
+                    heroHighlight = true,
+                )
+            }
+            HomeSurfacePanel(Modifier.weight(1f).fillMaxWidth()) {
+                HomeFavoriteGrid(
+                    ctx = ctx,
+                    favorites = ctx.favorites(items, 8),
+                    cols = 4,
+                    rows = 2,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    items = items,
+                    publishGeometry = publishGeometry,
+                )
+            }
         }
     } else {
         val gap = if (ctx.hingeGutter > 0.dp) 32.dp else 24.dp
         Row(modifier.fillMaxSize()) {
-            HomeFavoriteList(
-                ctx,
-                ctx.favorites(items, 10),
-                Modifier.weight(1f).fillMaxHeight().padding(top = 30.dp),
-            )
-            Spacer(Modifier.width(gap))
-            Column(
-                Modifier.weight(1f).fillMaxHeight().padding(top = 30.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                HomeListHeader(now, timeSize = 88)
-                HomeCalendarCard(now, Modifier.weight(1f).fillMaxWidth())
-                HomeMediaCard(Modifier.weight(1f).fillMaxWidth())
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeListHeader(now: LocalDateTime, timeSize: Int) {
-    val tokens = LocalFoldOsTokens.current
-    Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 4.dp)) {
-        Text(
-            text = now.homeTimeText(),
-            color = tokens.onSurface,
-            fontSize = timeSize.sp,
-            fontWeight = FontWeight.Light,
-            lineHeight = timeSize.sp,
-            style = TextStyle(shadow = homeTextShadow()),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = now.homeDateText(long = true),
-            color = tokens.onSurface.copy(alpha = 0.8f),
-            fontSize = 14.5.sp,
-            style = TextStyle(shadow = homeTextShadow()),
-        )
-    }
-}
-
-@Composable
-private fun HomeFavoriteList(ctx: HomeContext, favorites: List<AppInfo>, modifier: Modifier) {
-    val tokens = LocalFoldOsTokens.current
-    LazyColumn(modifier = modifier, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)) {
-        items(favorites, key = { it.key }) { app ->
-            Text(
-                text = app.label,
-                color = tokens.onSurface,
-                fontSize = 29.sp,
-                lineHeight = 36.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = homeTextShadow()),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .homeTapGestures(onTap = { ctx.onLaunch(app) }, onLongPress = ctx.onLongPressHome)
-                    .padding(vertical = 5.dp),
-            )
-        }
-    }
-}
-
-/* ---------------- Hybrid panels ---------------- */
-
-/** Cover: widget panel above an apps panel. Inner: apps panel left, widget column right. */
-@Composable
-internal fun HomeHybridPage(ctx: HomeContext, items: List<HomeItem>, modifier: Modifier = Modifier) {
-    val now = rememberHomeClock()
-    if (!ctx.isInner) {
-        Column(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            HomeSurfacePanel(Modifier.weight(1.15f).fillMaxWidth()) {
-                HomeCellGrid(
-                    cols = 2,
-                    cells = listOf(HomeCell(0, 0, 2, 1), HomeCell(0, 1, 2, 1)),
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    fixedRows = 2,
-                ) { index ->
-                    val cardModifier = Modifier.fillMaxSize().padding(4.dp)
-                    if (index == 0) HomeClockCard(now, cardModifier) else HomeCalendarCard(now, cardModifier)
-                }
-            }
-            HomeSurfacePanel(Modifier.weight(1f).fillMaxWidth()) {
-                HomeFavoriteGrid(ctx, ctx.favorites(items, 8), cols = 4, rows = 2, modifier = Modifier.weight(1f).fillMaxWidth())
-            }
-        }
-    } else {
-        Row(modifier.fillMaxSize()) {
             HomeSurfacePanel(Modifier.weight(1f).fillMaxHeight()) {
-                HomeFavoriteGrid(ctx, ctx.favorites(items, 16), cols = 4, rows = 4, modifier = Modifier.weight(1f).fillMaxWidth())
+                HomeFavoriteGrid(
+                    ctx = ctx,
+                    favorites = ctx.favorites(items, 16),
+                    cols = 4,
+                    rows = 4,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    items = items,
+                    publishGeometry = publishGeometry,
+                )
             }
-            Spacer(Modifier.width(32.dp))
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                HomeClockCard(now, Modifier.weight(1f).fillMaxWidth())
-                HomeCalendarCard(now, Modifier.weight(1f).fillMaxWidth())
-                HomeMediaCard(Modifier.weight(1f).fillMaxWidth())
-            }
+            Spacer(Modifier.width(gap))
+            HomeItemsGrid(
+                ctx = ctx,
+                pageId = pageId,
+                items = widgetItems,
+                cols = HYBRID_WIDGET_COLUMNS,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                fixedRows = widgetRows,
+                cellPadding = 7.dp,
+                heroHighlight = true,
+            )
         }
     }
 }
+
+/** The hybrid widget panel is two cells wide; full-width cards span both. */
+internal const val HYBRID_WIDGET_COLUMNS: Int = 2
 
 /** A plain cols x rows grid of app tiles, filled in order. */
 @Composable
@@ -477,16 +463,21 @@ internal fun HomeFavoriteGrid(
     cols: Int,
     rows: Int,
     modifier: Modifier = Modifier,
+    items: List<HomeItem> = emptyList(),
+    publishGeometry: Boolean = false,
 ) {
     val shown = favorites.take(cols * rows)
     val cells = remember(shown.size, cols) {
         List(shown.size) { index -> HomeCell(index % cols, index / cols) }
     }
+    val keys = remember(shown) { shown.map { it.key } }
     HomeCellGrid(
         cols = cols,
         cells = cells,
         modifier = modifier,
         fixedRows = rows,
+        keys = keys,
+        geometryScreen = if (publishGeometry) ctx.screen else null,
     ) { index ->
         val app = shown[index]
         HomeAppTile(
@@ -494,7 +485,7 @@ internal fun HomeFavoriteGrid(
             iconSize = ctx.iconSize,
             showLabel = ctx.labels,
             onClick = { ctx.onLaunch(app) },
-            onLongClick = ctx.onLongPressHome,
+            onLongClick = { ctx.longPressApp(app, items) },
         )
     }
 }

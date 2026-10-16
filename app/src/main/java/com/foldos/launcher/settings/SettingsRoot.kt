@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -26,12 +27,15 @@ import kotlinx.coroutines.CoroutineScope
  *
  * @param writeScope a scope that outlives this composition (the app graph's `appScope`), so a
  *   change made right before the activity finishes is still written.
+ * @param startRoute a [SettingsRoutes] page pushed on top of the root once, when the activity was
+ *   opened for a specific page (edit mode > Dock); null opens the root list.
  */
 @Composable
 fun SettingsRoot(
     repo: SettingsRepository,
     writeScope: CoroutineScope,
     onClose: () -> Unit,
+    startRoute: String? = null,
 ) {
     val settings by produceState<LauncherSettings?>(initialValue = null, key1 = repo) {
         repo.settings.collect { value = it }
@@ -40,6 +44,7 @@ fun SettingsRoot(
 
     var query by rememberSaveable { mutableStateOf("") }
     var advanced by rememberSaveable { mutableStateOf(false) }
+    var startRouteHandled by rememberSaveable { mutableStateOf(false) }
 
     val current = settings
     if (current == null) {
@@ -51,6 +56,15 @@ fun SettingsRoot(
 
     val navController = rememberNavController()
     val onBack: () -> Unit = { navController.popBackStack() }
+
+    LaunchedEffect(navController, startRoute) {
+        if (!startRouteHandled) {
+            startRouteHandled = true
+            if (startRoute != null && startRoute != SettingsRoutes.ROOT && SettingsPages.byRoute(startRoute) != null) {
+                navController.navigate(startRoute) { launchSingleTop = true }
+            }
+        }
+    }
 
     CompositionLocalProvider(LocalSettingsRowFilter provides SettingsRowFilter(query = query, advanced = advanced)) {
         NavHost(navController = navController, startDestination = SettingsRoutes.ROOT) {

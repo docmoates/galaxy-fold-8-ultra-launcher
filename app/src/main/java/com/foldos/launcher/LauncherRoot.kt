@@ -1,6 +1,6 @@
 package com.foldos.launcher
 
-import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,10 +29,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,42 +52,104 @@ import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.DockBackground
 import com.foldos.launcher.core.model.DockPosition
 import com.foldos.launcher.core.model.DrawerStyle
+import com.foldos.launcher.core.model.HomeItem
+import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.model.WidgetEntry
 import com.foldos.launcher.dock.Dock
 import com.foldos.launcher.dock.DockDefaults
 import com.foldos.launcher.drawer.AppDrawer
-import com.foldos.launcher.drawer.rememberDrawerBackdropModifier
+import com.foldos.launcher.edit.EditModeOverlay
+import com.foldos.launcher.edit.ThemeQuickSheet
+import com.foldos.launcher.edit.WallpaperSheet
 import com.foldos.launcher.fold.effectiveScreen
 import com.foldos.launcher.fold.rememberFoldState
+import com.foldos.launcher.home.HomeCallbacks
 import com.foldos.launcher.home.HomeScreen
+import com.foldos.launcher.home.LocalHomeCallbacks
+import com.foldos.launcher.home.rememberGridGeometry
+import com.foldos.launcher.onboarding.SetupWizard
+import com.foldos.launcher.picker.WidgetPicker
+import com.foldos.launcher.picker.rememberWidgetPickerBackdropModifier
 import com.foldos.launcher.settings.SettingsActivity
+import com.foldos.launcher.settings.SettingsRoutes
 import com.foldos.launcher.theme.FoldOsSurface
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import com.foldos.launcher.theme.Wallpaper
+import com.foldos.launcher.widgets.AddAppWidgetResult
+import com.foldos.launcher.widgets.WidgetSizing
+import com.foldos.launcher.widgets.rememberAddAppWidgetFlow
+import com.foldos.launcher.widgets.rememberWidgetHostController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Everything inside the launcher window: wallpaper, [HomeScreen] with the dock, search bar and hub
- * page, the rail dock when configured, and the [AppDrawer] on top. Must be composed inside
- * `FoldOsTheme`.
+ * Everything inside the launcher window. Until the first-run wizard has finished it shows the
+ * [SetupWizard] full screen; afterwards: wallpaper, [HomeScreen] with the dock, search bar and hub
+ * page, the rail dock when configured, the live-edit overlay with its quick sheets, the widget
+ * picker and the [AppDrawer] on top. Must be composed inside `FoldOsTheme`.
  */
 @Composable
 fun LauncherRoot(viewModel: LauncherViewModel, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settingsLoaded by viewModel.settingsLoaded.collectAsStateWithLifecycle()
+
+    when {
+        // Until DataStore has answered, only the wallpaper: composing the home here would seed the
+        // layout store with the default styles before the wizard has picked the real ones (and flash
+        // a default-themed home in front of the wizard).
+        !settingsLoaded -> Box(modifier.fillMaxSize()) { Wallpaper() }
+        !settings.wizardDone -> {
+            // First run: every wizard tap writes straight to the settings; Finish / Skip set
+            // wizardDone, which switches this branch over to the home.
+            SetupWizard(
+                settings = settings,
+                onUpdate = { transform -> viewModel.updateSettings(transform) },
+                onFinish = { },
+                modifier = modifier.fillMaxSize(),
+            )
+        }
+        else -> LauncherHome(viewModel = viewModel, settings = settings, modifier = modifier)
+    }
+}
+
+/** Remembers the spans picked for an app widget until its bind / configure flow delivers the id. */
+private class PendingWidgetSpans(var spanX: Int = 1, var spanY: Int = 1)
+
+@Composable
+private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSettings, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val drawerOpen by viewModel.drawerOpen.collectAsStateWithLifecycle()
+    val editMode by viewModel.editMode.collectAsStateWithLifecycle()
+    val pickerOpen by viewModel.widgetPickerOpen.collectAsStateWithLifecycle()
     val homeRequest by viewModel.homeRequests.collectAsStateWithLifecycle()
+    val currentPageId by viewModel.currentPageId.collectAsStateWithLifecycle()
+    val pageSelectRequest by viewModel.pageSelectRequest.collectAsStateWithLifecycle()
 
     val fold: FoldState = rememberFoldState()
     val screen: ScreenKind = effectiveScreen(settings, fold)
     val pages by viewModel.pages(screen).collectAsStateWithLifecycle()
 
-    LaunchedEffect(screen) { viewModel.ensureDefaultLayout(screen) }
+    // Seed only once the wizard has chosen the style / columns the seeded pages are laid out for.
+    LaunchedEffect(screen, settings.wizardDone) {
+        if (settings.wizardDone) viewModel.ensureDefaultLayout(screen)
+    }
+
+    // The page edit mode and the picker work on: the settled pager page, else the first page.
+    val sortedPages = remember(pages) { pages.sortedBy { it.index } }
+    val editPageId: Long? = currentPageId?.takeIf { id -> pages.any { it.id == id } } ?: sortedPages.firstOrNull()?.id
+    val editPageStyle: HomeStyle? = pages.firstOrNull { it.id == editPageId }?.style
+    val editItemsFlow = remember(editPageId, viewModel) {
+        if (editPageId != null) viewModel.graph.layouts.items(editPageId) else flowOf<List<HomeItem>>(emptyList())
+    }
+    val editItems by editItemsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val geometry = rememberGridGeometry(screen, settings, fold)
+    val stacksOn = settings.feature(LauncherSettings.FEATURE_STACKS)
 
     val dockConfig = settings.dockFor(screen)
     val dockOn = settings.feature(LauncherSettings.FEATURE_DOCK)
@@ -97,63 +161,140 @@ fun LauncherRoot(viewModel: LauncherViewModel, modifier: Modifier = Modifier) {
 
     val onLaunch: (AppInfo) -> Unit = { app -> viewModel.launch(app) }
     val openDrawer: () -> Unit = { viewModel.openDrawer() }
-    val openSettings: () -> Unit = {
-        context.startActivity(Intent(context, SettingsActivity::class.java))
+    val openSettings: (String?) -> Unit = { route ->
+        context.startActivity(SettingsActivity.intent(context, route))
+    }
+    val enterEdit: () -> Unit = { viewModel.enterEditMode() }
+    val homeCallbacks = remember(viewModel) {
+        HomeCallbacks(
+            onItemLongPress = { viewModel.enterEditMode() },
+            onEmptyLongPress = { _, _, _ -> viewModel.enterEditMode() },
+        )
     }
 
-    // Back on the home screen returns to the default page. While the drawer is open its own
-    // BackHandler (composed later, so higher priority) closes it instead.
-    BackHandler(enabled = !drawerOpen) { viewModel.goHome() }
+    // Back on the home screen returns to the default page. The drawer, the picker and the edit
+    // overlay each have their own BackHandler (composed later, so higher priority).
+    BackHandler(enabled = !drawerOpen && !pickerOpen && !editMode) { viewModel.goHome() }
 
-    val backdrop = rememberDrawerBackdropModifier(
-        visible = drawerOpen,
-        blur = settings.popBlur && settings.drawerStyle == DrawerStyle.POPUP,
+    // Widget picker -> app widget: allocate, bind (system permission dialog when needed), configure
+    // through MainActivity.onActivityResult, then place the item. Built-ins are placed directly.
+    val widgetHost = rememberWidgetHostController()
+    val pendingSpans = remember { PendingWidgetSpans() }
+    val packageManager = context.packageManager
+    val addAppWidget = rememberAddAppWidgetFlow(widgetHost) { result ->
+        when (result) {
+            is AddAppWidgetResult.Ready -> {
+                val pageId = editPageId
+                if (pageId == null) {
+                    widgetHost.deleteId(result.appWidgetId)
+                    Toast.makeText(context, "No home page to add the widget to", Toast.LENGTH_SHORT).show()
+                } else {
+                    val label = runCatching { result.provider.loadLabel(packageManager) }.getOrNull()
+                        ?: result.provider.provider.packageName
+                    viewModel.addAppWidget(
+                        appWidgetId = result.appWidgetId,
+                        title = label,
+                        spanX = pendingSpans.spanX,
+                        spanY = pendingSpans.spanY,
+                        pageId = pageId,
+                        cols = geometry.cols,
+                        rows = geometry.rows,
+                        pageStyle = editPageStyle,
+                    )
+                }
+            }
+            is AddAppWidgetResult.Cancelled -> Toast.makeText(context, result.reason, Toast.LENGTH_SHORT).show()
+        }
+    }
+    val onPickWidget: (WidgetEntry) -> Unit = { entry ->
+        val pageId = editPageId
+        val spanX = entry.defaultSpanX.coerceIn(1, geometry.cols.coerceAtLeast(1))
+        val spanY = entry.defaultSpanY.coerceIn(1, geometry.rows.coerceAtLeast(1))
+        when {
+            pageId == null -> Toast.makeText(context, "No home page to add the widget to", Toast.LENGTH_SHORT).show()
+            entry.isBuiltIn -> viewModel.addBuiltInWidget(entry, pageId, geometry.cols, geometry.rows, editPageStyle)
+            else -> {
+                val info = entry.provider?.let { widgetHost.providerFor(it) }
+                if (info == null) {
+                    Toast.makeText(context, "${entry.name} is no longer installed", Toast.LENGTH_SHORT).show()
+                } else {
+                    pendingSpans.spanX = spanX
+                    pendingSpans.spanY = spanY
+                    addAppWidget.launch(
+                        info,
+                        WidgetSizing.spanToDp(spanX, geometry.cellWidthDp),
+                        WidgetSizing.spanToDp(spanY, geometry.cellHeightDp),
+                    )
+                }
+            }
+        }
+    }
+
+    var themesOpen by rememberSaveable { mutableStateOf(false) }
+    var wallpaperOpen by rememberSaveable { mutableStateOf(false) }
+    // Done / Back / home key leave edit mode without going through the sheets' onDismiss; reset
+    // the flags so a sheet does not pop up by itself the next time edit mode opens.
+    LaunchedEffect(editMode) {
+        if (!editMode) {
+            themesOpen = false
+            wallpaperOpen = false
+        }
+    }
+
+    val backdrop = rememberWidgetPickerBackdropModifier(
+        visible = drawerOpen || pickerOpen,
+        blur = settings.popBlur && (pickerOpen || settings.drawerStyle == DrawerStyle.POPUP),
     )
 
     Box(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize().then(backdrop)) {
             Wallpaper()
-            HomeScreen(
-                screen = screen,
-                fold = fold,
-                settings = settings,
-                pages = pages,
-                itemsForPage = viewModel.graph.layouts::items,
-                apps = apps,
-                onLaunch = onLaunch,
-                onOpenDrawer = openDrawer,
-                onLongPressHome = openSettings,
-                dock = {
-                    if (dockOn && !railDock) {
-                        val sideMargin = when (dockConfig.bg) {
-                            DockBackground.SHELF, DockBackground.LINE -> 0.dp
-                            else -> 16.dp
+            CompositionLocalProvider(LocalHomeCallbacks provides homeCallbacks) {
+                HomeScreen(
+                    screen = screen,
+                    fold = fold,
+                    settings = settings,
+                    pages = pages,
+                    itemsForPage = viewModel.graph.layouts::items,
+                    apps = apps,
+                    onLaunch = onLaunch,
+                    onOpenDrawer = openDrawer,
+                    onLongPressHome = enterEdit,
+                    dock = {
+                        if (dockOn && !railDock) {
+                            val sideMargin = when (dockConfig.bg) {
+                                DockBackground.SHELF, DockBackground.LINE -> 0.dp
+                                else -> 16.dp
+                            }
+                            Dock(
+                                config = dockConfig,
+                                screen = screen,
+                                pinned = pinned,
+                                recents = recents,
+                                settings = settings,
+                                onLaunch = onLaunch,
+                                onOpenDrawer = openDrawer,
+                                onSearch = openDrawer,
+                                modifier = Modifier.padding(start = sideMargin, end = sideMargin, bottom = 6.dp),
+                            )
                         }
-                        Dock(
-                            config = dockConfig,
-                            screen = screen,
-                            pinned = pinned,
-                            recents = recents,
-                            settings = settings,
-                            onLaunch = onLaunch,
-                            onOpenDrawer = openDrawer,
-                            onSearch = openDrawer,
-                            modifier = Modifier.padding(start = sideMargin, end = sideMargin, bottom = 6.dp),
-                        )
-                    }
-                },
-                searchBar = if (settings.feature(LauncherSettings.FEATURE_SEARCH)) {
-                    { HomeSearchBar(showAi = settings.feature(LauncherSettings.FEATURE_AI), onClick = openDrawer) }
-                } else {
-                    null
-                },
-                hub = if (settings.hubOn) {
-                    { HubTodayPage(settings = settings, fold = fold) }
-                } else {
-                    null
-                },
-                homeRequest = homeRequest,
-            )
+                    },
+                    searchBar = if (settings.feature(LauncherSettings.FEATURE_SEARCH)) {
+                        { HomeSearchBar(showAi = settings.feature(LauncherSettings.FEATURE_AI), onClick = openDrawer) }
+                    } else {
+                        null
+                    },
+                    hub = if (settings.hubOn) {
+                        { HubTodayPage(settings = settings, fold = fold) }
+                    } else {
+                        null
+                    },
+                    homeRequest = homeRequest,
+                    perPageStyle = true,
+                    onCurrentPageChanged = { page -> viewModel.setCurrentPage(page) },
+                    pageSelectRequest = pageSelectRequest,
+                )
+            }
             if (railDock) {
                 Dock(
                     config = dockConfig,
@@ -171,6 +312,48 @@ fun LauncherRoot(viewModel: LauncherViewModel, modifier: Modifier = Modifier) {
                 )
             }
         }
+
+        // Live edit (PLAN.md 5.2): same Box as the home, both fillMaxSize, so the grid geometry the
+        // home publishes in window dp maps 1:1 onto the overlay.
+        EditModeOverlay(
+            active = editMode && !pickerOpen,
+            screen = screen,
+            settings = settings,
+            pages = pages,
+            currentPageId = editPageId ?: 0L,
+            geometry = geometry,
+            items = editItems,
+            onMove = { id, pageId, col, row ->
+                editItems.firstOrNull { it.id == id }?.let { viewModel.moveItem(it, pageId, col, row, stacksOn, geometry) }
+            },
+            onResize = { id, spanX, spanY ->
+                editItems.firstOrNull { it.id == id }?.let { viewModel.resizeItem(it, spanX, spanY, geometry) }
+            },
+            onDelete = { id -> editItems.firstOrNull { it.id == id }?.let { viewModel.deleteItem(it) } },
+            onSetPageStyle = { pageId, style -> viewModel.setPageStyle(pageId, style, screen) },
+            onAddPage = { viewModel.addPage(screen, settings.styleFor(screen)) },
+            onDeletePage = { pageId -> viewModel.deletePage(pageId, screen) },
+            onAddWidget = { viewModel.openWidgetPicker() },
+            onOpenWallpaper = { wallpaperOpen = true },
+            onOpenThemes = { themesOpen = true },
+            onOpenDock = { openSettings(SettingsRoutes.DOCK) },
+            onOpenSettings = { openSettings(null) },
+            onExit = { viewModel.exitEditMode() },
+            modifier = Modifier.fillMaxSize(),
+            onSelectPage = { pageId -> viewModel.selectPage(pageId) },
+        )
+        ThemeQuickSheet(visible = editMode && themesOpen, settings = settings, onDismiss = { themesOpen = false })
+        WallpaperSheet(visible = editMode && wallpaperOpen, onDismiss = { wallpaperOpen = false })
+
+        WidgetPicker(
+            visible = pickerOpen,
+            screen = fold.kind,
+            settings = settings,
+            onPick = onPickWidget,
+            onDismiss = { viewModel.closeWidgetPicker() },
+            modifier = Modifier.fillMaxSize(),
+        )
+
         AppDrawer(
             visible = drawerOpen,
             screen = fold.kind,
@@ -274,11 +457,11 @@ fun HubTodayPage(settings: LauncherSettings, fold: FoldState, modifier: Modifier
             ) {
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     HubBriefingCard(Modifier.fillMaxWidth())
-                    HubCard("Next event", "Nothing scheduled", "Calendar connects in phase 2", Modifier.fillMaxWidth())
+                    HubCard("Next event", "Nothing scheduled", "Calendar connects in phase 5", Modifier.fillMaxWidth())
                 }
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     HubCard("Tasks", "0 due today", "Todoist and Google Tasks arrive later", Modifier.fillMaxWidth())
-                    HubCard("Mail", "Inbox is quiet", "Gmail connects in phase 2", Modifier.fillMaxWidth())
+                    HubCard("Mail", "Inbox is quiet", "Gmail connects in phase 5", Modifier.fillMaxWidth())
                     HubCard("People", "No one to reach", "Missed calls and meetings show here", Modifier.fillMaxWidth())
                 }
             }
@@ -288,9 +471,9 @@ fun HubTodayPage(settings: LauncherSettings, fold: FoldState, modifier: Modifier
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 HubBriefingCard(Modifier.fillMaxWidth())
-                HubCard("Next event", "Nothing scheduled", "Calendar connects in phase 2", Modifier.fillMaxWidth())
+                HubCard("Next event", "Nothing scheduled", "Calendar connects in phase 5", Modifier.fillMaxWidth())
                 HubCard("Tasks", "0 due today", "Todoist and Google Tasks arrive later", Modifier.fillMaxWidth())
-                HubCard("Mail", "Inbox is quiet", "Gmail connects in phase 2", Modifier.fillMaxWidth())
+                HubCard("Mail", "Inbox is quiet", "Gmail connects in phase 5", Modifier.fillMaxWidth())
             }
         }
         if (!tabBarOnTop) HubTabBar(settings)

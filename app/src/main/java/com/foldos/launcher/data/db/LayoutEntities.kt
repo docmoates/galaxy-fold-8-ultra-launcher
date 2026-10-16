@@ -32,7 +32,12 @@ data class PageEntity(
     }
 }
 
-/** Room row for [HomeItem]. Deleting a page cascades to its items. */
+/**
+ * Room row for [HomeItem]. Deleting a page cascades to its items.
+ *
+ * Schema version 2 added the widget, stack and free-placement columns (all nullable except
+ * `stack_index` and `free`, which default to 0); see [LayoutDatabase.MIGRATION_1_2].
+ */
 @Entity(
     tableName = "items",
     foreignKeys = [
@@ -64,6 +69,24 @@ data class ItemEntity(
     @ColumnInfo(name = "activity_name")
     val activityName: String? = null,
     val title: String? = null,
+    @ColumnInfo(name = "app_widget_id")
+    val appWidgetId: Int? = null,
+    @ColumnInfo(name = "builtin_id")
+    val builtinId: String? = null,
+    @ColumnInfo(name = "stack_id")
+    val stackId: Long? = null,
+    @ColumnInfo(name = "stack_index", defaultValue = "0")
+    val stackIndex: Int = 0,
+    @ColumnInfo(name = "free", defaultValue = "0")
+    val free: Boolean = false,
+    @ColumnInfo(name = "x_dp")
+    val xDp: Float? = null,
+    @ColumnInfo(name = "y_dp")
+    val yDp: Float? = null,
+    @ColumnInfo(name = "w_dp")
+    val wDp: Float? = null,
+    @ColumnInfo(name = "h_dp")
+    val hDp: Float? = null,
 ) {
     fun toModel(): HomeItem = HomeItem(
         id = id,
@@ -76,6 +99,15 @@ data class ItemEntity(
         packageName = packageName,
         activityName = activityName,
         title = title,
+        appWidgetId = appWidgetId,
+        builtinId = builtinId,
+        stackId = stackId,
+        stackIndex = stackIndex,
+        free = free,
+        xDp = xDp,
+        yDp = yDp,
+        wDp = wDp,
+        hDp = hDp,
     )
 
     companion object {
@@ -90,6 +122,15 @@ data class ItemEntity(
             packageName = item.packageName,
             activityName = item.activityName,
             title = item.title,
+            appWidgetId = item.appWidgetId,
+            builtinId = item.builtinId,
+            stackId = item.stackId,
+            stackIndex = item.stackIndex,
+            free = item.free,
+            xDp = item.xDp,
+            yDp = item.yDp,
+            wDp = item.wDp,
+            hDp = item.hDp,
         )
     }
 }

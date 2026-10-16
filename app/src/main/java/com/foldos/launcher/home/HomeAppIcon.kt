@@ -16,7 +16,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,13 +41,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Process-wide cache of rendered app icons keyed by "package/activity@sizePx". */
-internal object HomeIconCache {
+object HomeIconCache {
     private val cache = LruCache<String, ImageBitmap>(256)
+
+    /**
+     * Bumped by [clear]; [rememberHomeAppIconPainter] reads it in composition and includes it in
+     * its key, so every visible icon re-rasterises after an icon pack, shape or override change.
+     */
+    var generation: Int by mutableIntStateOf(0)
+        private set
 
     fun get(key: String): ImageBitmap? = cache.get(key)
 
     fun put(key: String, bitmap: ImageBitmap) {
         cache.put(key, bitmap)
+    }
+
+    /**
+     * Drops every rendered icon. Call after the icon pack, icon shape or a per-app override
+     * changes so the next composition re-rasterises through the (new) icon loader.
+     */
+    fun clear() {
+        cache.evictAll()
+        generation++
     }
 }
 
@@ -55,7 +73,7 @@ internal object HomeIconCache {
  */
 @Composable
 fun rememberHomeAppIconPainter(app: AppInfo, sizePx: Int): Painter? {
-    val key = "${app.key}@$sizePx"
+    val key = "${app.key}@$sizePx#${HomeIconCache.generation}"
     // The producer restarts whenever [key] changes, so it always resolves the painter for the
     // current app instead of trusting the value left over from the previous one.
     val painter by produceState<Painter?>(null, key) {

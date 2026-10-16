@@ -40,7 +40,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foldos.launcher.core.fold.FoldState
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.core.model.GridMode
 import com.foldos.launcher.core.model.HomeItem
+import com.foldos.launcher.core.model.HomePage
+import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
@@ -72,11 +75,43 @@ internal class HomeContext(
     val onLongPressHome: () -> Unit,
     /** 0.dp when no gutter should be left for the hinge. */
     val hingeGutter: Dp,
+    /** Edit-mode hooks from [LocalHomeCallbacks]; every hook falls back to [onLongPressHome]. */
+    val callbacks: HomeCallbacks = HomeCallbacks(),
+    /** True when [HomePage.style] decides a page's style instead of the per-screen setting. */
+    val perPageStyle: Boolean = false,
 ) {
     val cols: Int get() = settings.colsFor(screen).coerceAtLeast(1)
     val iconSize: Dp get() = settings.iconSizeDp.dp
     val labels: Boolean get() = settings.labels
     val isInner: Boolean get() = screen != ScreenKind.COVER
+
+    /** Settings > Home > Placement is "Free placement": items with dp bounds leave the grid. */
+    val freeMode: Boolean get() = settings.gridMode == GridMode.FREE
+
+    /** Widget stacks flip; when the feature is off only the front item of a stack shows. */
+    val stacksOn: Boolean get() = settings.feature(LauncherSettings.FEATURE_STACKS)
+
+    /** The style a page renders with. */
+    fun styleFor(page: HomePage?): HomeStyle =
+        if (perPageStyle && page != null) page.style else settings.styleFor(screen)
+
+    /** Long press on an item: the edit hook when provided, otherwise the Phase 1 action. */
+    fun longPress(item: HomeItem) {
+        val hook = callbacks.onItemLongPress
+        if (hook != null) hook(item) else onLongPressHome()
+    }
+
+    /** Long press on empty space; col/row are -1 when the cell is unknown. */
+    fun emptyLongPress(pageId: Long, col: Int, row: Int) {
+        val hook = callbacks.onEmptyLongPress
+        if (hook != null) hook(pageId, col, row) else onLongPressHome()
+    }
+
+    /** Long press on an app shown from the favorites of [items] (list / hybrid / flex styles). */
+    fun longPressApp(app: AppInfo, items: List<HomeItem>) {
+        val item = items.firstOrNull { it.kind == ItemKind.APP && appFor(it)?.key == app.key }
+        if (item != null) longPress(item) else onLongPressHome()
+    }
 
     fun appFor(item: HomeItem): AppInfo? {
         val pkg = item.packageName ?: return null

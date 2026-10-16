@@ -69,6 +69,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.graphics.drawable.toBitmap
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.home.HomeIconCache
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -129,7 +130,9 @@ internal fun AppIcon(
     cornerFraction: Float = palette.iconCornerFraction,
 ) {
     val sizePx = with(LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
-    val bitmap by produceState<ImageBitmap?>(null, app.key, sizePx) {
+    // HomeIconCache.generation is bumped after an icon pack / shape / override change, so the
+    // always-visible dock re-rasterises together with the home grid.
+    val bitmap by produceState<ImageBitmap?>(null, app.key, sizePx, HomeIconCache.generation) {
         value = withContext(Dispatchers.Default) {
             runCatching { app.iconLoader().toBitmap(sizePx, sizePx).asImageBitmap() }.getOrNull()
         }

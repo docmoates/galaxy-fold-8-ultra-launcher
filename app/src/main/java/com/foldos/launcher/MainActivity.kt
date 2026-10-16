@@ -4,21 +4,31 @@ import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foldos.launcher.builtins.LocalPermissionRequester
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.theme.FoldOsTheme
+import com.foldos.launcher.widgets.WidgetHostController
 
 /**
  * The launcher (ROLE_HOME) activity. Edge to edge, themed by [FoldOsTheme] from the live
  * settings, and driven by [LauncherViewModel] so the home state survives recreation.
+ *
+ * Phase 2+3: provides [LocalPermissionRequester] (runtime permissions the built-in widgets ask
+ * for), forwards the deprecated `onActivityResult` to the widget host controller (app-widget
+ * configure activities can only report back this way) and starts / stops the `AppWidgetHost`
+ * with the activity, like Launcher3.
  */
 class MainActivity : ComponentActivity() {
 
@@ -33,13 +43,55 @@ class MainActivity : ComponentActivity() {
         val graph = FoldOsApplication.from(this).graph
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
-            CompositionLocalProvider(LocalAppGraph provides graph) {
+            // Built-in widgets (calendar, photos, Bluetooth battery) ask for one permission at a
+            // time through this; the widget re-checks the grant when the activity resumes.
+            val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            val requestPermission: (String) -> Unit = remember(permissionLauncher) {
+                { permission: String ->
+                    runCatching { permissionLauncher.launch(permission) }
+                        .onFailure { Log.w(TAG, "Could not request $permission", it) }
+                }
+            }
+            CompositionLocalProvider(
+                LocalAppGraph provides graph,
+                LocalPermissionRequester provides requestPermission,
+            ) {
                 FoldOsTheme(settings = settings) {
                     LauncherRoot(viewModel = viewModel)
                 }
             }
         }
         if (savedInstanceState == null) maybeRequestHomeRole()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        try {
+            FoldOsApplication.from(this).graph.appWidgetHost.startListening()
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "AppWidgetHost.startListening failed", e)
+        }
+    }
+
+    override fun onStop() {
+        try {
+            FoldOsApplication.from(this).graph.appWidgetHost.stopListening()
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "AppWidgetHost.stopListening failed", e)
+        }
+        super.onStop()
+    }
+
+    /**
+     * App-widget configure activities are started through `AppWidgetHost
+     * .startAppWidgetConfigureActivityForResult`, which has no ActivityResultContract equivalent,
+     * so their result arrives here and is handed to the process-wide [WidgetHostController].
+     */
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        WidgetHostController.from(this, FoldOsApplication.from(this).graph).onActivityResult(requestCode, resultCode, data)
     }
 
     /** The home key while already on the launcher: close the drawer and return to the default page. */
@@ -63,6 +115,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
+        const val TAG = "MainActivity"
         const val PREFS_NAME = "foldos_launcher"
         const val KEY_HOME_ROLE_PROMPTED = "home_role_prompted"
     }

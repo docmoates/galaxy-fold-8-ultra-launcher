@@ -2,6 +2,7 @@ package com.foldos.launcher.settings
 
 import android.app.role.RoleManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -37,9 +38,10 @@ class SettingsActivity : ComponentActivity() {
         enableEdgeToEdge()
         val graph = FoldOsApplication.from(this).graph
         val repo: SettingsRepository = graph.settings
+        val startRoute: String? = intent?.getStringExtra(EXTRA_ROUTE)
         setContent {
             SettingsAppTheme(repo = repo) {
-                SettingsRoot(repo = repo, writeScope = graph.appScope, onClose = { finish() })
+                SettingsRoot(repo = repo, writeScope = graph.appScope, onClose = { finish() }, startRoute = startRoute)
             }
         }
         // This activity carries the app icon, so opening "FoldOS" from the app list lands here;
@@ -57,9 +59,19 @@ class SettingsActivity : ComponentActivity() {
         runCatching { homeRoleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)) }
     }
 
-    private companion object {
-        const val PREFS_NAME = "foldos_launcher"
-        const val KEY_PROMPTED = "home_role_prompted_settings"
+    companion object {
+        private const val PREFS_NAME = "foldos_launcher"
+        private const val KEY_PROMPTED = "home_role_prompted_settings"
+
+        /** Optional [SettingsRoutes] value: the page to open on top of the root list. */
+        const val EXTRA_ROUTE: String = "com.foldos.launcher.settings.ROUTE"
+
+        /** Intent that opens Settings, at [route] (a [SettingsRoutes] constant) when given. */
+        fun intent(context: Context, route: String? = null): Intent {
+            val intent = Intent(context, SettingsActivity::class.java)
+            if (route != null && route != SettingsRoutes.ROOT) intent.putExtra(EXTRA_ROUTE, route)
+            return intent
+        }
     }
 }
 

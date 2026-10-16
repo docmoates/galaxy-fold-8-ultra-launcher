@@ -1,13 +1,20 @@
 package com.foldos.launcher.settings
 
+import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.picker.FoldOsWidgetCatalog
+import kotlinx.coroutines.launch
 
 object WidgetsRows {
     val wpGroup = SettingsRowInfo("Widget picker groups by", "How \"Add a widget\" is organized")
-    val stacks = SettingsRowInfo("Widget stacks", "Swipe between widgets in one slot")
+    val resetRecent = SettingsRowInfo("Reset recent widgets", "Clears the \"Recently used\" group of the widget picker")
+    val stacks = SettingsRowInfo("Widget stacks", "Swipe between widgets in one slot; drop a widget onto another in edit mode to stack them")
     val smart = SettingsRowInfo("Smart widgets", "Rules by time, place, fold state, device")
     val androidWidgets = SettingsRowInfo("Android widgets", "Host any app widget")
     val integrations = SettingsRowInfo("Integrations", "Google, Samsung, Microsoft, Spotify, Todoist, Notion, Slack and more")
@@ -18,7 +25,7 @@ object WidgetsRows {
         title = "Widgets",
         subtitle = "Picker grouping, stacks, smart rules, integrations",
         icon = Icons.Outlined.Widgets,
-        rows = listOf(wpGroup, stacks, smart, androidWidgets, integrations, widgetTheme),
+        rows = listOf(wpGroup, resetRecent, stacks, smart, androidWidgets, integrations, widgetTheme),
     )
 
     val groupOptions: List<Pair<String, String>> = listOf(
@@ -34,12 +41,26 @@ fun WidgetsPage(
     update: SettingsUpdater,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val graph = remember(context) { FoldOsApplication.from(context).graph }
+
     SettingsPageScaffold(title = WidgetsRows.page.title, onBack = onBack) {
         SelectRow(
             info = WidgetsRows.wpGroup,
             value = settings.wpGroup,
             options = WidgetsRows.groupOptions,
             onSelect = { group -> update { it.copy(wpGroup = group) } },
+        )
+        StaticRow(
+            info = WidgetsRows.resetRecent,
+            onClick = {
+                val catalog = graph.widgets as? FoldOsWidgetCatalog
+                if (catalog != null) {
+                    graph.appScope.launch { catalog.clearRecents() }
+                    Toast.makeText(context, "Recent widgets cleared", Toast.LENGTH_SHORT).show()
+                }
+            },
+            showChevron = false,
         )
         ToggleRow(
             info = WidgetsRows.stacks,

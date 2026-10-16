@@ -1,5 +1,6 @@
 package com.foldos.launcher.core.model
 
+import com.foldos.launcher.core.repo.IconShape
 import kotlinx.serialization.Serializable
 
 /**
@@ -49,6 +50,14 @@ data class LauncherSettings(
         FEATURE_DRAWER_TABS to true,
         FEATURE_PROFILES to true,
     ),
+    /** Selected icon pack package name; null = system icons. */
+    val iconPack: String? = null,
+    /** Adaptive icon mask (Settings > Look > Icon shape). */
+    val iconShape: IconShape = IconShape.SYSTEM,
+    /** True once the first-run setup wizard has finished (or been skipped). */
+    val wizardDone: Boolean = false,
+    /** Id of the last applied preset (Settings > Quick setup > Preset gallery); null = none. */
+    val preset: String? = null,
 ) {
     /** True unless the feature was explicitly switched off. */
     fun feature(key: String): Boolean = features[key] ?: true

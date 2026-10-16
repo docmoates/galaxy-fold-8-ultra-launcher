@@ -19,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.onboarding.OnboardingActivity
 
 object QuickSetupRows {
     val defaultHome = SettingsRowInfo("Set as default home", "Make FoldOS the launcher that opens when you press Home")
@@ -70,8 +71,14 @@ fun QuickSetupPage(
                 }
             },
         )
-        StaticRow(info = QuickSetupRows.wizard)
-        StaticRow(info = QuickSetupRows.gallery)
+        StaticRow(
+            info = QuickSetupRows.wizard,
+            onClick = { runCatching { context.startActivity(OnboardingActivity.wizardIntent(context)) } },
+        )
+        StaticRow(
+            info = QuickSetupRows.gallery,
+            onClick = { runCatching { context.startActivity(OnboardingActivity.galleryIntent(context)) } },
+        )
         StaticRow(info = QuickSetupRows.importLayout)
         StaticRow(info = QuickSetupRows.reset, onClick = { confirmReset = true })
     }

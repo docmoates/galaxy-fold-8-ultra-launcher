@@ -3,10 +3,19 @@ package com.foldos.launcher.settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.foldos.launcher.core.model.ColorSchemeConfig
 import com.foldos.launcher.core.model.ColorSchemes
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ThemeId
+import com.foldos.launcher.icons.IconPackPicker
+import com.foldos.launcher.icons.IconShapePicker
+import com.foldos.launcher.icons.IconShapes
+import com.foldos.launcher.onboarding.OnboardingActivity
 
 object LookRows {
     val theme = SettingsRowInfo("Theme")
@@ -15,16 +24,17 @@ object LookRows {
     val wall1 = SettingsRowInfo("Wallpaper color 1")
     val wall2 = SettingsRowInfo("Wallpaper color 2")
     val radius = SettingsRowInfo("Corner radius", advanced = true)
-    val iconPack = SettingsRowInfo("Icon pack and icon shape", "Any installed icon pack, per-app edits", advanced = true)
+    val iconPack = SettingsRowInfo("Icon pack", "Any installed icon pack; long-press an app for a per-app icon")
+    val iconShape = SettingsRowInfo("Icon shape", "Circle, squircle, rounded, teardrop or the system mask")
     val wallpaper = SettingsRowInfo("Wallpaper", "Separate wallpaper per screen and per mode")
-    val presetGallery = SettingsRowInfo("Preset gallery", "Minimal, Dashboard, Productivity, Media, Power user")
+    val presetGallery = SettingsRowInfo("Preset gallery", "Minimal, Dashboard, Productivity, Media, Power user, One UI Classic")
 
     val page = SettingsPageInfo(
         route = SettingsRoutes.LOOK,
         title = "Look",
-        subtitle = "Theme, color scheme, accent, corner radius",
+        subtitle = "Theme, color scheme, accent, icons, corner radius",
         icon = Icons.Outlined.Palette,
-        rows = listOf(theme, scheme, accent, wall1, wall2, radius, iconPack, wallpaper, presetGallery),
+        rows = listOf(theme, scheme, accent, wall1, wall2, radius, iconPack, iconShape, wallpaper, presetGallery),
     )
 
     val themeOptions: List<Pair<ThemeId, String>> = listOf(
@@ -54,7 +64,10 @@ fun LookPage(
     update: SettingsUpdater,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     val colors = settings.colors
+    var showIconPackPicker by rememberSaveable { mutableStateOf(false) }
+    var showIconShapePicker by rememberSaveable { mutableStateOf(false) }
 
     fun setCustomColor(transform: (ColorSchemeConfig) -> ColorSchemeConfig) {
         update { current ->
@@ -114,8 +127,23 @@ fun LookPage(
             onValueChange = { radius -> update { it.copy(radiusDp = radius) } },
             unit = " dp",
         )
-        StaticRow(info = LookRows.iconPack)
+        StaticRow(
+            info = LookRows.iconPack,
+            onClick = { showIconPackPicker = true },
+            trailingText = settings.iconPack?.substringAfterLast('.') ?: "System icons",
+        )
+        StaticRow(
+            info = LookRows.iconShape,
+            onClick = { showIconShapePicker = true },
+            trailingText = IconShapes.displayName(settings.iconShape),
+        )
         StaticRow(info = LookRows.wallpaper)
-        StaticRow(info = LookRows.presetGallery)
+        StaticRow(
+            info = LookRows.presetGallery,
+            onClick = { runCatching { context.startActivity(OnboardingActivity.galleryIntent(context)) } },
+        )
     }
+
+    if (showIconPackPicker) IconPackPicker(onClose = { showIconPackPicker = false })
+    if (showIconShapePicker) IconShapePicker(onClose = { showIconShapePicker = false })
 }

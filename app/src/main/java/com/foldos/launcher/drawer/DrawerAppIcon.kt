@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.core.graphics.drawable.toBitmap
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.home.HomeIconCache
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,7 +28,14 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun rememberDrawerIconBitmap(app: AppInfo, sizePx: Int): ImageBitmap? {
-    val state = produceState<ImageBitmap?>(initialValue = null, key1 = app.key, key2 = sizePx) {
+    // HomeIconCache.generation is bumped after an icon pack / shape / override change, so the
+    // drawer re-rasterises together with the home grid.
+    val state = produceState<ImageBitmap?>(
+        initialValue = null,
+        key1 = app.key,
+        key2 = sizePx,
+        key3 = HomeIconCache.generation,
+    ) {
         value = withContext(Dispatchers.IO) {
             runCatching { loadDrawerIconBitmap(app, sizePx) }.getOrNull()
         }
