@@ -174,7 +174,7 @@ private fun HomeScrubbedFavoriteList(
     val scrollToItem = rememberA11yListScroll(listState)
     val letters = remember(favorites) { favorites.map { it.scrubberLetter() }.distinct() }
     Box(modifier) {
-        HomeFavoriteList(ctx, favorites, items, listState, Modifier.fillMaxSize().padding(end = 22.dp))
+        HomeFavoriteList(ctx, favorites, items, listState, Modifier.fillMaxSize().padding(end = 28.dp))
         if (letters.size > 1) {
             HomeAlphabetScrubber(
                 letters = letters,
@@ -276,23 +276,33 @@ internal fun HomeAlphabetScrubber(
     val tokens = LocalFoldOsTokens.current
     var heightPx by remember { mutableIntStateOf(0) }
     var active by remember { mutableStateOf<Char?>(null) }
+    // Each letter needs a readable slot (16dp): when the strip is shorter than that (edit mode shrinks the
+    // page), every n-th letter is drawn so the letters never crowd; the touch maps to the drawn letters.
+    val minSlotPx = with(androidx.compose.ui.platform.LocalDensity.current) { 16.dp.toPx() }
+    val shown = remember(letters, heightPx) {
+        val fit = if (heightPx <= 0) letters.size else (heightPx / minSlotPx).toInt().coerceAtLeast(2)
+        if (letters.size <= fit) letters else {
+            val step = (letters.size + fit - 1) / fit
+            letters.filterIndexed { i, _ -> i % step == 0 }
+        }
+    }
 
     fun letterAt(y: Float): Char? {
-        if (letters.isEmpty() || heightPx <= 0) return null
-        val index = ((y / heightPx) * letters.size).toInt().coerceIn(0, letters.size - 1)
-        return letters[index]
+        if (shown.isEmpty() || heightPx <= 0) return null
+        val index = ((y / heightPx) * shown.size).toInt().coerceIn(0, shown.size - 1)
+        return shown[index]
     }
 
     Column(
         modifier = modifier
-            .width(20.dp)
+            .width(24.dp)
             // A touch-only shortcut; screen readers scroll the list itself.
             .clearAndSetSemantics { }
             .onSizeChanged { heightPx = it.height }
-            .pointerInput(letters) {
+            .pointerInput(shown) {
                 detectTapGestures(onTap = { position -> letterAt(position.y)?.let(onLetter) })
             }
-            .pointerInput(letters) {
+            .pointerInput(shown) {
                 detectVerticalDragGestures(
                     onDragStart = { position ->
                         val letter = letterAt(position.y)
@@ -316,7 +326,7 @@ internal fun HomeAlphabetScrubber(
     ) {
         // Every letter owns an equal slot of the full height, so the drawn letters are evenly spread and
         // the slot under the finger ([letterAt]: y / height * count) is exactly the letter drawn there.
-        letters.forEach { letter ->
+        shown.forEach { letter ->
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -326,7 +336,7 @@ internal fun HomeAlphabetScrubber(
                 Text(
                     text = letter.toString().uppercase(Locale.getDefault()),
                     color = if (letter == active) tokens.accent else tokens.onSurface.copy(alpha = 0.55f),
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     softWrap = false,

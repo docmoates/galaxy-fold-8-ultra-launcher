@@ -2,11 +2,16 @@ package com.foldos.launcher.home
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -185,14 +190,32 @@ fun AppLabel(
     } else {
         Modifier
     }
+    // A single long word ("Authenticator") must not break mid-word: when the layout split a word, shrink the
+    // label a step (down to 70%) and lay it out again; only then fall back to the two-line ellipsis.
+    var shrink by remember(text, sizeSp, style.fontSize, textAlign) { mutableFloatStateOf(1f) }
+    val shownStyle = if (shrink < 1f) {
+        style.copy(fontSize = style.fontSize * shrink, lineHeight = style.lineHeight * shrink)
+    } else {
+        style
+    }
     Text(
         text = text,
-        modifier = (if (fillWidth) modifier.fillMaxWidth() else modifier).then(reserved),
+        modifier = (if (fillWidth) modifier.fillMaxWidth() else modifier).then(reserved).padding(horizontal = 2.dp),
         color = color,
-        style = style,
+        style = shownStyle,
         maxLines = AppLabelStyle.MAX_LINES,
         softWrap = true,
         overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout ->
+            if (shrink > 0.7f && layout.lineCount > 1) {
+                var split = false
+                for (line in 0 until layout.lineCount - 1) {
+                    val end = layout.getLineEnd(line, visibleEnd = false)
+                    if (end in 1 until text.length && text[end - 1].isLetterOrDigit() && text[end].isLetterOrDigit()) split = true
+                }
+                if (split) shrink = (shrink * 0.92f).coerceAtLeast(0.7f)
+            }
+        },
     )
 }
 

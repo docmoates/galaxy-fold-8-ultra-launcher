@@ -362,6 +362,14 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                 LocalHomeCallbacks provides homeCallbacks,
                 LocalKeyboardShortcuts provides keyboardShortcuts,
             ) {
+                // The Edge rail is a vertical pill on the right edge: the home reserves its width so it never
+                // covers widgets or icons (the hub page has no rail and uses the full width).
+                val railInset = if (railDock && !onHub) {
+                    (if (settings.largeIcons) DockDefaults.railIconSize * 1.2f else DockDefaults.railIconSize) + 20.dp + 16.dp
+                } else {
+                    0.dp
+                }
+                Box(Modifier.fillMaxSize().padding(end = railInset)) {
                 HomeScreen(
                     screen = screen,
                     fold = fold,
@@ -421,6 +429,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     dragController = dragController,
                     onDropPayload = onDropPayload,
                 )
+                }
             }
             if (railDock && !onHub) {
                 Dock(

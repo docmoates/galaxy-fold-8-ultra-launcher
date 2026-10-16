@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.foldos.launcher.settings
 
 import androidx.compose.foundation.background
@@ -7,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -104,6 +107,7 @@ fun ToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     visible: Boolean = true,
     enabled: Boolean = true,
+    leadingContent: (@Composable () -> Unit)? = null,
 ) {
     if (!rowVisible(info, visible)) return
     // One toggleable row (role Switch, on / off state): the Switch itself is only the visual, so a
@@ -117,6 +121,7 @@ fun ToggleRow(
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             ),
+        leadingContent = leadingContent,
         headlineContent = { Text(text = info.title) },
         supportingContent = subtitleContent(info.subtitle),
         trailingContent = {
@@ -194,12 +199,12 @@ fun <T> ChipsRow(
             headlineContent = { Text(text = info.title) },
             supportingContent = subtitleContent(info.subtitle),
         )
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             options.forEach { option ->
                 FilterChip(

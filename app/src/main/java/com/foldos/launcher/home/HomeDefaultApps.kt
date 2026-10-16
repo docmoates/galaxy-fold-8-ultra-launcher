@@ -4,7 +4,7 @@ import com.foldos.launcher.core.model.AppInfo
 import java.util.Locale
 
 /** Most apps the first-run seeding puts on the first home page. */
-const val HOME_SEED_APP_LIMIT: Int = 16
+const val HOME_SEED_APP_LIMIT: Int = 24
 
 /**
  * Fragments tried in order to pick the first home page's apps on a fresh install. Each entry is one

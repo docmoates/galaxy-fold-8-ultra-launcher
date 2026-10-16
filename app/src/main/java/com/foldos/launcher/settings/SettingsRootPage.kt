@@ -105,6 +105,10 @@ private fun AdvancedSwitchRow(advanced: Boolean, onAdvancedChange: (Boolean) -> 
             info = advancedRow,
             checked = advanced,
             onCheckedChange = onAdvancedChange,
+            // The icon keeps its text aligned with the page rows above (they all have a leading icon).
+            leadingContent = {
+                Icon(imageVector = Icons.Outlined.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
         )
     }
 }

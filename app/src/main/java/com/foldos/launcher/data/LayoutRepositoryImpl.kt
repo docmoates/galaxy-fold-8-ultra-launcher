@@ -114,7 +114,7 @@ class LayoutRepositoryImpl(
             val cols = columns?.coerceAtLeast(1) ?: defaultColumns(screen)
             val count = cols * defaultRows(screen)
             // Useful apps first (browser, mail, photos, maps, ...), then the rest alphabetically;
-            // never more than HOME_SEED_APP_LIMIT (16) however large the grid is.
+            // never more than HOME_SEED_APP_LIMIT (24) however large the grid is.
             preferredHomeApps(apps, count).mapIndexed { position, app ->
                 ItemEntity(
                     pageId = pageId,
@@ -473,10 +473,10 @@ class LayoutRepositoryImpl(
         /** Rows of apps seeded on the first page. */
         fun defaultRows(screen: ScreenKind): Int = when (screen) {
             ScreenKind.COVER -> 4
-            ScreenKind.INNER, ScreenKind.FLEX -> 3
+            ScreenKind.INNER, ScreenKind.FLEX -> 4
         }
 
-        /** Seeded app count with the fallback column count: 16 on the cover, 18 on the inner screen. */
+        /** Seeded app count with the fallback column count: 16 on the cover, 24 on the inner screen. */
         fun defaultAppCount(screen: ScreenKind): Int = defaultColumns(screen) * defaultRows(screen)
     }
 }

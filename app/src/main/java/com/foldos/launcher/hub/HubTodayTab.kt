@@ -389,14 +389,14 @@ private fun HubNextEventCard(event: HubEvent?, allDay: HubEvent?, nowMillis: Lon
                         color = tokens.onHighlight,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = hubEventSubtitle(shown),
                         color = tokens.onHighlight.copy(alpha = 0.8f),
                         fontSize = 13.sp,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -535,7 +535,7 @@ private fun HubTaskRow(task: HubTask, today: LocalDate, onToggle: () -> Unit, on
                 color = tokens.onSurface.copy(alpha = if (task.done) 0.55f else 1f),
                 fontSize = 14.sp,
                 textDecoration = if (task.done) TextDecoration.LineThrough else null,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (due != null) {

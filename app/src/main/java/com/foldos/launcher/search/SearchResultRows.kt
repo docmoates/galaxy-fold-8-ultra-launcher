@@ -166,7 +166,7 @@ fun SearchResultRow(
                     text = subtitle,
                     color = titleColor.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

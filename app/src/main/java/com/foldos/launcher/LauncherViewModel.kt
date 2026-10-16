@@ -29,6 +29,7 @@ import com.foldos.launcher.home.GridGeometry
 import com.foldos.launcher.home.HomeIconCache
 import com.foldos.launcher.home.PageSelectRequest
 import com.foldos.launcher.home.defaultDashboardItems
+import com.foldos.launcher.home.preferredHomeApps
 import com.foldos.launcher.icons.FoldOsIconResolver
 import com.foldos.launcher.items.Folders
 import com.foldos.launcher.settings.SettingsActivity
@@ -343,6 +344,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 // (their apps are hidden): give them the default widgets once.
                 runCatching { repairDashboardPages(screen) }
                     .onFailure { Log.w(TAG, "repairDashboardPages($screen) failed", it) }
+                // Widgets left on top of apps by earlier versions' Dashboard <-> Grid switches.
+                runCatching {
+                    graph.layouts.pages(screen).first().filter { it.style == HomeStyle.GRID }
+                        .forEach { moveWidgetsOffApps(it.id, screen) }
+                }.onFailure { Log.w(TAG, "moveWidgetsOffApps($screen) failed", it) }
             }
         }
     }
@@ -701,6 +707,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 graph.layouts.setPageStyle(pageId, style)
                 if (style == HomeStyle.DASHBOARD) seedDashboardIfEmpty(pageId, screen)
                 if (style == HomeStyle.GRID && before == HomeStyle.DASHBOARD) removeSeededDashboardWidgets(pageId, screen)
+                if (style == HomeStyle.GRID) moveWidgetsOffApps(pageId, screen)
             }.onFailure { Log.w(TAG, "setPageStyle($pageId) failed", it) }
         }
     }
@@ -717,13 +724,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * A dashboard page turned back to Grid: when it also holds apps / folders / pairs, deletes the
+     * A dashboard page turned back to Grid: deletes the
      * widgets that are still exactly the seeded defaults (same built-in, cell and span, no stack or
      * free placement). A widget the user added, moved or resized stays where it is.
      */
     private suspend fun removeSeededDashboardWidgets(pageId: Long, screen: ScreenKind) {
         val items = graph.layouts.items(pageId).first()
-        if (items.none { it.kind != ItemKind.WIDGET }) return
         val seeded = defaultDashboardItems(screen, pageId)
         items.filter { widget ->
             widget.kind == ItemKind.WIDGET &&
@@ -736,6 +742,73 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         s.spanX == widget.spanX && s.spanY == widget.spanY
                 }
         }.forEach { graph.layouts.deleteItem(it.id) }
+        // A dashboard page that held only the default widgets would come back as a handful of tiny
+        // widgets crammed into the top-left of a wide grid (the dashboard's 4 columns on the inner
+        // screen's 6): give it the first-run apps instead, like a fresh Grid page.
+        if (graph.layouts.items(pageId).first().isEmpty()) {
+            val list = apps.value
+            val cols = settings.value.effectiveColsFor(screen).coerceAtLeast(1)
+            val count = cols * com.foldos.launcher.data.LayoutRepositoryImpl.defaultRows(screen)
+            preferredHomeApps(list, count).forEachIndexed { position, app ->
+                graph.layouts.upsertItem(
+                    HomeItem(
+                        id = 0L,
+                        pageId = pageId,
+                        kind = ItemKind.APP,
+                        col = position % cols,
+                        row = position / cols,
+                        packageName = app.packageName,
+                        activityName = app.activityName,
+                        title = app.label,
+                    ),
+                )
+            }
+        }
+    }
+
+    /**
+     * A page shown as Grid must not draw a widget over an app, folder or pair (or over another widget).
+     * Moves every widget slot (a stack moves together) that collides with an occupied cell to the first
+     * free spot of its size in reading order; the grid grows downwards, so a free spot always exists.
+     * Idempotent: a page without overlaps is not written.
+     */
+    private suspend fun moveWidgetsOffApps(pageId: Long, screen: ScreenKind) {
+        val cols = settings.value.effectiveColsFor(screen).coerceAtLeast(1)
+        val items = graph.layouts.items(pageId).first().filter { it.parentId == null }
+        val occupied = HashSet<Pair<Int, Int>>()
+        fun fits(col: Int, row: Int, sx: Int, sy: Int): Boolean {
+            for (r in row until row + sy) for (c in col until col + sx) if ((c to r) in occupied) return false
+            return true
+        }
+        fun mark(col: Int, row: Int, sx: Int, sy: Int) {
+            for (r in row until row + sy) for (c in col until col + sx) occupied.add(c to r)
+        }
+        items.filter { it.kind != ItemKind.WIDGET && it.col >= 0 && it.row >= 0 && !(it.free && it.xDp != null) }
+            .forEach { mark(it.col, it.row, it.spanX.coerceAtLeast(1), it.spanY.coerceAtLeast(1)) }
+        val widgets = items.filter { it.kind == ItemKind.WIDGET && it.col >= 0 && it.row >= 0 && !(it.free && it.xDp != null) }
+        val slots = widgets.groupBy { it.stackId ?: -it.id }.values
+            .sortedWith(compareBy({ it.first().row }, { it.first().col }))
+        for (slot in slots) {
+            val a = slot.first()
+            val sx = a.spanX.coerceIn(1, cols)
+            val sy = a.spanY.coerceAtLeast(1)
+            if (a.col + sx <= cols && fits(a.col, a.row, sx, sy)) {
+                mark(a.col, a.row, sx, sy)
+                continue
+            }
+            var row = 0
+            var col = 0
+            search@ while (true) {
+                col = 0
+                while (col + sx <= cols) {
+                    if (fits(col, row, sx, sy)) break@search
+                    col++
+                }
+                row++
+            }
+            mark(col, row, sx, sy)
+            slot.forEach { graph.layouts.upsertItem(it.copy(col = col, row = row, spanX = sx)) }
+        }
     }
 
     /**
@@ -913,6 +986,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     graph.layouts.setPageStyle(page.id, style)
                     if (style == HomeStyle.DASHBOARD) seedDashboardIfEmpty(page.id, screen)
                     if (style == HomeStyle.GRID && page.style == HomeStyle.DASHBOARD) removeSeededDashboardWidgets(page.id, screen)
+                    if (style == HomeStyle.GRID) moveWidgetsOffApps(page.id, screen)
                 }
         }.onFailure { Log.w(TAG, "applyStyleToScreen($screen) failed", it) }
     }

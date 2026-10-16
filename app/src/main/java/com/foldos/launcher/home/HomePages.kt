@@ -2,12 +2,14 @@ package com.foldos.launcher.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import android.view.accessibility.AccessibilityManager
@@ -486,15 +488,21 @@ internal fun HomeHybridPage(
         val gap = if (ctx.hingeGutter > 0.dp) 32.dp else 24.dp
         Row(modifier.fillMaxSize()) {
             HomeSurfacePanel(Modifier.weight(1f).fillMaxHeight()) {
-                HomeFavoriteGrid(
-                    ctx = ctx,
-                    favorites = ctx.favorites(items, 16),
-                    cols = 4,
-                    rows = 4,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    items = items,
-                    publishGeometry = publishGeometry,
-                )
+                // Compact, consistent rows (icon + label + 20dp) from the top: the grid used to stretch its four rows
+                // over the whole panel height, leaving big vertical gaps between icon rows on the tall inner screen.
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val rowHeight = ctx.iconSize + appLabelBlockHeight(ctx.settings) + 20.dp
+                    val appRows = (maxHeight / rowHeight).toInt().coerceIn(2, 6)
+                    HomeFavoriteGrid(
+                        ctx = ctx,
+                        favorites = ctx.favorites(items, 4 * appRows),
+                        cols = 4,
+                        rows = appRows,
+                        modifier = Modifier.fillMaxWidth().height(rowHeight * appRows),
+                        items = items,
+                        publishGeometry = publishGeometry,
+                    )
+                }
             }
             Spacer(Modifier.width(gap))
             HomeItemsGrid(

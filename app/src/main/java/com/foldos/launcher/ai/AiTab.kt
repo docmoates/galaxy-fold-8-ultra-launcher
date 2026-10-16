@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -164,6 +165,7 @@ private val TRY_ASKING: List<String> = listOf(
  * to the next event, reply hints, call back, focus session) and a "For you" briefing card. Reads
  * `LocalAppGraph.current.ai`; must be composed inside `FoldOsTheme`.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = Modifier) {
     val graph = LocalAppGraph.current
@@ -225,14 +227,14 @@ fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = M
                 onMic = startSpeech,
                 enabled = !AiConversation.busy,
             )
-            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AiChip(text = engineLabel, icon = Icons.Rounded.Lock, onClick = openAiSettings)
                 AiChip(text = "Calendar, Mail, Tasks, Calls", icon = Icons.Rounded.Link, onClick = null)
             }
             AiSectionLabel("Conversation")
             AiConversationList(messages = AiConversation.messages, busy = AiConversation.busy, modifier = Modifier.weight(1f))
             AiSectionLabel("Try asking")
-            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 TRY_ASKING.forEach { prompt -> AiChip(text = prompt, icon = null, onClick = { send(prompt) }) }
             }
         }
@@ -457,7 +459,7 @@ private fun AiChip(text: String, icon: ImageVector?, onClick: (() -> Unit)?) {
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = tokens.onSurface, modifier = Modifier.size(14.dp))
-        Text(text = text, color = tokens.onSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(text = text, color = tokens.onSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

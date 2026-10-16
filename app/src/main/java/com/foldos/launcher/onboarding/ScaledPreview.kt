@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 
 /** Width of the cover screen in dp (mock-up `DEV.cover.w`); every preview is laid out at this width. */
@@ -52,7 +55,12 @@ fun ScaledPreview(
                     transformOrigin = TransformOrigin(0f, 0f)
                 },
         ) {
-            content()
+            // The preview is a fixed 411dp design: the system font scale (large on the inner screen) would make
+            // its text outgrow the cards and clip, so it is laid out at font scale 1.
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1f)) {
+                content()
+            }
         }
     }
 }

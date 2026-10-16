@@ -4,6 +4,48 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.2.2] - 2026-10-16
+
+Fix round 1.5: device test of 1.2.1 on the cover and inner screens (`versionCode` 122). Written from the source; not yet run
+on a device. Installs over 1.2.1 in place (same signing key). No database schema change (Room stays at version 3).
+
+### Fixed
+1. Dashboard <-> Grid overlap: switching a page to Grid (from edit mode or Settings > Home) moves every widget that sits on an
+   app, folder, pair or another widget to the first free cells of the page (the grid grows downwards, so there is always room);
+   stacks move together. The same pass runs once per launch over existing Grid pages, which repairs widgets that 1.2.0 / 1.2.1
+   left under icons (clock under Chrome / Gmail, calendar-access buttons over Messages / Clock).
+2. List style in edit mode (cover and inner): the eight "Remove widget N" chips are replaced by one "Widgets (N)" chip that
+   opens a single card with one row per widget (tap a row to remove it). The A-Z scrubber is wider, uses a 16dp minimum slot
+   per letter and draws every n-th letter when the strip is shorter than that (edit mode shrinks the page).
+3. Clipped text: the AI tab chip rows ("On-device . Template rules", "Calendar, Mail, Tasks, Calls", "Try asking") wrap with
+   FlowRow instead of scrolling sideways; Settings option chips (Badge style Count / Dot / Off, etc.), the icon-pack chips and
+   the custom color palette wrap too, so no option hides off-screen. Hub event and task titles and search result subtitles
+   may use two lines. Deliberate carousels (contacts favourites, reach out, search apps, app group chips, color scheme
+   swatches) still scroll.
+4. Mail tab (not connected): the developer wording about READ_CONTENT_PROVIDER is gone; on the inner screen the two cards
+   stack in one centred column (max 640dp) instead of two columns, so no empty rounded block sits beside the Gmail app card.
+5. App labels: a label whose word did not fit is shrunk in steps (down to 70%) until no word breaks mid-word
+   ("Authenticator"), then falls back to two lines with an ellipsis; every label keeps 2dp of its own side padding so
+   neighbouring labels ("Calculator Calculator" in Easy mode) never touch.
+6. Edge rail dock: the home reserves the rail's width on the right (icon + padding) while the rail is shown, so the rail no
+   longer covers widgets (25:00 timer, weather). The Hub page, which has no rail, keeps the full width.
+7. Inner screen, Different layout + Classic grid: turning a dashboard page back to Grid also removes the untouched default
+   widgets when the page has no apps, and seeds the first-run apps (6 columns x 4 rows = 24 apps; the seed limit is raised
+   from 16 to 24), instead of leaving a handful of small widgets in the top-left whose text truncated.
+8. Settings > Colors on the inner screen: the live preview is capped at 200-220dp wide instead of 60% of the section, and
+   every sample preview is laid out at font scale 1, so a large system font no longer pushes the hero line and the
+   "FRI, OCT 16 . AUSTIN" kicker out of the card.
+9. The "Set FoldOS as your default home app?" dialog only appears when Settings is opened from the app list (MAIN / LAUNCHER
+   intent), at most once per app launch, and still only until it was shown once. Settings started from inside FoldOS never asks.
+10. More settings > Advanced: the row has a leading icon like the page rows, so its text lines up with theirs.
+11. Edit mode on Dashboard pages: the cell guide, the selection outline and the drop / resize target are inset by the dashboard
+    tile padding (6dp cover, 8dp inner, scaled with the edit-mode home), so they sit on the widget instead of beside it.
+12. Hybrid panels on the inner screen: the apps panel uses compact rows (icon + label + 20dp), as many as fit, from the top,
+    instead of stretching four rows over the whole panel height.
+13. Switches that "did not flip" in the sweep (More > Search, Widgets Category / App, Features Count / Dot): read through the
+    code. All of them write through the settings queue and take effect; Count / Dot were in a sideways-scrolling chip row, so
+    the second option was often off-screen to the sweep (fixed by 3). No other defect found.
+
 ## [1.2.1] - 2026-10-16
 
 Fix round 1.4: cover-screen device test of 1.2.0 (`versionCode` 121). Written from the source; not yet run on a device.

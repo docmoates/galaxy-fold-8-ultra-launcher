@@ -1,7 +1,7 @@
 # FoldOS
 
 An Android launcher for the Samsung Galaxy Z Fold 8 Ultra, written in Kotlin with Jetpack Compose
-(Material 3). Version 1.2.1.
+(Material 3). Version 1.2.2.
 
 FoldOS treats the fold as a design input. The cover screen and the inner screen get their own home
 layouts (or share one), the home keeps a gap over the hinge, Flex Mode splits the home at the
@@ -158,7 +158,7 @@ Outputs: `app/build/outputs/apk/debug/app-debug.apk` and
 
 Pinned versions: Gradle 8.9, Android Gradle Plugin 8.7.3, Kotlin 2.1.0, KSP 2.1.0-1.0.29, Compose
 BOM 2024.12.01, Room 2.7.0 (2.6.1's KSP processor cannot read Kotlin 2.1 metadata; do not
-downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.2.1`, `versionCode` is `121`.
+downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.2.2`, `versionCode` is `122`.
 
 If the release build fails inside R8, build with `-Pfoldos.minify=false` to confirm that shrinking
 is the cause, then add the missing keep rule to `app/proguard-rules.pro`.
@@ -336,7 +336,7 @@ APK, then import the backup.
 
 ```
 PLAN.md                     Design plan (screens, themes, docks, hub, settings, roadmap)
-CHANGELOG.md                Release history 0.1.0 to 1.2.1
+CHANGELOG.md                Release history 0.1.0 to 1.2.2
 mockup/foldos-mockup.html   Interactive mock-up; the JS objects S0, DOCKS, SCHEMES, HOME define behavior
 docs/                       Launcher research, the widget catalog, TESTING.md (manual device test plan)
 app/                        The single Gradle module (com.foldos.launcher)

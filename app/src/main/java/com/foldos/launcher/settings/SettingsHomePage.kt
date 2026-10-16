@@ -437,11 +437,13 @@ private fun ColorsSection(settings: LauncherSettings, update: SettingsUpdater, i
             (if (isDark) "dark" else "light") + " mode.",
     ) {
         // Live preview of the tapped color, in the current mode.
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        // Capped at 200-220dp wide (about 370dp tall): on the inner screen it used to stretch to 60% of the
+        // 840dp section and became a giant portrait card.
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            val previewWidth = minOf(maxWidth * 0.6f, if (maxWidth >= 600.dp) 200.dp else 220.dp)
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.6f)
-                    .widthIn(max = 240.dp)
+                    .width(previewWidth)
                     .clip(RoundedCornerShape(18.dp)),
             ) {
                 SampleHomePreview(

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -590,8 +591,7 @@ private fun MailNotConfiguredContent(
                 when {
                     !gmailInstalled -> MailHint("The Gmail app is not installed, so there are no counts to show.")
                     counts.isEmpty() -> MailHint(
-                        "No account is visible to FoldOS yet. Pick one to read its label counts " +
-                            "(needs the READ_CONTENT_PROVIDER permission the launcher declares).",
+                        "No Gmail account is visible to FoldOS yet. Choose an account below to see its label counts.",
                     )
                     else -> counts.groupBy { it.account }.forEach { (account, labels) ->
                         Text(
@@ -644,9 +644,16 @@ private fun MailNotConfiguredContent(
     }
 
     if (inner) {
-        Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) { explanation() }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) { countsCard() }
+        // One centred column: the two cards have very different heights, and a second column left an
+        // empty rounded block beside the Gmail app card on the wide screen.
+        Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                explanation()
+                countsCard()
+            }
         }
     } else {
         Column(

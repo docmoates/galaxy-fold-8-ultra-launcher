@@ -307,3 +307,38 @@ to the same fix); **hub-wizard** = `onboarding/`, `hub/`, `mail/`, `picker/`. No
 - Fix: make `DetailPage` a `Column(Modifier.fillMaxSize())`: a `Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center)` holding the preview card, name, size and description (inside its own
   `verticalScroll` column with `Arrangement.spacedBy(8.dp)`, centred horizontally; the Box centres it vertically), then the "Add to home" `Button` as the last child with
   `Modifier.padding(horizontal = 20.dp, vertical = 12.dp)` so it stays anchored near the bottom above the page indicator. `maxInnerHeight` (0.42 x page height, L180) can stay.
+
+# Fix round 1.5 diagnosis (device test of 1.2.1, cover + inner)
+
+Paths under `app/src/main/java/com/foldos/launcher/`.
+
+1. Dashboard <-> Grid overlap (Confirmed): `LauncherViewModel.setPageStyle` / `applyStyleToScreen` only removed the exactly-seeded
+   default widgets, and only when the page also held apps. A moved / resized / added widget, or one seeded by 1.2.0, kept its
+   stored cell on top of the apps. Fix: `moveWidgetsOffApps` (called on every switch to Grid and once per launch for Grid pages)
+   relocates colliding widget slots to the first free cells.
+2. List edit chips (Confirmed): `edit/EditModeOverlay.kt` drew one `EditChip` per widget in a column over the page. Now one
+   "Widgets (N)" chip + a card. `home/HomeListPage.kt` `HomeAlphabetScrubber` gave every letter an equal share of a strip that edit
+   mode shrinks to 76%; it now thins the letters to fit a 16dp slot.
+3. Clipped text (Confirmed): `horizontalScroll` rows hid chips off-screen (`ai/AiTab.kt`, `ChipsRow`, icon packs, palette); replaced
+   with `FlowRow`. Carousels that are meant to scroll were kept.
+4. Mail tab (Likely): the inner layout was a two-column `Row` of two cards of very different heights, and the hint text named a
+   manifest permission. One centred column and user wording now.
+5. Label wrapping (Confirmed): `AppLabel` is a plain two-line `Text`; Compose breaks a word that is wider than the cell. It now
+   shrinks until no word is split. The parent gives labels 1dp per side, so adjacent labels touched: 2dp added inside the label.
+6. Edge rail (Confirmed): `LauncherRoot` drew the rail dock as an overlay on top of `HomeScreen` with no layout space. `HomeScreen`
+   now sits in a box with `padding(end = railInset)`.
+7. Inner Different + Classic grid (Confirmed): Settings > Home style restyles the dashboard pages to Grid with their 4-column
+   dashboard widgets in a 6-column grid (top-left, small tiles, truncated text) and no apps. `removeSeededDashboardWidgets` now
+   also runs for widget-only pages and seeds the first-run apps.
+8. Colors preview (Confirmed): `fillMaxWidth(0.6f).widthIn(max = 240.dp)` - `widthIn` after a fixed-fraction width does not cap it,
+   so the 411 x 700 preview was 60% of the section wide. `ScaledPreview` also inherited the system font scale; it now provides
+   font scale 1 so the fixed-size cards cannot clip their text.
+9. Role dialog (Likely): `SettingsActivity.maybeRequestHomeRole` ran on every fresh start of the activity, including Settings opened
+   from FoldOS. Now only for a MAIN / LAUNCHER start, once per process, and the stored "already asked" flag stays.
+10. Advanced row (Confirmed): the only row without `leadingContent`; `ToggleRow` takes an optional leading icon now.
+11. Dashboard edit outline (Confirmed): the tiles are inset by `cellPadding` (6 / 8dp) but the overlay drew the selection at the full
+    cell and the guide at 3dp. Same inset now (scaled by `EDIT_SCALE`).
+12. Hybrid inner apps (Confirmed): `HomeFavoriteGrid` used `fixedRows` + `weight(1f)`, so 4 rows were stretched over the panel
+    height. Now a fixed compact row height with as many rows as fit.
+13. "Not flipping" rows (Not reproduced): the toggles and chips are wired and persisted (`SettingsWriteQueue` -> DataStore);
+    Count / Dot sat in a horizontally scrolling chip row, see 3.

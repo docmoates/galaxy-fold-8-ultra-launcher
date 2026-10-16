@@ -331,12 +331,16 @@ fun EditModeOverlay(
         val dashed = remember { PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f) }
         Canvas(Modifier.fillMaxSize()) {
             val cellCorner = CornerRadius(8.dp.toPx())
+            // Dashboard tiles are drawn inset by the dashboard cell padding (6dp cover, 8dp inner); the guide and the
+            // selection outline use the same inset so they sit exactly on the widget instead of beside it.
+            val tileInset = if (style == HomeStyle.DASHBOARD) (if (screen == ScreenKind.COVER) 6.dp else 8.dp).toPx() * EDIT_SCALE else 0f
+            fun Rect.onTile(): Rect = if (tileInset > 0f) deflate(tileInset) else this
             val guide = tokens.onSurface.copy(alpha = 0.10f)
             // A list has no cell grid (its rows are laid out by the list itself), so it gets no cell guide.
             if (style != HomeStyle.LIST) {
                 for (r in 0 until grid.rows) {
                     for (c in 0 until grid.cols) {
-                        val cell = grid.cellRect(c, r, 1, 1).deflate(3.dp.toPx())
+                        val cell = if (tileInset > 0f) grid.cellRect(c, r, 1, 1).deflate(tileInset) else grid.cellRect(c, r, 1, 1).deflate(3.dp.toPx())
                         drawRoundRect(guide, cell.topLeft, cell.size, cellCorner, style = Stroke(1.dp.toPx()))
                     }
                 }
@@ -345,7 +349,7 @@ fun EditModeOverlay(
             when (d) {
                 is EditDrag.Move -> {
                     val cell = grid.snapMove(d.item, d.pointer - d.grab)
-                    val target = grid.cellRect(cell)
+                    val target = grid.cellRect(cell).onTile()
                     drawRoundRect(tokens.accent.copy(alpha = 0.18f), target.topLeft, target.size, cellCorner)
                     drawRoundRect(tokens.accent, target.topLeft, target.size, cellCorner, style = Stroke(2.dp.toPx(), pathEffect = dashed))
                     val ghost = grid.rectFor(d.item)
@@ -354,12 +358,12 @@ fun EditModeOverlay(
                     drawRoundRect(tokens.onSurface.copy(alpha = 0.7f), topLeft, Size(ghost.width, ghost.height), cellCorner, style = Stroke(1.5.dp.toPx()))
                 }
                 is EditDrag.Resize -> {
-                    val target = grid.cellRect(grid.resized(d.item, d.corner, d.pointer - d.start))
+                    val target = grid.cellRect(grid.resized(d.item, d.corner, d.pointer - d.start)).onTile()
                     drawRoundRect(tokens.accent.copy(alpha = 0.18f), target.topLeft, target.size, cellCorner)
                     drawRoundRect(tokens.accent, target.topLeft, target.size, cellCorner, style = Stroke(2.dp.toPx()))
                 }
                 null -> if (selected != null && style != HomeStyle.LIST) {
-                    val rect = grid.rectFor(selected)
+                    val rect = grid.rectFor(selected).onTile()
                     drawRoundRect(tokens.accent, rect.topLeft, rect.size, cellCorner, style = Stroke(2.dp.toPx()))
                 }
             }
@@ -483,6 +487,8 @@ fun EditModeOverlay(
 
         /* ---- list page: its widgets sit in a stacked column, not on the cell grid, so they are removed from here ---- */
         if (style == HomeStyle.LIST && pageItems.isNotEmpty()) {
+            // One compact "Widgets (N)" chip; it opens a single tidy card with one row per widget.
+            var listWidgetsOpen by remember(currentPageId) { mutableStateOf(false) }
             Column(
                 Modifier
                     .align(Alignment.TopEnd)
@@ -491,13 +497,55 @@ fun EditModeOverlay(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.End,
             ) {
-                pageItems.forEachIndexed { i, widget ->
-                    EditChip(
-                        label = if (pageItems.size == 1) "Remove widget" else "Remove widget ${i + 1}",
-                        icon = Icons.Rounded.Close,
-                        onClick = { removeSelected(widget) },
-                        modifier = Modifier.testTag(EditTags.REMOVE_ITEM),
-                    )
+                EditChip(
+                    label = "Widgets (${pageItems.size})",
+                    icon = Icons.Rounded.Widgets,
+                    accent = listWidgetsOpen,
+                    onClick = { listWidgetsOpen = !listWidgetsOpen },
+                )
+                if (listWidgetsOpen) {
+                    val tokens = LocalFoldOsTokens.current
+                    val card = RoundedCornerShape(16.dp)
+                    Column(
+                        Modifier
+                            .width(220.dp)
+                            .clip(card)
+                            .background(tokens.drawerScrim, card)
+                            .border(1.dp, tokens.surfaceBorder, card)
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        pageItems.forEachIndexed { i, widget ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(40.dp)
+                                    .testTag(EditTags.REMOVE_ITEM)
+                                    .clickable {
+                                        removeSelected(widget)
+                                        if (pageItems.size <= 1) listWidgetsOpen = false
+                                    }
+                                    .padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = widget.title?.takeIf { it.isNotBlank() } ?: "Widget ${i + 1}",
+                                    color = tokens.onSurface,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Remove ${widget.title ?: "widget"}",
+                                    tint = tokens.onSurface,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

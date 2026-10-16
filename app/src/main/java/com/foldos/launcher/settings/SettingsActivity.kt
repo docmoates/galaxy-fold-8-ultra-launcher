@@ -51,10 +51,17 @@ class SettingsActivity : ComponentActivity() {
         }
         // This activity carries the app icon, so opening "FoldOS" from the app list lands here;
         // offer the home role once when another launcher still holds it.
-        if (savedInstanceState == null) maybeRequestHomeRole()
+        // Only when opened from the app list (a MAIN / LAUNCHER intent), never when FoldOS itself starts Settings.
+        if (savedInstanceState == null && openedFromAppList()) maybeRequestHomeRole()
     }
 
+    private fun openedFromAppList(): Boolean =
+        intent?.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER) &&
+            intent.getStringExtra(EXTRA_ROUTE) == null
+
     private fun maybeRequestHomeRole() {
+        if (askedThisProcess) return
+        askedThisProcess = true
         val roleManager = getSystemService(RoleManager::class.java) ?: return
         if (!roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) return
         if (roleManager.isRoleHeld(RoleManager.ROLE_HOME)) return
@@ -67,6 +74,9 @@ class SettingsActivity : ComponentActivity() {
     companion object {
         private const val PREFS_NAME = "foldos_launcher"
         private const val KEY_PROMPTED = "home_role_prompted_settings"
+
+        /** At most one role dialog per app launch (process), however many times Settings opens. */
+        private var askedThisProcess: Boolean = false
 
         /** Optional [SettingsRoutes] value: the page to open on top of the root list. */
         const val EXTRA_ROUTE: String = "com.foldos.launcher.settings.ROUTE"
