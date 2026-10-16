@@ -52,6 +52,7 @@ import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.home.ProvideLabelSize
 import kotlin.math.abs
 
 /** Numbers shared with the Home agent so it can size the pinned list it hands to [Dock]. */
@@ -129,16 +130,18 @@ fun Dock(
 ) {
     if (!settings.feature(LauncherSettings.FEATURE_DOCK)) return
     val palette = dockPalette()
-    if (config.pos == DockPosition.RAIL) {
-        RailDock(
-            config, pinned, palette, onLaunch, onOpenDrawer, modifier, settings.largeIcons,
-            dragController, onDockAppsChange, onHomeItemTakenIntoDock,
-        )
-    } else {
-        BottomDock(
-            config, screen, pinned, recents, settings, palette, onLaunch, onOpenDrawer, onSearch, modifier,
-            onNotifications, dragController, onDockAppsChange, onHomeItemTakenIntoDock,
-        )
+    ProvideLabelSize(settings) {
+        if (config.pos == DockPosition.RAIL) {
+            RailDock(
+                config, pinned, palette, onLaunch, onOpenDrawer, modifier, settings.largeIcons,
+                dragController, onDockAppsChange, onHomeItemTakenIntoDock,
+            )
+        } else {
+            BottomDock(
+                config, screen, pinned, recents, settings, palette, onLaunch, onOpenDrawer, onSearch, modifier,
+                onNotifications, dragController, onDockAppsChange, onHomeItemTakenIntoDock,
+            )
+        }
     }
 }
 
@@ -323,7 +326,7 @@ private fun BottomDock(
             DockBody(ctx, entries)
             if (config.folder && folderOpen) {
                 FolderPopup(
-                    name = settings.profile,
+                    name = "More apps",
                     apps = folderApps,
                     palette = palette,
                     onLaunch = onLaunch,

@@ -20,7 +20,8 @@ data class LauncherSettings(
     val iconSizeDp: Int = 58,
     val radiusDp: Int = 22,
     val labels: Boolean = true,
-    val profile: String = "Work",
+    /** App label size under icons: "small" (11sp), "medium" (12sp) or "large" (14sp); see home/AppLabelStyle.kt. */
+    val labelSize: String = "medium",
     /** Cover dock; default is the "Floating pill" preset. */
     val dockCover: DockConfig = DockConfig(),
     /** Inner dock; default is the "Taskbar" preset. */
@@ -48,7 +49,6 @@ data class LauncherSettings(
         FEATURE_STACKS to true,
         FEATURE_SMART to true,
         FEATURE_DRAWER_TABS to true,
-        FEATURE_PROFILES to true,
     ),
     /** Selected icon pack package name; null = system icons. */
     val iconPack: String? = null,
@@ -71,8 +71,6 @@ data class LauncherSettings(
     val searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(),
     /** Notification badge style: [BADGE_COUNT], [BADGE_DOT] or [BADGE_OFF]. */
     val badgeStyle: String = BADGE_COUNT,
-    /** Id of the active [Profile]; null = no profile applied. */
-    val activeProfile: String? = null,
     /** OAuth client id the Mail tab signs in with; null = mail not configured. */
     val mailClientId: String? = null,
     /** AI engine: [AI_MODE_TEMPLATE] (rule-based replies), [AI_MODE_ONDEVICE] (Gemini Nano) or [AI_MODE_OFF]. */
@@ -188,11 +186,10 @@ data class LauncherSettings(
         const val FEATURE_STACKS: String = "stacks"
         const val FEATURE_SMART: String = "smart"
         const val FEATURE_DRAWER_TABS: String = "drawerTabs"
-        const val FEATURE_PROFILES: String = "profiles"
 
         val ALL_FEATURES: List<String> = listOf(
             FEATURE_SEARCH, FEATURE_DOCK, FEATURE_BADGES, FEATURE_GESTURES, FEATURE_PAIRS,
-            FEATURE_AI, FEATURE_STACKS, FEATURE_SMART, FEATURE_DRAWER_TABS, FEATURE_PROFILES,
+            FEATURE_AI, FEATURE_STACKS, FEATURE_SMART, FEATURE_DRAWER_TABS,
         )
 
         /** Default gesture bindings (Settings > Gestures). Gestures not listed are unbound. */
@@ -246,27 +243,4 @@ data class LauncherSettings(
 
         val FOLDER_STYLES: List<String> = listOf(FOLDER_GRID, FOLDER_LIST, FOLDER_BIG)
     }
-}
-
-/**
- * A saved launcher state (Settings > Profiles): Work, Home, Travel, Night, Kids... [settingsJson]
- * is a [LauncherSettings] encoded the way `SettingsRepositoryImpl` stores it (`encodeDefaults`,
- * `ignoreUnknownKeys`); [hiddenApps] is applied alongside it. The optional schedule switches the
- * profile on automatically between [startMinute] and [endMinute] (minutes after midnight, local
- * time) on [days] (`java.util.Calendar.SUNDAY`..`SATURDAY`, i.e. 1..7; empty = every day), or
- * whenever Do Not Disturb is on when [onDnd] is true.
- */
-@Serializable
-data class Profile(
-    val id: String,
-    val name: String,
-    val settingsJson: String,
-    val hiddenApps: Set<String>,
-    val startMinute: Int? = null,
-    val endMinute: Int? = null,
-    val days: Set<Int> = emptySet(),
-    val onDnd: Boolean = false,
-) {
-    /** True when the profile has a time window to switch on automatically. */
-    val scheduled: Boolean get() = startMinute != null && endMinute != null
 }

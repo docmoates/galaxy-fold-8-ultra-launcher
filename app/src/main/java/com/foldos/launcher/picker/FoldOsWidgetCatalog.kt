@@ -109,7 +109,9 @@ class FoldOsWidgetCatalog(
     override val entries: Flow<List<WidgetEntry>> = providerChanges
         .map { loadAll() }
         .flowOn(Dispatchers.IO)
-        .shareIn(scope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000), replay = 1)
+        // Eagerly: the provider list loads in the background as soon as the catalog exists, so the
+        // picker's first open already has it (and a package change keeps it fresh).
+        .shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
     /** Recently used ids, most recent first. */
     private val recentIds: Flow<List<String>> = dataStore.data
@@ -224,7 +226,15 @@ class FoldOsWidgetCatalog(
             isBuiltIn = false,
             provider = info.provider,
             previewLoader = { loadPreview(info, label) },
+            descriptionLoader = { loadDescriptionText(info) },
         )
+    }
+
+    /** The provider's own description (API 31+), trimmed; null when it ships none. Call off the main thread. */
+    private fun loadDescriptionText(info: AppWidgetProviderInfo): String? = try {
+        info.loadDescription(appContext)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+    } catch (e: Exception) {
+        null
     }
 
     /** Provider preview image, else the app icon through the icon pack, else the provider icon. */

@@ -69,8 +69,8 @@ internal object BackupSupport {
 }
 
 /**
- * Resets the home layout to the defaults (Settings > Backup > Reset layout, Advanced). Settings,
- * profiles and icon choices are kept.
+ * Resets the home layout to the defaults (Settings > Backup > Reset layout, Advanced). Settings
+ * and icon choices are kept.
  */
 object LayoutReset {
 

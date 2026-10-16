@@ -53,13 +53,11 @@ Lcom/foldos/launcher/perf/**;
 HSPLcom/foldos/launcher/a11y/**;->**(**)**
 Lcom/foldos/launcher/a11y/**;
 
-# ---- Built-in widgets on the default dashboard, notification badges, profiles ---------------------------
+# ---- Built-in widgets on the default dashboard, notification badges ---------------------------
 HSPLcom/foldos/launcher/builtins/**;->**(**)**
 Lcom/foldos/launcher/builtins/**;
 HSPLcom/foldos/launcher/notifications/**;->**(**)**
 Lcom/foldos/launcher/notifications/**;
-HSPLcom/foldos/launcher/profiles/**;->**(**)**
-Lcom/foldos/launcher/profiles/**;
 
 # ---- Opened shortly after startup: drawer, search, edit mode, hub, pickers --------------------------------
 HPLcom/foldos/launcher/drawer/**;->**(**)**

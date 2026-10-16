@@ -53,7 +53,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
@@ -67,6 +66,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.foldos.launcher.a11y.LocalLargeIcons
+import com.foldos.launcher.home.AppLabel
 import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.a11y.a11yMinTouchTarget
 import com.foldos.launcher.core.model.AppInfo
@@ -154,18 +154,13 @@ internal fun DockLabel(
     modifier: Modifier = Modifier,
 ) {
     val large = LocalLargeIcons.current
-    Text(
+    // Shared label style: two lines, medium weight, soft shadow when it sits on the wallpaper.
+    AppLabel(
         text = text,
         modifier = modifier.widthIn(max = if (large) 96.dp else 76.dp),
         color = palette.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
-        style = TextStyle(
-            fontSize = if (large) 15.sp else 12.5.sp,
-            fontWeight = FontWeight.Medium,
-            shadow = if (shadow) textShadow() else null,
-        ),
+        onWallpaper = shadow,
+        fillWidth = false,
     )
 }
 
@@ -221,11 +216,12 @@ internal fun DockTextItem(
             .then(innerModifier)
             .padding(horizontal = 6.dp, vertical = 8.dp),
         color = palette.onSurface,
-        maxLines = 1,
+        // Two lines with wrapping instead of a one-line ellipsis; medium weight, not bold.
+        maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         style = TextStyle(
             fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Medium,
             shadow = if (shadow) textShadow() else null,
         ),
     )

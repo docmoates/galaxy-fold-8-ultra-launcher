@@ -52,7 +52,6 @@ object EditTags {
     const val ACTION_THEMES: String = "edit_action_themes"
     const val ACTION_WIDGETS: String = "edit_action_widgets"
     const val ACTION_DOCK: String = "edit_action_dock"
-    const val ACTION_PROFILES: String = "edit_action_profiles"
     const val ACTION_SETTINGS: String = "edit_action_settings"
     const val GRID_LAYER: String = "edit_grid_layer"
     const val REMOVE_ITEM: String = "edit_remove_item"

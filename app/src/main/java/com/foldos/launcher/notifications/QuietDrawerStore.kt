@@ -35,7 +35,7 @@ data class QuietDrawerConfig(
 
 /**
  * Persists [QuietDrawerConfig] in the Preferences DataStore `foldos_quiet_drawer`. Lives outside
- * `LauncherSettings` because the package list is per device, not part of a profile snapshot.
+ * `LauncherSettings` because the package list is per device.
  */
 class QuietDrawerStore(context: Context) {
 

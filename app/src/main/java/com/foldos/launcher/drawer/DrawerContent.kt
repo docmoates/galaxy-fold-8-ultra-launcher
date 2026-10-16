@@ -38,15 +38,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.sp
-import com.foldos.launcher.a11y.LocalLargeIcons
 import com.foldos.launcher.a11y.a11yAppLabel
 import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.a11y.a11yDirectionalFocus
@@ -55,6 +51,8 @@ import com.foldos.launcher.apppicker.appTileGestures
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.ui.DragController
 import com.foldos.launcher.core.ui.DragPayload
+import com.foldos.launcher.home.AppLabel
+import com.foldos.launcher.home.AppLabelStyle
 import com.foldos.launcher.theme.LocalFoldOsTokens
 
 /** Pill search field at the top of the drawer (mock-up `.srch`). */
@@ -203,23 +201,13 @@ private fun DrawerAppTile(
                 onLongPress = onMenu,
                 onDragStarted = onDragStarted,
             )
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .padding(horizontal = 1.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         DrawerAppIcon(app = app, size = iconSize)
-        Spacer(modifier = Modifier.height(7.dp))
-        Text(
-            text = app.label,
-            color = tokens.onSurface,
-            style = MaterialTheme.typography.labelMedium,
-            // Easy mode: larger labels.
-            fontSize = if (LocalLargeIcons.current) 15.sp else TextUnit.Unspecified,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Spacer(modifier = Modifier.height(AppLabelStyle.ICON_GAP))
+        // Shared label style (two lines, medium weight); Easy mode and the size from Settings > Home apply inside.
+        AppLabel(text = app.label, color = tokens.onSurface, onWallpaper = false)
     }
 }
 

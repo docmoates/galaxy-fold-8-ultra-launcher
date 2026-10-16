@@ -28,7 +28,7 @@ object QuickSetupRows {
     val wizard = SettingsRowInfo("Run setup wizard", "Screens, home style, look, colors, dock; every step picked from a live preview")
     val gallery = SettingsRowInfo("Preset gallery", "Minimal, Dashboard, Productivity, Media, Power user, One UI Classic")
     val importLayout = SettingsRowInfo("Import from current launcher", "Reads Samsung or Pixel layout where permitted")
-    val exportBackup = SettingsRowInfo("Export setup to file", "Save layout, settings, profiles and icon choices as foldos-backup.json")
+    val exportBackup = SettingsRowInfo("Export setup to file", "Save layout, settings and icon choices as foldos-backup.json")
     val importBackup = SettingsRowInfo("Import setup from file", "Restore a FoldOS backup file; replaces this phone's setup")
     val moreBackup = SettingsRowInfo("More backup options", "Google backup status, import from Nova or Lawnchair, reset layout")
     val reset = SettingsRowInfo("Reset all settings", "Back to the FoldOS defaults", advanced = true)

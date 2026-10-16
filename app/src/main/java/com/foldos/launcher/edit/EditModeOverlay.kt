@@ -35,7 +35,6 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Dock
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Widgets
@@ -110,7 +109,7 @@ private data class RemovedItem(val item: HomeItem, val message: String, val undo
  *   (Grid / Dashboard / List / Panels) and, under it, the page strip (previous / "Page n/m" / next,
  *   add page, delete page, Done);
  * - ONE bottom bar ([EditBottomBarHeight] above the navigation bar): Wallpaper, Themes, Widgets,
- *   Dock, (Profiles,) Settings;
+ *   Dock, Settings;
  * - on the page grid: a transparent gesture layer. Tap an item to select it (at most one is
  *   selected; tapping empty space or Back deselects), drag it to move (snaps to cells; hold past the
  *   left or right grid edge for 600 ms to switch the drop page), drag a corner handle of a selected
@@ -129,7 +128,6 @@ private data class RemovedItem(val item: HomeItem, val message: String, val undo
  *   released by the caller, see `LauncherViewModel.deleteItem`).
  * @param onSelectPage optional: called when the drop target page changes while dragging past an
  *   edge, and from the page arrows, so the caller can scroll its pager along.
- * @param onOpenProfiles optional: adds a "Profiles" entry to the bottom bar (the profile switcher).
  * @param onRestoreItem optional: called with the removed item when Undo is tapped; the caller must
  *   write it back unchanged (`LayoutRepository.upsertItem(item)`, same id) and keep an app widget's
  *   host id alive until the snackbar has expired. Null = no Undo button.
@@ -161,7 +159,6 @@ fun EditModeOverlay(
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
     onSelectPage: (pageId: Long) -> Unit = {},
-    onOpenProfiles: (() -> Unit)? = null,
     onRestoreItem: ((HomeItem) -> Unit)? = null,
     selectRequestId: Long? = null,
     onChromeMeasured: (EditChrome) -> Unit = {},
@@ -585,8 +582,6 @@ fun EditModeOverlay(
                     add(EditAction("Themes", Icons.Rounded.Palette, onOpenThemes, EditTags.ACTION_THEMES))
                     add(EditAction("Widgets", Icons.Rounded.Widgets, onAddWidget, EditTags.ACTION_WIDGETS))
                     add(EditAction("Dock", Icons.Rounded.Dock, onOpenDock, EditTags.ACTION_DOCK))
-                    // Profiles (Phase 4+5): the switcher sheet, only while the host offers it.
-                    if (onOpenProfiles != null) add(EditAction("Profiles", Icons.Rounded.Person, onOpenProfiles, EditTags.ACTION_PROFILES))
                     add(EditAction("Settings", Icons.Rounded.Settings, onOpenSettings, EditTags.ACTION_SETTINGS))
                 },
             )

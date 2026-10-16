@@ -35,7 +35,7 @@ data class SettingsCommand(
  * - "set the bold theme" (Material You, Dark Glass, One UI, Bold)
  * - "hide Reddit" / "unhide Reddit"
  * - "open Spotify when I unfold" (also fold; "do nothing when I unfold")
- * - "turn off badges / gestures / search / app pairs / stacks / smart widgets / drawer tabs / profiles / AI / dock"
+ * - "turn off badges / gestures / search / app pairs / stacks / smart widgets / drawer tabs / AI / dock"
  * - "move the hub to the right", "hide the hub", "tab bar on top", "hide labels", "use dots for badges",
  *   "use a full-screen drawer", "make folders a list", "search with DuckDuckGo", "set the cover screen to 5 columns",
  *   "make icons bigger"
@@ -277,7 +277,6 @@ class SettingsCommandParser {
         "stack", "stacks", "widget stack", "widget stacks" -> LauncherSettings.FEATURE_STACKS to "widget stacks"
         "smart widgets", "smart widget", "smart rules", "smart" -> LauncherSettings.FEATURE_SMART to "smart widget rules"
         "drawer tabs", "drawer tab", "tabs" -> LauncherSettings.FEATURE_DRAWER_TABS to "drawer tabs"
-        "profile", "profiles" -> LauncherSettings.FEATURE_PROFILES to "profiles"
         "ai", "assistant", "the assistant" -> LauncherSettings.FEATURE_AI to "AI features"
         "dock", "the dock" -> LauncherSettings.FEATURE_DOCK to "the dock"
         "hub", "the hub", "hub page" -> HUB_PSEUDO_FEATURE to "the hub"
@@ -416,8 +415,8 @@ class SettingsCommandParser {
         private val FOLD_NOTHING = Regex("""\b(?:do\s+nothing|nothing)\s+when\s+(?:i\s+)?(unfold|fold|open|close)\b|\bwhen\s+(?:i\s+)?(unfold|fold|open|close)[^a-z]*(?:do\s+)?nothing\b""")
         private val FOLD_OPEN_A = Regex("""\b(?:open|launch|start)\s+(.+?)\s+when\s+(?:i\s+)?(unfold|fold|open|close)(?:\s+(?:it|the\s+phone|my\s+phone|the\s+device))?\b""")
         private val FOLD_OPEN_B = Regex("""\bwhen\s+(?:i\s+)?(unfold|fold|open|close)(?:\s+(?:it|the\s+phone|my\s+phone|the\s+device))?,?\s+(?:open|launch|start)\s+(.+?)$""")
-        private val FEATURE_VERB = Regex("""\b(turn\s+on|turn\s+off|enable|disable|switch\s+on|switch\s+off)\s+(?:the\s+|my\s+)?(notification\s+badges?|badges?|gestures?|universal\s+search|search|app\s+pairs?|pairs?|widget\s+stacks?|stacks?|smart\s+(?:widgets?|rules)|drawer\s+tabs?|profiles?|ai|assistant|dock|hub(?:\s+page)?)\b""")
-        private val FEATURE_SUFFIX = Regex("""\b(notification\s+badges?|badges?|gestures?|universal\s+search|app\s+pairs?|widget\s+stacks?|stacks?|smart\s+(?:widgets?|rules)|drawer\s+tabs?|profiles?|dock|hub(?:\s+page)?)\s+(on|off)\b""")
+        private val FEATURE_VERB = Regex("""\b(turn\s+on|turn\s+off|enable|disable|switch\s+on|switch\s+off)\s+(?:the\s+|my\s+)?(notification\s+badges?|badges?|gestures?|universal\s+search|search|app\s+pairs?|pairs?|widget\s+stacks?|stacks?|smart\s+(?:widgets?|rules)|drawer\s+tabs?|ai|assistant|dock|hub(?:\s+page)?)\b""")
+        private val FEATURE_SUFFIX = Regex("""\b(notification\s+badges?|badges?|gestures?|universal\s+search|app\s+pairs?|widget\s+stacks?|stacks?|smart\s+(?:widgets?|rules)|drawer\s+tabs?|dock|hub(?:\s+page)?)\s+(on|off)\b""")
         private val HUB_MOVE = Regex("""\b(?:move|put|place|show)\s+(?:the\s+)?hub\s+(?:page\s+)?(?:to\s+|on\s+)?(?:the\s+)?(left|right)\b""")
         private val HUB_BAR = Regex("""\b(?:hub\s+)?tab\s*bar\s+(?:at\s+|on\s+|to\s+)?(?:the\s+)?(top|bottom)\b""")
         private val HUB_HIDE = Regex("""\b(?:hide|disable|remove|turn\s+off|switch\s+off)\s+(?:the\s+)?hub(?:\s+page)?\b""")

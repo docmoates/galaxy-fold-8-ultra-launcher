@@ -17,7 +17,6 @@ import com.foldos.launcher.core.repo.HubRepository
 import com.foldos.launcher.core.repo.IconResolver
 import com.foldos.launcher.core.repo.LayoutRepository
 import com.foldos.launcher.core.repo.MailRepository
-import com.foldos.launcher.core.repo.ProfileRepository
 import com.foldos.launcher.core.repo.SettingsRepository
 import com.foldos.launcher.core.repo.WidgetCatalog
 import com.foldos.launcher.data.db.LayoutDatabase
@@ -26,7 +25,6 @@ import com.foldos.launcher.icons.FoldOsIconResolver
 import com.foldos.launcher.mail.GmailMailRepository
 import com.foldos.launcher.notifications.FoldOsBadgeRepository
 import com.foldos.launcher.picker.FoldOsWidgetCatalog
-import com.foldos.launcher.profiles.FoldOsProfileRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +43,7 @@ import kotlinx.coroutines.SupervisorJob
  * the installed AppWidget providers, [icons] the icon-pack resolver, and [apps] routes every
  * `AppInfo.iconLoader` through that resolver.
  *
- * Phase 4+5 wiring: [badges] (notification listener), [profiles] (DataStore + alarms), [hub]
+ * Phase 4+5 wiring: [badges] (notification listener), [hub]
  * (calendar / calls / contacts / tasks), [mail] (Gmail API via AppAuth) and [ai] (command router
  * with the template and on-device providers).
  */
@@ -74,14 +72,12 @@ class AppGraphImpl(context: Context) : AppGraph {
 
     override val icons: IconResolver by lazy { FoldOsIconResolver(appContext, settings) }
 
-    // Phase 4+5 wiring. The `data/` placeholders (EmptyBadgeRepository, InMemoryProfileRepository,
+    // Phase 4+5 wiring. The `data/` placeholders (EmptyBadgeRepository,
     // EmptyHubRepository, NotConfiguredMailRepository, TemplateAiCommandRouter) stay as unused fallbacks.
 
     /** Badges and long-press previews from the notification listener, minus the quiet drawer's apps. */
     override val badges: BadgeRepository by lazy { FoldOsBadgeRepository(appContext, settings) }
 
-    /** Persisted profiles with schedule / Do Not Disturb auto-switching (alarms re-armed by the receivers). */
-    override val profiles: ProfileRepository by lazy { FoldOsProfileRepository(appContext, settings, appScope) }
 
     /** CalendarContract, CallLog, ContactsContract and the local task store behind the Hub. */
     override val hub: HubRepository by lazy { FoldOsHubRepository(appContext) }
@@ -97,11 +93,11 @@ class AppGraphImpl(context: Context) : AppGraph {
     override val ai: AiCommandRouter by lazy { FoldOsAiCommandRouter(appContext, settings, apps, hub, badges, mail) }
 
     /**
-     * Phase 6: JSON export / import of settings, layouts, profiles and icon overrides. The
+     * Phase 6: JSON export / import of settings, layouts and icon overrides. The
      * `NotImplementedBackupRepository` placeholder stays in `data/` as an unused fallback.
      */
     override val backup: BackupRepository by lazy {
-        FoldOsBackupRepository(appContext, settings, layouts, profiles, icons, apps)
+        FoldOsBackupRepository(appContext, settings, layouts, icons, apps)
     }
 
     /**

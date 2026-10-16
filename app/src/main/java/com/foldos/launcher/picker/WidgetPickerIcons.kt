@@ -1,10 +1,10 @@
 package com.foldos.launcher.picker
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Article
+import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.Apps
-import androidx.compose.material.icons.rounded.Article
 import androidx.compose.material.icons.rounded.Build
-import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Favorite
@@ -33,7 +33,7 @@ object WidgetPickerIcons {
         WidgetCategory.CLOCK -> Icons.Rounded.Schedule
         WidgetCategory.WEATHER -> Icons.Rounded.WbSunny
         WidgetCategory.CALENDAR -> Icons.Rounded.Event
-        WidgetCategory.COMMUNICATION -> Icons.Rounded.Chat
+        WidgetCategory.COMMUNICATION -> Icons.AutoMirrored.Rounded.Chat
         WidgetCategory.MEDIA -> Icons.Rounded.MusicNote
         WidgetCategory.PHOTOS -> Icons.Rounded.PhotoLibrary
         WidgetCategory.PRODUCTIVITY -> Icons.Rounded.Description
@@ -42,7 +42,7 @@ object WidgetPickerIcons {
         WidgetCategory.SMART_HOME -> Icons.Rounded.Home
         WidgetCategory.TRAVEL -> Icons.Rounded.Map
         WidgetCategory.FINANCE -> Icons.Rounded.Payment
-        WidgetCategory.NEWS -> Icons.Rounded.Article
+        WidgetCategory.NEWS -> Icons.AutoMirrored.Rounded.Article
         WidgetCategory.SEARCH -> Icons.Rounded.Search
         WidgetCategory.SOCIAL -> Icons.Rounded.Group
         WidgetCategory.UTILITIES -> Icons.Rounded.Build

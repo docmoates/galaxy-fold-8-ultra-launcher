@@ -40,7 +40,7 @@ object SettingsPages {
         WidgetsRows.page,
         GesturesRows.page,
         SearchRows.page,
-        ProfilesRows.page,
+        HiddenAppsRows.page,
         MailSettingsRows.page,
         AiRows.page,
         BackupRows.page,

@@ -126,7 +126,7 @@ fun SettingsRoot(
             composable(SettingsRoutes.LOOK) { LookPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.WIDGETS) { WidgetsPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.GESTURES) { GesturesPage(settings = current, update = update, onBack = onBack) }
-            composable(SettingsRoutes.PROFILES) { ProfilesPage(settings = current, update = update, onBack = onBack) }
+            composable(HiddenAppsRows.ROUTE) { HiddenAppsPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.AI) { AiPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.FEATURES) { FeaturesPage(settings = current, update = update, onBack = onBack) }
             composable(SearchRows.ROUTE) { SearchSettingsPage(settings = current, update = update, onBack = onBack) }

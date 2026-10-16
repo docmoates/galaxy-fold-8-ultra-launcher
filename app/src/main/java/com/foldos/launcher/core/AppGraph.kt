@@ -12,7 +12,6 @@ import com.foldos.launcher.core.repo.HubRepository
 import com.foldos.launcher.core.repo.IconResolver
 import com.foldos.launcher.core.repo.LayoutRepository
 import com.foldos.launcher.core.repo.MailRepository
-import com.foldos.launcher.core.repo.ProfileRepository
 import com.foldos.launcher.core.repo.SettingsRepository
 import com.foldos.launcher.core.repo.WidgetCatalog
 import kotlinx.coroutines.CoroutineScope
@@ -38,9 +37,6 @@ interface AppGraph {
     /** Notification badge counts and previews. */
     val badges: BadgeRepository
 
-    /** Saved launcher profiles and their activation. */
-    val profiles: ProfileRepository
-
     /** Calendar, calls, contacts and tasks for the Hub page. */
     val hub: HubRepository
 
@@ -50,7 +46,7 @@ interface AppGraph {
     /** The Hub's AI tab and natural-language settings commands. */
     val ai: AiCommandRouter
 
-    /** Settings / layout / profile export and import as JSON. */
+    /** Settings / layout export and import as JSON. */
     val backup: BackupRepository
 
     /**

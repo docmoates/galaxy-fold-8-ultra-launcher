@@ -30,7 +30,7 @@ object BackupRows {
     /** Navigation route of this page. */
     const val ROUTE: String = "backup"
 
-    val export = SettingsRowInfo("Back up to file", "Save layout, settings, profiles and icon choices as foldos-backup.json")
+    val export = SettingsRowInfo("Back up to file", "Save layout, settings and icon choices as foldos-backup.json")
     val restore = SettingsRowInfo("Restore from file", "Replace this phone's setup with a FoldOS backup file")
     val google = SettingsRowInfo("Google device backup", "Android Auto Backup keeps FoldOS data in your Google account")
     val googleNow = SettingsRowInfo("Request a backup now", "Asks Android to run an Auto Backup pass soon")
@@ -78,8 +78,8 @@ fun BackupPage(
         StaticRow(info = BackupRows.export, onClick = actions.exportToFile)
         StaticRow(info = BackupRows.restore, onClick = actions.restoreFromFile)
         NoteText(
-            text = "The file holds your home pages, folders, stacks, app pairs, built-in widgets, all settings, " +
-                "profiles and per-app icon choices. Hosted app widgets, search history and Gmail sign-in are not included.",
+            text = "The file holds your home pages, folders, stacks, app pairs, built-in widgets, all settings " +
+                "and per-app icon choices. Hosted app widgets, search history and Gmail sign-in are not included.",
         )
 
         SectionHeader(text = "Google device backup")

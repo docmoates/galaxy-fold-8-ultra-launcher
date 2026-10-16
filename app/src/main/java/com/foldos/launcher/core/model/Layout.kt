@@ -175,6 +175,7 @@ enum class WidgetCategory(val displayName: String, val iconName: String) {
  * @property source the app or "FoldOS built-in" label shown under the name.
  * @property provider the AppWidget provider component; null for built-ins.
  * @property previewLoader lazily loads the provider's preview image; null when none exists.
+ * @property descriptionLoader lazily reads the provider's own description (call off the main thread); null when none exists.
  */
 data class WidgetEntry(
     val id: String,
@@ -188,4 +189,5 @@ data class WidgetEntry(
     val isBuiltIn: Boolean,
     val provider: ComponentName? = null,
     val previewLoader: (() -> Drawable?)? = null,
+    val descriptionLoader: (() -> String?)? = null,
 )

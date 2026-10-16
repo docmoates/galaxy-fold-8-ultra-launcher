@@ -1,14 +1,13 @@
 package com.foldos.launcher.core.repo
 
 import com.foldos.launcher.core.model.LauncherSettings
-import com.foldos.launcher.core.model.Profile
 import kotlinx.serialization.Serializable
 
 /**
  * Export / import of the launcher's configuration as one JSON document ([BackupFile]).
  *
  * Included: [LauncherSettings], home layouts (pages and items, including folders, stacks, app pairs
- * and built-in widgets by `builtinId`), saved [Profile]s and per-app icon overrides. Excluded:
+ * and built-in widgets by `builtinId`), per-app icon overrides. Excluded:
  * hosted app widgets (their `appWidgetId`s are bound to this install), search ranking / recents,
  * mail tokens and notification state. Implemented by the Backup agent.
  */
@@ -46,7 +45,6 @@ data class BackupFile(
     val createdAt: Long,
     val settings: LauncherSettings,
     val pages: List<BackupPage>,
-    val profiles: List<Profile> = emptyList(),
     val iconOverrides: Map<String, String> = emptyMap(),
     val dockApps: Map<String, List<String>> = emptyMap(),
     val appGroups: Map<String, List<String>> = emptyMap(),

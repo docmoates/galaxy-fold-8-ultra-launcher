@@ -66,6 +66,7 @@ import com.foldos.launcher.core.model.DrawerStyle
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.home.ProvideLabelSize
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.flow.flowOf
 
@@ -238,22 +239,24 @@ fun AppDrawer(
     }
 
     val body: @Composable (Modifier, PaddingValues, Boolean) -> Unit = { bodyModifier, padding, grabHandle ->
-        DrawerBody(
-            state = pickerState,
-            model = model,
-            showChips = showChips,
-            showGrabHandle = grabHandle,
-            totalCount = apps.size,
-            columns = columns,
-            iconSize = iconSize,
-            onLaunch = launchAndDismiss,
-            onSearch = launchFirst,
-            badgeCounts = badgeCounts,
-            contentPadding = padding,
-            dragController = dragController,
-            onDragStarted = onDragStarted,
-            modifier = bodyModifier,
-        )
+        ProvideLabelSize(settings) {
+            DrawerBody(
+                state = pickerState,
+                model = model,
+                showChips = showChips,
+                showGrabHandle = grabHandle,
+                totalCount = apps.size,
+                columns = columns,
+                iconSize = iconSize,
+                onLaunch = launchAndDismiss,
+                onSearch = launchFirst,
+                badgeCounts = badgeCounts,
+                contentPadding = padding,
+                dragController = dragController,
+                onDragStarted = onDragStarted,
+                modifier = bodyModifier,
+            )
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {

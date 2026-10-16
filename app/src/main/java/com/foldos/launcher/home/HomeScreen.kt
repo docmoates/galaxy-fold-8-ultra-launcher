@@ -218,56 +218,59 @@ fun HomeScreen(
         Modifier
     }
 
-    Box(
-        modifier
-            .fillMaxSize()
-            // Hardware keyboard: arrow keys move focus between tiles; a printable key opens search
-            // (LocalKeyboardShortcuts.onTypeToSearch, provided by the launcher root).
-            .a11yDirectionalFocus()
-            .a11yTypeToSearch(refocusKey = keyboardRefocusKey to editMode)
-            .windowInsetsPadding(WindowInsets.systemBars)
-            .onGloballyPositioned { coordinates ->
-                // Unscaled window position (edit mode draws the home scaled; see LocalEditHomeRoot).
-                val homeRoot = editHomeRoot?.coordinates
-                origin = if (homeRoot != null && homeRoot.isAttached && coordinates.isAttached) {
-                    homeRoot.localPositionOf(coordinates, Offset.Zero)
-                } else {
-                    coordinates.positionInWindow()
+    // One label size (Settings > Home > Label size) for every tile under this home.
+    ProvideLabelSize(settings) {
+        Box(
+            modifier
+                .fillMaxSize()
+                // Hardware keyboard: arrow keys move focus between tiles; a printable key opens search
+                // (LocalKeyboardShortcuts.onTypeToSearch, provided by the launcher root).
+                .a11yDirectionalFocus()
+                .a11yTypeToSearch(refocusKey = keyboardRefocusKey to editMode)
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .onGloballyPositioned { coordinates ->
+                    // Unscaled window position (edit mode draws the home scaled; see LocalEditHomeRoot).
+                    val homeRoot = editHomeRoot?.coordinates
+                    origin = if (homeRoot != null && homeRoot.isAttached && coordinates.isAttached) {
+                        homeRoot.localPositionOf(coordinates, Offset.Zero)
+                    } else {
+                        coordinates.positionInWindow()
+                    }
                 }
+                .then(rootSwipes),
+        ) {
+            if (flex) {
+                val first = sortedPages.firstOrNull()
+                val items = homePageItems(first, itemsForPage)
+                val reportPage = rememberUpdatedState(onCurrentPageChanged)
+                LaunchedEffect(first?.id) { reportPage.value?.invoke(first) }
+                HomeFlexLayout(
+                    ctx = ctx,
+                    firstPage = first,
+                    items = items,
+                    originY = origin.y,
+                    dock = dock,
+                    searchBar = searchBar,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                HomePagedLayout(
+                    ctx = ctx,
+                    pages = sortedPages,
+                    itemsForPage = itemsForPage,
+                    dock = dock,
+                    searchBar = searchBar,
+                    hub = hub,
+                    homeRequest = homeRequest,
+                    onCurrentPageChanged = onCurrentPageChanged,
+                    pageSelectRequest = pageSelectRequest,
+                    hubSelectRequest = hubSelectRequest,
+                    onHubChanged = { isHub ->
+                        onHub = isHub
+                        reportHub.value?.invoke(isHub)
+                    },
+                )
             }
-            .then(rootSwipes),
-    ) {
-        if (flex) {
-            val first = sortedPages.firstOrNull()
-            val items = homePageItems(first, itemsForPage)
-            val reportPage = rememberUpdatedState(onCurrentPageChanged)
-            LaunchedEffect(first?.id) { reportPage.value?.invoke(first) }
-            HomeFlexLayout(
-                ctx = ctx,
-                firstPage = first,
-                items = items,
-                originY = origin.y,
-                dock = dock,
-                searchBar = searchBar,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            HomePagedLayout(
-                ctx = ctx,
-                pages = sortedPages,
-                itemsForPage = itemsForPage,
-                dock = dock,
-                searchBar = searchBar,
-                hub = hub,
-                homeRequest = homeRequest,
-                onCurrentPageChanged = onCurrentPageChanged,
-                pageSelectRequest = pageSelectRequest,
-                hubSelectRequest = hubSelectRequest,
-                onHubChanged = { isHub ->
-                    onHub = isHub
-                    reportHub.value?.invoke(isHub)
-                },
-            )
         }
     }
 }

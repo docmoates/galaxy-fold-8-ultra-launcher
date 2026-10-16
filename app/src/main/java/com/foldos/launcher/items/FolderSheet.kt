@@ -27,10 +27,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material.icons.rounded.ZoomOutMap
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -72,6 +72,7 @@ import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.home.AppLabel
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -410,7 +411,7 @@ private fun Modifier.childGestures(
         )
     }
 
-/** One child in the grid / big layouts: icon over a single-line label. */
+/** One child in the grid / big layouts: icon over a label of up to two lines. */
 @Composable
 private fun FolderGridCell(
     child: HomeItem,
@@ -426,19 +427,15 @@ private fun FolderGridCell(
             .fillMaxWidth()
             .clip(cellShape)
             .background(if (selected) tokens.highlight else Color.Transparent)
-            .padding(horizontal = 2.dp, vertical = 6.dp),
+            .padding(horizontal = 1.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         FolderChildIcon(child, apps, iconSize)
         Spacer(Modifier.height(5.dp))
-        Text(
+        AppLabel(
             text = childLabel(child, apps),
             color = if (selected) tokens.onHighlight else tokens.onSurface,
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
+            onWallpaper = false,
         )
     }
 }
@@ -464,14 +461,13 @@ private fun FolderListRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         FolderChildIcon(child, apps, iconSize)
-        Text(
+        AppLabel(
             text = childLabel(child, apps),
-            color = if (selected) tokens.onHighlight else tokens.onSurface,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
+            color = if (selected) tokens.onHighlight else tokens.onSurface,
+            onWallpaper = false,
+            textAlign = TextAlign.Start,
+            reserveLines = false,
         )
     }
 }
@@ -515,7 +511,7 @@ private fun FolderStyleToggle(style: String, onSelect: (String) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         StyleSegment(LauncherSettings.FOLDER_GRID, Icons.Rounded.Apps, style, onSelect)
-        StyleSegment(LauncherSettings.FOLDER_LIST, Icons.Rounded.ViewList, style, onSelect)
+        StyleSegment(LauncherSettings.FOLDER_LIST, Icons.AutoMirrored.Rounded.ViewList, style, onSelect)
         StyleSegment(LauncherSettings.FOLDER_BIG, Icons.Rounded.ZoomOutMap, style, onSelect)
     }
 }

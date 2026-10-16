@@ -4,6 +4,36 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.2.0] - 2026-10-16
+
+Fix round 1.3 (`versionCode` 120): remove profiles, readable labels, clean widget picker. Written from the source; not yet run on a device.
+
+### Removed
+- Profiles, end to end: the Settings > Profiles page, the "Active profile" and Profiles rows on Screens and Features, the
+  Profiles button on the edit bar, the profile switcher / editor sheets, the schedule and Do Not Disturb auto-switching,
+  `ProfileAlarmReceiver` / `ProfileBootReceiver`, the `SCHEDULE_EXACT_ALARM` permission (the daily wallpaper alarm is inexact)
+  and the `profiles` list in backups. Old settings and old backup files that still carry `profile`, `activeProfile`, a
+  `profiles` feature switch or a `profiles` list import normally; those keys are ignored.
+
+### Changed
+- Hidden apps now have their own page, Settings > More settings > Hidden apps (it used to live inside the profile editor).
+- Readable app labels: names under icons on the home grid, the dock, the app pop-up, folders, app pairs and the app
+  menus use one style (12sp medium weight, centered, soft shadow on the wallpaper). A long name wraps to two lines and
+  gets an ellipsis only after the second line, so "Amazon Photos" and "Authenticator" are no longer cut off. Every
+  icon keeps a fixed two-line label slot, so rows stay aligned. The system font scale only grows labels up to 1.15x.
+- Label size: Settings > Home style shows three preview cards (Small 11sp, Medium 12sp, Large 14sp) with sample names;
+  the choice is stored as `labelSize` (default medium). Easy mode adds 3sp on top.
+- The home grid reserves room for two label lines under each icon, so a page can fit one row fewer on a short screen;
+  the labeled bottom dock is about 13dp taller.
+- New widget picker with two levels. Level 1: a search field, a Featured grid of FoldOS widgets, and an Apps list (one
+  row per app that provides widgets, FoldOS first, filter chips by category). Level 2: a swipe-through detail view that
+  shows each widget of the chosen app on its own page with a large preview, its size and a description, page dots, and
+  an "Add to home" button. Cover: bottom sheet with a back arrow; inner and flex screens: floating card with the list on
+  the left and the pager on the right. The add flow (built-in widgets placed directly, app widgets through the system
+  bind and configure steps) is unchanged.
+- Settings > Widgets is now one choice (Category / App / Recent, shown as three cards) plus Reset recent widgets. The
+  Widget stacks and Smart switches stay on Features.
+
 ## [1.1.1] - 2026-10-16
 
 Fix round 1.2: on-device test results on 1.1.0 (`versionCode` 111). Written from the source; not yet run on a device.

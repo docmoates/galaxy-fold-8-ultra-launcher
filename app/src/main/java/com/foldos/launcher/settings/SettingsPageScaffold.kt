@@ -36,7 +36,6 @@ object SettingsRoutes {
     const val LOOK: String = "look"
     const val WIDGETS: String = "widgets"
     const val GESTURES: String = "gestures"
-    const val PROFILES: String = "profiles"
     const val AI: String = "ai"
     const val FEATURES: String = "features"
     const val ABOUT: String = "about"

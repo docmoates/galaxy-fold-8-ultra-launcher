@@ -89,7 +89,7 @@ Shared contracts for 6 and 11 are already in `core/` (see `app/CONTRACTS.md`, "F
   - Dock: the 20 `DockPresets` as `SampleDockPreview` cards (already in `DockPage`; keep the preset tiles, drop the trait toggles to "Customize").
   - Icons: shape samples (`IconShape`) and the existing icon-pack picker.
   - Hub: sample cards for tab bar top/bottom and left/right position.
-  - Everything else (Gestures, Search providers, Profiles, Mail, AI, Backup, Accessibility, Features, About) moves under one
+  - Everything else (Gestures, Search providers, Hidden apps, Mail, AI, Backup, Accessibility, Features, About) moves under one
     "More settings" entry; those pages may keep their toggles. `SettingsRowInfo` search keeps working over all pages.
   - Reuse, do not duplicate: `internal` composables in `onboarding/` are visible module-wide.
 

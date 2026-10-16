@@ -22,7 +22,6 @@ object FeaturesRows {
         FeatureRowInfo(LauncherSettings.FEATURE_DOCK, SettingsRowInfo("Dock", "Favorites bar on every home page")),
         FeatureRowInfo(LauncherSettings.FEATURE_STACKS, SettingsRowInfo("Widget stacks", "Swipe between widgets in one slot")),
         FeatureRowInfo(LauncherSettings.FEATURE_SMART, SettingsRowInfo("Smart widgets", "Rules by time, place, fold state, device")),
-        FeatureRowInfo(LauncherSettings.FEATURE_PROFILES, SettingsRowInfo("Profiles", "Switch by time, place, Wi-Fi or Routines")),
     )
     val noNetwork = SettingsRowInfo(
         "No-network mode",

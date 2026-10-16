@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -28,12 +26,8 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.foldos.launcher.a11y.LocalLargeIcons
 import com.foldos.launcher.a11y.a11yAppLabel
 import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.a11y.a11yFocusTile
@@ -146,7 +140,6 @@ fun HomeAppTile(
 ) {
     val holder = remember { HomeAnchorHolder() }
     val longPress: (() -> Unit)? = onLongPressAt?.let { report -> { report(holder.bounds() ?: Rect.Zero) } } ?: onLongClick
-    val large = LocalLargeIcons.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -159,21 +152,15 @@ fun HomeAppTile(
             .a11yFocusTile(onActivate = onClick, onMenu = longPress)
             .homeAnchor(holder)
             .homeTapGestures(onTap = onClick, onLongPress = longPress)
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            // 1dp per side: the label is the full cell width minus 2dp.
+            .padding(horizontal = 1.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         HomeAppIcon(app = app, size = iconSize, badge = badge, badgeStyle = badgeStyle)
         if (showLabel) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = app.label,
-                color = labelColor,
-                style = MaterialTheme.typography.labelMedium.copy(shadow = homeTextShadow()),
-                fontSize = if (large) 15.sp else 12.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
+            Spacer(Modifier.height(AppLabelStyle.ICON_GAP))
+            // Shared label style: two lines, medium weight, soft shadow, size from Settings > Home.
+            AppLabel(text = app.label, color = labelColor)
         }
     }
 }

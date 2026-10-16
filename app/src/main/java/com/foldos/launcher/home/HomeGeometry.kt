@@ -118,12 +118,15 @@ fun estimateGridGeometry(
         !(dockOn && dock.pos != DockPosition.RAIL && dock.search)
     val bottomDock = dockOn && dock.pos == DockPosition.BOTTOM
     val topDp = EST_STATUS_BAR_DP + 10 + (if (searchOn) 64 else 0)
-    val dockDp = if (bottomDock) settings.effectiveIconSizeDp + (if (dock.labels || dock.two) 56 else 34) else 0
+    val dockDp = if (bottomDock) settings.effectiveIconSizeDp + (if (dock.labels || dock.two) 68 else 34) else 0
     val bottomDp = 10 + 27 + dockDp + EST_NAV_BAR_DP
     val gutterDp = if (inner && fold.hingeBounds != null && cols % 2 == 0) HingeGutterWidth.value.toInt() else 0
     val widthDp = (fold.widthDp - 2 * HomeSidePadding.value.toInt() - gutterDp).coerceAtLeast(cols)
     val heightDp = (fold.heightDp - topDp - bottomDp).coerceAtLeast(1)
-    val labelDp = if (settings.effectiveLabels) (if (settings.largeIcons) 32 else 24) else 0
+    // Gap + two reserved label lines at the settings' label size. No Density is available here, so the
+    // estimate assumes the capped maximum font scale: it is never shorter than the real grid's rows, so
+    // a seeded layout can never put more items on a page than the grid draws.
+    val labelDp = kotlin.math.ceil(AppLabelStyle.blockHeightDp(settings, AppLabelStyle.MAX_FONT_SCALE)).toInt()
     val rows = when (style) {
         HomeStyle.GRID -> max(1, heightDp / (settings.effectiveIconSizeDp + labelDp + 20))
         HomeStyle.DASHBOARD -> dashboardRows(defaultDashboardItems(screen, 0L))

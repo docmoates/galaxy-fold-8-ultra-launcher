@@ -64,8 +64,6 @@ import com.foldos.launcher.notifications.QuietDrawerSheet
 import com.foldos.launcher.onboarding.SetupWizard
 import com.foldos.launcher.picker.WidgetPicker
 import com.foldos.launcher.picker.rememberWidgetPickerBackdropModifier
-import com.foldos.launcher.profiles.ProfileAutoSwitchEffect
-import com.foldos.launcher.profiles.ProfileSwitcherSheet
 import com.foldos.launcher.search.SearchBar
 import com.foldos.launcher.search.UniversalSearch
 import com.foldos.launcher.settings.SettingsActivity
@@ -230,9 +228,6 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     )
     HingeGestureEffect(fold = fold, enabled = settings.wizardDone, settings = settings, onAction = onGestureAction)
 
-    // Profiles: schedule / Do Not Disturb rules re-evaluated on resume, DND receiver while composed.
-    ProfileAutoSwitchEffect()
-
     // Back on the home screen returns to the default page. The drawer, the picker, the edit
     // overlay and universal search each have their own BackHandler (composed later, so higher priority).
     BackHandler(enabled = !drawerOpen && !pickerOpen && !editMode && !searchOpen) { viewModel.goHome() }
@@ -293,7 +288,6 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
 
     var themesOpen by rememberSaveable { mutableStateOf(false) }
     var wallpaperOpen by rememberSaveable { mutableStateOf(false) }
-    var profilesOpen by rememberSaveable { mutableStateOf(false) }
     var quietDrawerOpen by rememberSaveable { mutableStateOf(false) }
     // Done / Back / home key leave edit mode without going through the sheets' onDismiss; reset
     // the flags so a sheet does not pop up by itself the next time edit mode opens.
@@ -312,7 +306,6 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         visible = (drawerOpen && !dragController.isDragging) || pickerOpen,
         blur = settings.popBlur && (pickerOpen || settings.drawerStyle == DrawerStyle.POPUP),
     )
-    val profilesOn = settings.feature(LauncherSettings.FEATURE_PROFILES)
     val onNotifications: (() -> Unit)? = if (settings.feature(LauncherSettings.FEATURE_BADGES)) {
         { quietDrawerOpen = true }
     } else {
@@ -500,11 +493,6 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
             onSelectPage = { pageId -> viewModel.selectPage(pageId) },
             onRestoreItem = { item -> viewModel.restoreItem(item) },
             selectRequestId = editSelectId,
-            onOpenProfiles = if (profilesOn) {
-                { profilesOpen = true }
-            } else {
-                null
-            },
         )
         ThemeQuickSheet(visible = editMode && themesOpen, settings = settings, onDismiss = { themesOpen = false })
         WallpaperSheet(visible = editMode && wallpaperOpen, onDismiss = { wallpaperOpen = false })
@@ -549,10 +537,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
             initialQuery = searchSeed,
         )
 
-        // Profile switcher (edit bar > Profiles) and the quiet notification drawer (dock add-on).
-        if (profilesOpen && profilesOn) {
-            ProfileSwitcherSheet(onDismiss = { profilesOpen = false })
-        }
+        // The quiet notification drawer (dock add-on).
         if (quietDrawerOpen) {
             QuietDrawerSheet(onDismiss = { quietDrawerOpen = false })
         }

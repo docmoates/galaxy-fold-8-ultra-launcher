@@ -2,7 +2,7 @@
 <!-- Auto Backup rules for Android 11 and lower (fullBackupContent).
      Once any <include> is present only the included paths are backed up, so this list is the
      whole policy: the Room layout database and the DataStore files that hold user choices
-     (settings, profiles, icons, tasks, to-do, quiet drawer, dock apps, app pop-up groups).
+     (settings, icons, tasks, to-do, quiet drawer, dock apps, app pop-up groups).
      Not backed up: caches, the daily-wallpaper and widget-ids-checked stores (foldos_daily_wallpaper,
      foldos_widget_ids_checked: per-device state), the search ranking / usage store (foldos_search_usage), the AI usage
      log, widget recents, the focus timer, and the Gmail tokens (Keystore-bound). -->
@@ -11,10 +11,9 @@
          and -shm files travel with foldos_layout.db. -->
     <include domain="database" path="." />
 
-    <!-- DataStore (files/datastore/<name>.preferences_pb): settings, profiles, dock apps, app pop-up groups, per-app icon
+    <!-- DataStore (files/datastore/<name>.preferences_pb): settings, dock apps, app pop-up groups, per-app icon
          overrides, hub tasks, to-do list, quiet drawer. -->
     <include domain="file" path="datastore/foldos_settings.preferences_pb" />
-    <include domain="file" path="datastore/foldos_profiles.preferences_pb" />
     <include domain="file" path="datastore/foldos_icons.preferences_pb" />
     <include domain="file" path="datastore/foldos_tasks.preferences_pb" />
     <include domain="file" path="datastore/foldos_todo.preferences_pb" />

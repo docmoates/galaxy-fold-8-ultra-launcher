@@ -15,7 +15,7 @@
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,AnnotationDefault
 
 # ---------------------------------------------------------------------------------------------
-# kotlinx.serialization (LauncherSettings, Profile, DockConfig, ColorSchemeConfig, GestureAction,
+# kotlinx.serialization (LauncherSettings, DockConfig, ColorSchemeConfig, GestureAction,
 # IconShape, BackupFile / BackupPage / BackupItem, ... every @Serializable class)
 # Mirrors the rules published in the kotlinx.serialization README.
 # ---------------------------------------------------------------------------------------------
@@ -53,7 +53,7 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
-# Settings, profiles and backups store enums by name (valueOf / values / entries).
+# Settings and backups store enums by name (valueOf / values / entries).
 -keepclassmembers enum com.foldos.launcher.** {
     public static **[] values();
     public static ** valueOf(java.lang.String);

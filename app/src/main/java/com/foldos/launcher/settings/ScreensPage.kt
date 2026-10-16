@@ -10,8 +10,6 @@ import com.foldos.launcher.core.model.ScreenMode
 object ScreensRows {
     val screenMode = SettingsRowInfo("Cover and inner screens", "Same, different, or continuity")
     val appearance = SettingsRowInfo("Appearance", "Light, dark, or switch at sunrise and sunset")
-    val profiles = SettingsRowInfo("Profiles", "Switch by time, place, Wi-Fi or Routines")
-    val profile = SettingsRowInfo("Active profile")
     val foldTransition = SettingsRowInfo("Fold transition", "Morph animation or instant", advanced = true)
     val flexLayout = SettingsRowInfo("Flex mode layout", "Own layout or reuse the inner screen", advanced = true)
 
@@ -20,7 +18,7 @@ object ScreensRows {
         title = "Screens",
         subtitle = "Same, different or continuity; dark, light, auto",
         icon = Icons.Outlined.PhoneAndroid,
-        rows = listOf(screenMode, appearance, profiles, profile, foldTransition, flexLayout),
+        rows = listOf(screenMode, appearance, foldTransition, flexLayout),
     )
 
     val screenModeOptions: List<Pair<ScreenMode, String>> = listOf(
@@ -32,12 +30,6 @@ object ScreensRows {
         Appearance.DARK to "Dark",
         Appearance.LIGHT to "Light",
         Appearance.AUTO to "Auto (sunset)",
-    )
-    val profileOptions: List<Pair<String, String>> = listOf(
-        "Work" to "Work",
-        "Home" to "Home",
-        "Travel" to "Travel",
-        "Night" to "Night",
     )
 }
 
@@ -59,18 +51,6 @@ fun ScreensPage(
             value = settings.appearance,
             options = ScreensRows.appearanceOptions,
             onSelect = { mode -> update { it.copy(appearance = mode) } },
-        )
-        ToggleRow(
-            info = ScreensRows.profiles,
-            checked = settings.feature(LauncherSettings.FEATURE_PROFILES),
-            onCheckedChange = { on -> update { it.withFeature(LauncherSettings.FEATURE_PROFILES, on) } },
-        )
-        SelectRow(
-            info = ScreensRows.profile,
-            value = settings.profile,
-            options = ScreensRows.profileOptions,
-            onSelect = { name -> update { it.copy(profile = name) } },
-            visible = settings.feature(LauncherSettings.FEATURE_PROFILES),
         )
         StaticRow(info = ScreensRows.foldTransition, trailingText = "Morph")
         StaticRow(info = ScreensRows.flexLayout, trailingText = "Own layout")

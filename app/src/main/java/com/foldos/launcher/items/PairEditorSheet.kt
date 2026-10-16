@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.home.AppLabel
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.theme.LocalFoldOsTokens
@@ -329,14 +330,11 @@ private fun PairSlot(
                 }
             }
         }
-        Text(
+        AppLabel(
             text = app?.label ?: "Choose an app",
             color = if (active) tokens.onHighlight else tokens.onSurface,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
+            onWallpaper = false,
+            reserveLines = false,
         )
         Text(
             text = caption,
@@ -358,18 +356,15 @@ private fun PairPickTile(app: AppInfo, selected: Boolean, onClick: () -> Unit) {
             .clip(shape)
             .background(if (selected) tokens.highlight else Color.Transparent)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 8.dp),
+            .padding(horizontal = 1.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         ItemAppIcon(app = app, size = 44.dp)
         Spacer(Modifier.height(5.dp))
-        Text(
+        AppLabel(
             text = app.label,
             color = if (selected) tokens.onHighlight else tokens.onSurface,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
+            onWallpaper = false,
         )
     }
 }

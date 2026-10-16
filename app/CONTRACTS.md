@@ -50,12 +50,12 @@ Agents replacing a placeholder edit only the matching `by lazy { ... }` line in 
 
 | Package / path | Owner | Public API it must expose |
 |---|---|---|
-| `core/model/Layout.kt`, `core/model/LauncherSettings.kt`, `core/repo/*.kt`, `core/AppGraph.kt`, `data/`, this file | Contracts | The folder / pair / gesture / profile / badge / Hub / mail / AI contracts below plus the `data/` placeholders (`EmptyBadgeRepository`, `InMemoryProfileRepository`, `EmptyHubRepository`, `NotConfiguredMailRepository`, `TemplateAiCommandRouter` + `TemplateAiProvider`) that the agents below replace in `AppGraphImpl` |
+| `core/model/Layout.kt`, `core/model/LauncherSettings.kt`, `core/repo/*.kt`, `core/AppGraph.kt`, `data/`, this file | Contracts | The folder / pair / gesture / badge / Hub / mail / AI contracts below plus the `data/` placeholders (`EmptyBadgeRepository`, `EmptyHubRepository`, `NotConfiguredMailRepository`, `TemplateAiCommandRouter` + `TemplateAiProvider`) that the agents below replace in `AppGraphImpl` |
 | `gestures/` | Gestures | Home-screen gesture detection (`GestureKind`) and dispatch of `settings.gesture(kind)` (`GestureAction.TYPE_*`: drawer, search, hub, settings, notifications / quick settings shade, app launch, edit mode, lock / recents hints); honours `FEATURE_GESTURES`. **May also edit `settings/GesturesPage.kt`** (per-gesture action picker writing `withGesture`) |
 | `search/` | Search | Universal search UI and providers (`LauncherSettings.searchProviders`: apps, contacts, settings, files, calendar, web, calculator, units) with the web engine from `searchEngine` (`SEARCH_ENGINES`); results come from `graph.apps.apps` (hidden apps excluded), `graph.hub`, and the system providers. **May add `settings/SearchSettingsPage.kt`** (and its route in `settings/SettingsRoot.kt` only) |
 | `items/` | Folders + pairs | Folder open sheet (styles `FOLDER_GRID` / `FOLDER_LIST` / `FOLDER_BIG` from `item.folderStyle ?: settings.folderStyle`), create / rename / dissolve via `LayoutRepository.createFolder` / `children` / `removeFromFolder` / `upsertItem`, app-pair icon and split-screen launch (`createPair`, `HomeItem.isPair`, `FEATURE_PAIRS`), drag-into-folder in edit mode |
 | `home/` | Home | Renders FOLDER and PAIR items through `items/`, draws badges from `graph.badges.counts` in `settings.badgeStyle`, hooks `gestures/` onto the page container, hides `hiddenApps` (already filtered by `graph.apps.apps`) |
-| `profiles/` | Profiles | `class FoldOsProfileRepository(...) : ProfileRepository` (persisted; replaces `InMemoryProfileRepository`), schedule / DND auto-switching (`Profile.startMinute` / `endMinute` / `days` / `onDnd`), honours `FEATURE_PROFILES`. **May edit `settings/ProfilesPage.kt`** |
+| `profiles/` | (removed in Fix round 1.3) | The Profiles feature no longer exists: no `Profile`, `ProfileRepository`, `AppGraph.profiles`, `FEATURE_PROFILES`, `LauncherSettings.profile` / `activeProfile`, receivers or `profiles/` package. See "Fix round 1.3" |
 | `notifications/` | Badges | `class NotificationBadgeRepository(...) : BadgeRepository` (replaces `EmptyBadgeRepository`) fed by the listener; long-press preview (`notificationPreview`, `notificationsFor`); honours `FEATURE_BADGES` and `badgeStyle`. **May edit `builtins/FoldOsNotificationListener.kt`** to publish posted / removed notifications |
 | `hub/` | Hub-core | `class AndroidHubRepository(...) : HubRepository` (CalendarContract, CallLog, ContactsContract, a Room or DataStore task store; replaces `EmptyHubRepository`) and the Hub page UI: Today briefing, Calendar and Contacts tabs (`hubTabs`, `hubPos`, `hubBar`) |
 | `mail/`, `ai/` | Hub-mail-AI | `class GmailMailRepository(...) : MailRepository` (replaces `NotConfiguredMailRepository`; `mailClientId`), `class FoldOsAiCommandRouter(...) : AiCommandRouter` with `AiProvider`s for `AI_MODE_TEMPLATE` / `AI_MODE_ONDEVICE` (replaces `TemplateAiCommandRouter`), Mail and AI tabs. **May edit `settings/AiPage.kt`** |
@@ -67,7 +67,7 @@ Settings pages other than the ones named above stay with the Settings owner; new
 #### Phase 4+5 integration (done)
 
 - `data/AppGraphImpl.kt`: `badges = notifications.FoldOsBadgeRepository(appContext, settings)`,
-  `profiles = profiles.FoldOsProfileRepository(appContext, settings, appScope)`, `hub = hub.FoldOsHubRepository(appContext)`
+  `hub = hub.FoldOsHubRepository(appContext)`
   (`AndroidHubRepository` is its typealias), `mail = mail.GmailMailRepository(appContext, settings, appScope)`,
   `ai = ai.FoldOsAiCommandRouter(appContext, settings, apps, hub, badges, mail)` (template provider by default,
   `AiCoreProvider` when `aiMode == ondevice` and it reports `available()`). The `data/` placeholders stay as unused fallbacks.
@@ -84,20 +84,18 @@ Settings pages other than the ones named above stay with the Settings owner; new
 - `LauncherRoot`: `search.SearchBar` replaces the search-bar stub, `hub.HubPage(fold.kind, settings)` replaces the Phase 1
   hub placeholder, `search.UniversalSearch` is composed last (above the drawer), `Modifier.homeGestures(...)` goes in as
   `HomeScreen.pageModifier` (disabled while the drawer / picker / search / edit mode are up) with `swipeUpOpensDrawer =
-  !FEATURE_GESTURES`, `HingeGestureEffect(fold, wizardDone, settings, onAction)` and `profiles.ProfileAutoSwitchEffect()`
-  run beside the home, `edit.EditModeOverlay(onOpenProfiles = ...)` adds a Profiles entry to the edit bar that opens
-  `profiles.ProfileSwitcherSheet`, and the dock's notification add-on (`Dock(onNotifications = ...)`, new optional
+  !FEATURE_GESTURES`, `HingeGestureEffect(fold, wizardDone, settings, onAction)`
+  run beside the home, and the dock's notification add-on (`Dock(onNotifications = ...)`, new optional
   parameter) opens `notifications.QuietDrawerSheet`. The item context menu (folders, "Add to pair" > `PairEditorSheet`,
   hide, icon override) and `FolderSheet` are the `home/` defaults through `LocalHomeItemHooks`; no hooks are overridden.
 - Settings: `SettingsRoot` routes `MailSettingsRows.ROUTE`; `SettingsPages.all` lists `SearchRows.page` and
-  `MailSettingsRows.page` (Gestures, Profiles, AI were already routed). Features shows
+  `MailSettingsRows.page` (Gestures, AI were already routed). Features shows
   `notifications.NotificationBadgeSettingsRows` (badge style, preview toggle, access card) and `QuietDrawerSettingsRows`
   under a "Notifications" header, with `NotificationSettingsRowInfos.all` in its searchable rows; Home has a Folder style
   select (`LauncherSettings.folderStyle`).
-- Manifest: `READ_CONTACTS`, `READ_CALL_LOG`, `EXPAND_STATUS_BAR`, `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM`,
+- Manifest: `READ_CONTACTS`, `READ_CALL_LOG`, `EXPAND_STATUS_BAR`, `RECEIVE_BOOT_COMPLETED`,
   `INTERNET`, `com.google.android.gm.permission.READ_CONTENT_PROVIDER`; `mail.MailAuthActivity` (singleTop, not
-  exported); receivers `profiles.ProfileAlarmReceiver` (no filter) and `profiles.ProfileBootReceiver` (BOOT_COMPLETED,
-  MY_PACKAGE_REPLACED, TIME_SET, TIMEZONE_CHANGED, SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED); `<queries>` for
+  exported); `<queries>` for
   `com.google.android.gm`, `com.google.ar.lens`, `com.google.android.aicore`, https VIEW and RECOGNIZE_SPEECH. The
   `appAuthRedirectScheme` placeholder was already in `app/build.gradle.kts` (AppAuth 0.11.1, security-crypto in
   `libs.versions.toml`). Backup rules exclude the `foldos_mail_auth*` prefs (Keystore-bound tokens).
@@ -117,9 +115,9 @@ Backup, perf and release all touch `app/build.gradle.kts`: perf owns dependencie
 #### Phase 6 contracts
 
 - `core/repo/BackupRepository.kt`: `interface BackupRepository { suspend fun exportJson(): String; suspend fun importJson(json: String): ImportResult }`; `data class ImportResult(ok: Boolean, message: String, itemsImported: Int)` with `ImportResult.failure(message)`.
-  - Backup document (all `@Serializable`, same file): `BackupFile(version: Int = 1, createdAt: Long, settings: LauncherSettings, pages: List<BackupPage>, profiles: List<Profile> = emptyList(), iconOverrides: Map<String, String> = emptyMap())`; `BackupPage(screen: String /* ScreenKind.name */, index: Int, style: String /* HomeStyle.name */, items: List<BackupItem> = emptyList())`; `BackupItem(kind: String /* ItemKind.name */, col, row, spanX = 1, spanY = 1, packageName?, activityName?, title?, builtinId?, stackAnchorIndex: Int? = null, stackIndex = 0, free = false, xDp?, yDp?, wDp?, hDp?, parentIndex: Int? = null, packageName2?, activityName2?, folderStyle?)`.
+  - Backup document (all `@Serializable`, same file): `BackupFile(version: Int = 1, createdAt: Long, settings: LauncherSettings, pages: List<BackupPage>, iconOverrides: Map<String, String> = emptyMap())`; `BackupPage(screen: String /* ScreenKind.name */, index: Int, style: String /* HomeStyle.name */, items: List<BackupItem> = emptyList())`; `BackupItem(kind: String /* ItemKind.name */, col, row, spanX = 1, spanY = 1, packageName?, activityName?, title?, builtinId?, stackAnchorIndex: Int? = null, stackIndex = 0, free = false, xDp?, yDp?, wDp?, hDp?, parentIndex: Int? = null, packageName2?, activityName2?, folderStyle?)`.
   - `BackupItem` is `HomeItem` minus `id`, `pageId`, `appWidgetId`, `stackId`, `parentId`. `parentIndex` / `stackAnchorIndex` are positions in the same `BackupPage.items` list (folder children and stack mates always live on their folder's / anchor's page). Hosted app widgets (`isAppWidget`) are not exported; indexes are computed after filtering them out. Search ranking / recents are not part of the backup. `iconOverrides` maps `AppInfo.key` to the stored override value.
-  - Encode / decode with `Json { ignoreUnknownKeys = true; encodeDefaults = true }` (otherwise `version` is omitted). `importJson` must reject a `version` greater than 1 and malformed JSON with `ImportResult.failure(...)` and never touch current data in that case. It applies settings through `SettingsRepository.update`, layouts through `LayoutRepository.replaceAll`, then profiles / icon overrides, and should keep this device's `wizardDone = true`.
+  - Encode / decode with `Json { ignoreUnknownKeys = true; encodeDefaults = true }` (otherwise `version` is omitted). `importJson` must reject a `version` greater than 1 and malformed JSON with `ImportResult.failure(...)` and never touch current data in that case. It applies settings through `SettingsRepository.update`, layouts through `LayoutRepository.replaceAll`, then icon overrides, and should keep this device's `wizardDone = true`.
 - `AppGraph.backup: BackupRepository` (new member). `AppGraphImpl.backup` = `NotImplementedBackupRepository()` (`exportJson()` returns `"{}"`, `importJson` returns `ImportResult(false, "Backup is not implemented yet", 0)`); the Backup agent replaces that one `by lazy` line.
 - `LayoutRepository` gained two methods (implemented in `LayoutRepositoryImpl`, backed by new `LayoutDao` queries `allPagesOnce`, `allItemsByPageOnce`, `deleteAllItems`, `deleteAllPages`; no schema change, Room version stays 3):
   - `suspend fun allPagesWithItems(): List<Pair<HomePage, List<HomeItem>>>`: every page of every screen (ordered by `ScreenKind` ordinal then `index`) with ALL its items, including folder children (`parentId` set), stack mates and app widgets, items in id order (a folder child can precede its folder).
@@ -128,7 +126,7 @@ Backup, perf and release all touch `app/build.gradle.kts`: perf owns dependencie
 
 #### Phase 6 integration (done)
 
-- `data/AppGraphImpl.kt`: `backup = backup.FoldOsBackupRepository(appContext, settings, layouts, profiles, icons)`
+- `data/AppGraphImpl.kt`: `backup = backup.FoldOsBackupRepository(appContext, settings, layouts, icons)`
   (`NotImplementedBackupRepository` stays as an unused fallback). `core/FoldOsApplication.onCreate` builds the graph inside
   `perf.StartupTracker.section("graphInit")` and then calls `wallpaper.DailyWallpaper.start(this, graph)`.
 - Settings navigation: `SettingsRoot` routes `BackupRows.ROUTE` ("backup") and `AccessibilityRows.ROUTE` ("accessibility") and
@@ -265,6 +263,37 @@ Contracts-owned changes (everything below already exists in `core/` and `data/`;
 - Manifest: `BIND_APPWIDGET` (ignored lint), `READ_CALENDAR`, `READ_MEDIA_IMAGES`, `BLUETOOTH_CONNECT`,
   `APPWIDGET_UPDATE` query, `onboarding.OnboardingActivity`, `builtins.FoldOsNotificationListener` service.
 
+### Fix round 1.3 (remove profiles)
+
+Contracts-owned change; the Profiles feature is gone end to end.
+
+- Removed: `core.model.Profile`, `core.repo.ProfileRepository`, `AppGraph.profiles`, `data.InMemoryProfileRepository`, the `profiles/` package
+  (`FoldOsProfileRepository`, `ProfileScheduler`, `ProfileAlarmReceiver`, `ProfileBootReceiver`, `ProfileAutoSwitchEffect`,
+  `ProfileSwitcherSheet`, `ProfileEditor`), `settings/ProfilesPage.kt` (`ProfilesRows`, `SettingsRoutes.PROFILES`), the Screens "Profiles" /
+  "Active profile" rows, the Features "Profiles" row, `LauncherSettings.FEATURE_PROFILES` (and its `ALL_FEATURES` entry),
+  `LauncherSettings.profile`, `LauncherSettings.activeProfile`, `BackupFile.profiles`, `EditModeOverlay(onOpenProfiles = ...)` and
+  `EditTags.ACTION_PROFILES`. `FoldOsBackupRepository(context, settings, layouts, icons, apps)` no longer takes a profile repository.
+- Compatibility: `LauncherSettings` JSON (DataStore `foldos_settings`) and `BackupFile` JSON are decoded with `ignoreUnknownKeys = true`, so
+  stored settings or older backups that still contain `profile`, `activeProfile`, `features.profiles` or a `profiles` list load normally and
+  the keys are dropped on the next write. The DataStore file names are unchanged (the unused `foldos_profiles` store is no longer in the
+  backup rules).
+- Hidden apps are independent of profiles (`LauncherSettings.hiddenApps`) and keep their own page: `settings.HiddenAppsPage` /
+  `HiddenAppsRows.ROUTE` ("hidden_apps"), listed in `SettingsPages.all` (Settings > More settings > Hidden apps), checkbox per installed app
+  from `graph.apps.allApps`.
+- Manifest: `ProfileAlarmReceiver`, `ProfileBootReceiver` and `SCHEDULE_EXACT_ALARM` are gone. `RECEIVE_BOOT_COMPLETED` stays for
+  `wallpaper.DailyWallpaperReceiver` (the daily alarm is inexact, `setAndAllowWhileIdle`).
+- `dock/Dock.kt`: the dock folder pop-up title used `settings.profile`; it is now the literal "More apps" (one-line change outside the Contracts-owned files).
+
+Also in round 1.3 (1.2.0, `versionCode` 120):
+- `LauncherSettings.labelSize: String = "medium"` ("small" 11sp / "medium" 12sp / "large" 14sp). `home/AppLabelStyle.kt` owns the shared label
+  style: `AppLabelStyle`, `LocalLabelSizeSp`, `ProvideLabelSize(settings)` (called by `HomeScreen`, `AppDrawer`, `Dock`), `appLabelTextStyle`,
+  `AppLabel`, `appLabelBlockHeight`. Every app / folder / pair name under an icon (home, drawer, dock, folder sheet, pair editor) uses `AppLabel`.
+- `picker/WidgetPicker` keeps its signature (`visible, screen, settings, onPick, onDismiss, modifier`) and `rememberWidgetPickerBackdropModifier`;
+  it is now a two-level picker (`WidgetPickerList` level 1, `WidgetPickerDetail` level 2 with a `HorizontalPager`, `WidgetPickerModel`,
+  `WidgetPickerParts`, `WidgetPreviews`; `WidgetPreviewTile.kt` is gone). "Add to home" calls `markUsed`, `onPick(entry)`, `onDismiss()`.
+  `settings.WidgetsPage` is the grouping choice (`wpGroup`) plus Reset recent widgets (`WidgetsRows.groupOptions` and the stacks / smart /
+  integrations / theme rows are removed; stacks and smart stay on Features).
+
 ## Shared contracts (owned by Contracts)
 
 All under `app/src/main/java/com/foldos/launcher/core/`.
@@ -293,18 +322,16 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 - `object ColorSchemes { val families: List<ColorFamily> /* ocean, forest, sunset, rose, gold, violet, teal, red, mono */; val presets: List<ColorSchemePreset> /* "<family>-dark" and "<family>-light" */; fun byId(id): ColorSchemePreset? /* legacy "ocean" = dark */; fun familyById(id): ColorFamily?; fun resolve(config): List<Long>? }`
 
 ### model/LauncherSettings.kt
-- `@Serializable data class LauncherSettings(screenMode = DIFFERENT, appearance = DARK, styleCover = GRID, styleInner = DASHBOARD, theme = GLASS, gridMode = GRID, colsCover = 4, colsInner = 6, iconSizeDp = 58, radiusDp = 22, labels = true, profile = "Work", dockCover: DockConfig = pill, dockInner: DockConfig = taskbar, drawerStyle = POPUP, popBlur = true, hubOn = true, hubPos = "left", hubBar = "bottom", hubTabs: Set<String> = {ai, mail, cal, people}, colors: ColorSchemeConfig = ColorSchemeConfig(), wpGroup = "category", features: Map<String, Boolean> = {search, dock, badges, gestures, pairs, ai, stacks, smart, drawerTabs, profiles -> true}, iconPack: String? = null, iconShape: IconShape = IconShape.SYSTEM, wizardDone: Boolean = false, preset: String? = null, hiddenApps: Set<String> = emptySet(), gestures: Map<String, GestureAction> = DEFAULT_GESTURES, searchEngine: String = "google", searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(), badgeStyle: String = "count", activeProfile: String? = null, mailClientId: String? = null, aiMode: String = "template", folderStyle: String = "grid", notificationPreview: Boolean = true, highContrast: Boolean = false, reduceMotion: Boolean = false, textScale: Float = 1.0f, largeIcons: Boolean = false, greyscale: Boolean = false, noNetwork: Boolean = false, dailyWallpaper: Boolean = false, backupAuto: Boolean = true)`
+- `@Serializable data class LauncherSettings(screenMode = DIFFERENT, appearance = DARK, styleCover = GRID, styleInner = DASHBOARD, theme = GLASS, gridMode = GRID, colsCover = 4, colsInner = 6, iconSizeDp = 58, radiusDp = 22, labels = true, dockCover: DockConfig = pill, dockInner: DockConfig = taskbar, drawerStyle = POPUP, popBlur = true, hubOn = true, hubPos = "left", hubBar = "bottom", hubTabs: Set<String> = {ai, mail, cal, people}, colors: ColorSchemeConfig = ColorSchemeConfig(), wpGroup = "category", features: Map<String, Boolean> = {search, dock, badges, gestures, pairs, ai, stacks, smart, drawerTabs -> true}, iconPack: String? = null, iconShape: IconShape = IconShape.SYSTEM, wizardDone: Boolean = false, preset: String? = null, hiddenApps: Set<String> = emptySet(), gestures: Map<String, GestureAction> = DEFAULT_GESTURES, searchEngine: String = "google", searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(), badgeStyle: String = "count", mailClientId: String? = null, aiMode: String = "template", folderStyle: String = "grid", notificationPreview: Boolean = true, highContrast: Boolean = false, reduceMotion: Boolean = false, textScale: Float = 1.0f, largeIcons: Boolean = false, greyscale: Boolean = false, noNetwork: Boolean = false, dailyWallpaper: Boolean = false, backupAuto: Boolean = true)`
   - `hiddenApps`: package names (an `AppInfo.key` "package/activity" is accepted too); `AppsRepository.apps` already excludes them.
   - `gestures`: keyed by `GestureKind.name`; missing key = `GestureAction.NONE`. `DEFAULT_GESTURES` = SWIPE_UP→drawer, SWIPE_DOWN→notifications, DOUBLE_TAP→none, PINCH_IN→edit, SWIPE_UP_2F→search, UNFOLD→none.
   - `searchEngine` ∈ `SEARCH_ENGINES` = `SEARCH_ENGINE_GOOGLE/BING/DUCKDUCKGO/KAGI/BRAVE/ECOSIA` ("google", "bing", "duckduckgo", "kagi", "brave", "ecosia").
   - `searchProviders` ⊆ `ALL_SEARCH_PROVIDERS` = `SEARCH_APPS/CONTACTS/SETTINGS/FILES/CALENDAR/WEB/CALCULATOR/UNITS` ("apps", "contacts", "settings", "files", "calendar", "web", "calculator", "units"); default = all.
   - `badgeStyle` ∈ `BADGE_COUNT` "count" / `BADGE_DOT` "dot" / `BADGE_OFF` "off"; `aiMode` ∈ `AI_MODE_TEMPLATE` "template" / `AI_MODE_ONDEVICE` "ondevice" / `AI_MODE_OFF` "off"; `folderStyle` ∈ `FOLDER_STYLES` = `FOLDER_GRID` "grid" / `FOLDER_LIST` "list" / `FOLDER_BIG` "big".
-  - `activeProfile` = `Profile.id` or null; `mailClientId` = OAuth client id for the Mail tab (null = not configured).
+  - `mailClientId` = OAuth client id for the Mail tab (null = not configured). Old stored JSON that still has `profile`, `activeProfile` or a `profiles` feature key loads normally (`ignoreUnknownKeys`; a stale `features["profiles"]` entry is ignored).
 - Helpers: `feature(key): Boolean`, `withFeature(key, enabled)`, `dockFor(screen)`, `styleFor(screen)`, `colsFor(screen)`, `gesture(kind: GestureKind): GestureAction`, `withGesture(kind, action)`, `isHidden(packageName, activityName: String? = null)`, `searchProvider(key): Boolean`, `withSearchProvider(key, enabled)`; companion constants `HUB_POS_*`, `HUB_BAR_*`, `HUB_TAB_*`, `WP_GROUP_*`, `FEATURE_*`, `ALL_FEATURES`, `DEFAULT_GESTURES`, `SEARCH_ENGINE_*`, `SEARCH_ENGINES`, `SEARCH_*` providers, `ALL_SEARCH_PROVIDERS`, `BADGE_*`, `AI_MODE_*`, `FOLDER_*`, `FOLDER_STYLES`
 - `wpGroup` values equal `WidgetCatalog.GROUP_CATEGORY` / `GROUP_APP` / `GROUP_RECENT`; pass it straight to `WidgetCatalog.grouped(by)`.
 - Stored as one JSON string (`ignoreUnknownKeys`, `encodeDefaults`), so new fields with defaults never need a migration.
-- `@Serializable data class Profile(id: String, name: String, settingsJson: String, hiddenApps: Set<String>, startMinute: Int? = null, endMinute: Int? = null, days: Set<Int> = emptySet(), onDnd: Boolean = false)` (same file); helper `scheduled` (both minutes set). `settingsJson` = a `LauncherSettings` encoded with `Json { ignoreUnknownKeys = true; encodeDefaults = true }`; minutes are minutes after local midnight; `days` are `java.util.Calendar.SUNDAY..SATURDAY` (1..7), empty = every day.
-
 ### model/AppInfo.kt
 - `class AppInfo(packageName: String, activityName: String, label: String, user: android.os.UserHandle, iconLoader: () -> android.graphics.drawable.Drawable)`; `val key: String` = "package/activity"; equality ignores `iconLoader`
 
@@ -321,7 +348,7 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 - `enum class GestureKind { SWIPE_UP, SWIPE_DOWN, SWIPE_LEFT_2F, SWIPE_RIGHT_2F, SWIPE_UP_2F, SWIPE_DOWN_2F, DOUBLE_TAP, PINCH_IN, PINCH_OUT, HOME_DOUBLE, FOLD, UNFOLD }`
 - `@Serializable data class GestureAction(type: String = TYPE_NONE, target: String? = null)`; `type` ∈ `TYPE_NONE` "none", `TYPE_DRAWER` "drawer", `TYPE_SEARCH` "search", `TYPE_HUB` "hub", `TYPE_SETTINGS` "settings", `TYPE_NOTIFICATIONS` "notifications", `TYPE_QUICK_SETTINGS` "quick_settings", `TYPE_APP` "app", `TYPE_EDIT` "edit", `TYPE_LOCK_HINT` "lock_hint", `TYPE_RECENTS_HINT` "recents_hint" (`ALL_TYPES` in that order); `target` = `AppInfo.key` for `TYPE_APP`, else null. Companion `NONE`, `fun app(appKey): GestureAction`.
 - `enum class WidgetCategory(displayName: String, iconName: String) { CLOCK("Clock & Time","schedule"), WEATHER("Weather","partly_cloudy_day"), CALENDAR("Calendar & Tasks","event"), COMMUNICATION("Communication","chat"), MEDIA("Media & Audio","music_note"), PHOTOS("Photos","photo_library"), PRODUCTIVITY("Productivity & Notes","edit_note"), HEALTH("Health & Fitness","favorite"), DEVICE("Device & System","smartphone"), SMART_HOME("Smart Home","home"), TRAVEL("Travel & Maps","map"), FINANCE("Finance","payments"), NEWS("News & Reading","newspaper"), SEARCH("Search & Shortcuts","search"), SOCIAL("Social","group"), UTILITIES("Utilities","build"), FUN("Fun & Personal","mood") }` (mock-up `CATS` / `CATICON`); `companion fun byDisplayName(name): WidgetCategory?`. `iconName` is the Material Symbols name; UI maps it to an `Icons.*` vector itself.
-- `data class WidgetEntry(id: String, name: String, source: String, category: WidgetCategory, minSpanX: Int, minSpanY: Int, defaultSpanX: Int, defaultSpanY: Int, isBuiltIn: Boolean, provider: android.content.ComponentName? = null, previewLoader: (() -> android.graphics.drawable.Drawable?)? = null)` — `id` = `ComponentName.flattenToString()` for app widgets, `BuiltInWidget.id` for built-ins; `source` = app label or "FoldOS built-in"
+- `data class WidgetEntry(id: String, name: String, source: String, category: WidgetCategory, minSpanX: Int, minSpanY: Int, defaultSpanX: Int, defaultSpanY: Int, isBuiltIn: Boolean, provider: android.content.ComponentName? = null, previewLoader: (() -> android.graphics.drawable.Drawable?)? = null, descriptionLoader: (() -> String?)? = null)` — `id` = `ComponentName.flattenToString()` for app widgets, `BuiltInWidget.id` for built-ins; `source` = app label or "FoldOS built-in"
 
 ### repo/SettingsRepository.kt
 - `interface SettingsRepository { val settings: Flow<LauncherSettings>; suspend fun update(transform: (LauncherSettings) -> LauncherSettings) }`
@@ -355,9 +382,6 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 ### repo/BadgeRepository.kt
 - `data class NotificationSummary(key: String, packageName: String, title: String, text: String, postTime: Long, contentIntent: android.app.PendingIntent?)` (`key` = `StatusBarNotification.key`)
 - `interface BadgeRepository { val counts: Flow<Map<String, Int>> /* packageName -> unread count; absent = 0 */; fun notificationsFor(packageName: String): Flow<List<NotificationSummary>> /* newest first */ }`
-
-### repo/ProfileRepository.kt
-- `interface ProfileRepository { val profiles: Flow<List<Profile>>; suspend fun save(profile: Profile) /* upsert by id */; suspend fun delete(id: String) /* clears activeProfile if it was active */; suspend fun activate(id: String?) /* applies settingsJson + hiddenApps via SettingsRepository and sets activeProfile; null only clears activeProfile */; suspend fun captureCurrent(name: String): Profile /* snapshots current settings into a new saved profile */ }`
 
 ### repo/HubRepository.kt
 - `data class HubEvent(id: Long, title: String, begin: Long, end: Long, allDay: Boolean, location: String?, color: Int /* ARGB */)`
@@ -397,7 +421,7 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 - `data class FoldState(kind: ScreenKind, isHalfOpened: Boolean, hingeBounds: android.graphics.Rect?, widthDp: Int, heightDp: Int)`
 
 ### AppGraph.kt
-- `interface AppGraph { val settings: SettingsRepository; val layouts: LayoutRepository; val apps: AppsRepository; val widgets: WidgetCatalog; val builtIns: BuiltInWidgetRegistry; val icons: IconResolver; val badges: BadgeRepository; val profiles: ProfileRepository; val hub: HubRepository; val mail: MailRepository; val ai: AiCommandRouter; val backup: BackupRepository; val appWidgetHost: android.appwidget.AppWidgetHost; val appScope: CoroutineScope; companion object { const val APP_WIDGET_HOST_ID: Int = 1024 } }`
+- `interface AppGraph { val settings: SettingsRepository; val layouts: LayoutRepository; val apps: AppsRepository; val widgets: WidgetCatalog; val builtIns: BuiltInWidgetRegistry; val icons: IconResolver; val badges: BadgeRepository; val hub: HubRepository; val mail: MailRepository; val ai: AiCommandRouter; val backup: BackupRepository; val appWidgetHost: android.appwidget.AppWidgetHost; val appScope: CoroutineScope; companion object { const val APP_WIDGET_HOST_ID: Int = 1024 } }`
   - `appScope` = never-cancelled `SupervisorJob() + Dispatchers.IO` scope for writes that must outlive the UI that started them
   - `appWidgetHost` = `AppWidgetHost(context, 1024)`, created and `startListening()`-ed when `AppGraphImpl` is constructed in `Application.onCreate`; never stopped. Activities use `createView(context, appWidgetId, providerInfo)`, `allocateAppWidgetId()`, `deleteAppWidgetId(id)` on it. Binding a provider to an id needs user consent (`AppWidgetManager.ACTION_APPWIDGET_BIND`) unless `bindAppWidgetIdIfAllowed` succeeds; that flow belongs to `widgets/`.
 - `val LocalAppGraph: ProvidableCompositionLocal<AppGraph>` (static; throws if unprovided)
@@ -414,5 +438,5 @@ All under `app/src/main/java/com/foldos/launcher/data/`.
 - `db/LayoutDao.kt`: `pagesByScreen`, `pagesByScreenOnce`, `pageById`, `firstPage`, `countPages`, `maxPageIndex`, `upsertPage`, `setPageStyle(pageId, style: String)`, `setPageIndex`, `deletePage`, `itemsByPage` / `itemsByPageOnce` (both `parent_id IS NULL`), `childrenOf(parentId): Flow`, `childrenOfOnce`, `countChildren`, `placeInFolder(id, parentId, pageId, col, row)`, `removeFromFolder(id, pageId, col, row)`, `moveChildren(parentId, pageId)`, `setFolderStyle(id, style: String?)`, `deleteChildren(parentId)`, `itemById`, `itemsByIds`, `countItemsForScreen`, `countItemsForPage`, `upsertItem`, `upsertItems`, `moveItem`, `moveStack`, `resizeItem`, `resizeStack`, `placeInStack`, `deleteItem`, `allPagesOnce`, `allItemsByPageOnce`, `deleteAllItems`, `deleteAllPages` (Phase 6).
 - `LayoutRepositoryImpl(db: LayoutDatabase, dockStore: DockAppsStore) : LayoutRepository` implements every method above (including `children`, `createFolder`, `createPair`, `removeFromFolder`); extra public `suspend fun upsertPage(page: HomePage): Long` and `suspend fun setFolderStyle(folderId: Long, style: String?)`. Fix round 1.1 adds `DockAppsStore(context)` (`data/DockAppsStore.kt`: `apps(screen): Flow<List<String>>`, `suspend set(screen, appKeys)`).
 - `SettingsRepositoryImpl(context)`; `AppsRepositoryImpl(context, settings: SettingsRepository? = null, iconResolver: () -> IconResolver? = { null })` — `apps` = `allApps` minus `settings.hiddenApps` (package name or `AppInfo.key`), re-emitting when the set changes; `allApps` = every launchable activity.
-- Placeholders replaced in later phases: `PlaceholderWidgetCatalog(context)`, `EmptyBuiltInWidgetRegistry()`, `PassthroughIconResolver(settings)` (Phase 2+3, now unused fallbacks); Phase 4+5: `EmptyBadgeRepository()` (empty flows), `InMemoryProfileRepository(settings)` (profiles kept in memory; `activate` / `captureCurrent` really go through `SettingsRepository`, `activate` keeps the device's `wizardDone`), `EmptyHubRepository()` (empty flows, no-op writes), `NotConfiguredMailRepository()` (`MailState.NotConfigured`, no-op calls), `TemplateAiCommandRouter(provider: AiProvider = TemplateAiProvider())` (echo reply, `appliedSettings = false`).
-- `AppGraphImpl(context) : AppGraph` wires all of the above (`badges`, `profiles`, `hub`, `mail`, `ai` are the placeholders, one `by lazy` line each); Phase 6 adds `backup` = `NotImplementedBackupRepository()` (`data/NotImplementedBackupRepository.kt`); `appWidgetHost` is created eagerly and started in `init`.
+- Placeholders replaced in later phases: `PlaceholderWidgetCatalog(context)`, `EmptyBuiltInWidgetRegistry()`, `PassthroughIconResolver(settings)` (Phase 2+3, now unused fallbacks); Phase 4+5: `EmptyBadgeRepository()` (empty flows), `EmptyHubRepository()` (empty flows, no-op writes), `NotConfiguredMailRepository()` (`MailState.NotConfigured`, no-op calls), `TemplateAiCommandRouter(provider: AiProvider = TemplateAiProvider())` (echo reply, `appliedSettings = false`).
+- `AppGraphImpl(context) : AppGraph` wires all of the above (`badges`, `hub`, `mail`, `ai` are the placeholders, one `by lazy` line each); Phase 6 adds `backup` = `NotImplementedBackupRepository()` (`data/NotImplementedBackupRepository.kt`); `appWidgetHost` is created eagerly and started in `init`.

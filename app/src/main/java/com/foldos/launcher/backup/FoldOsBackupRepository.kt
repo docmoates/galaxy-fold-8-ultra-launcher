@@ -15,7 +15,6 @@ import com.foldos.launcher.core.repo.BackupRepository
 import com.foldos.launcher.core.repo.IconResolver
 import com.foldos.launcher.core.repo.ImportResult
 import com.foldos.launcher.core.repo.LayoutRepository
-import com.foldos.launcher.core.repo.ProfileRepository
 import com.foldos.launcher.core.repo.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /**
- * The real [BackupRepository]: exports the settings, home layouts, profiles and per-app icon
+ * The real [BackupRepository]: exports the settings, home layouts and per-app icon
  * overrides as one [BackupFile] JSON document and restores such a document.
  *
  * Export leaves out hosted app widgets (their ids belong to this install), search ranking, mail
@@ -32,21 +31,21 @@ import kotlinx.coroutines.withContext
  *
  * 1. replaces the layouts in one transaction (`LayoutRepository.replaceAll`), skipping apps that are
  *    not installed on this device, and releases the old hosted widget ids,
- * 2. replaces the saved profiles,
- * 3. writes the settings, keeping this device's `wizardDone = true` (and its Mail client id when the
+ * 2. writes the settings, keeping this device's `wizardDone = true` (and its Mail client id when the
  *    backup has none),
- * 4. replaces the per-app icon overrides,
- * 5. restores the per-screen dock apps and the app pop-up groups (both optional in the document),
- * 6. asks Android for an Auto Backup pass.
+ * 3. replaces the per-app icon overrides,
+ * 4. restores the per-screen dock apps and the app pop-up groups (both optional in the document),
+ * 5. asks Android for an Auto Backup pass.
  *
- * Steps 2 to 5 are independent: a failure there is reported in the message but does not undo the
+ * Backups written by older versions may still carry a `profiles` list; it is ignored.
+ *
+ * Steps 2 to 4 are independent: a failure there is reported in the message but does not undo the
  * layout.
  */
 class FoldOsBackupRepository(
     context: Context,
     private val settings: SettingsRepository,
     private val layouts: LayoutRepository,
-    private val profiles: ProfileRepository,
     private val icons: IconResolver,
     private val apps: AppsRepository,
 ) : BackupRepository {
@@ -58,7 +57,6 @@ class FoldOsBackupRepository(
     override suspend fun exportJson(): String {
         val currentSettings = settings.settings.first()
         val pages = layouts.allPagesWithItems()
-        val savedProfiles = profiles.profiles.first()
         val overrides = iconStore.overrides.first()
         val dock = ScreenKind.values().associate { it.name to layouts.dockApps(it).first() }.filterValues { it.isNotEmpty() }
         val groups = groupStore.groups.first().associate { it.name to it.appKeys }
@@ -68,7 +66,6 @@ class FoldOsBackupRepository(
                 createdAt = System.currentTimeMillis(),
                 settings = currentSettings,
                 pages = BackupCodec.exportPages(pages),
-                profiles = savedProfiles,
                 dockApps = dock,
                 appGroups = groups,
                 iconOverrides = overrides.mapValues { (_, value) ->
@@ -134,24 +131,12 @@ class FoldOsBackupRepository(
 
         val problems = ArrayList<String>()
 
-        // 2. Profiles. Deleting the active one clears `activeProfile`; the final settings write below
-        // sets it again from the backup.
-        attempt("profiles", problems) {
-            val wanted = backup.profiles.map { it.id }.toSet()
-            for (existing in profiles.profiles.first()) {
-                if (existing.id !in wanted) profiles.delete(existing.id)
-            }
-            for (profile in backup.profiles) profiles.save(profile)
-        }
-
-        // 3. Settings.
+        // 2. Settings.
         attempt("settings", problems) {
             val restored = sanitize(backup.settings)
-            val activeId = restored.activeProfile?.takeIf { id -> backup.profiles.any { it.id == id } }
             settings.update { current ->
                 val next = restored.copy(
                     wizardDone = true,
-                    activeProfile = activeId,
                     mailClientId = restored.mailClientId ?: current.mailClientId,
                 )
                 // The restored pages already carry their own styles; keep the settings watcher from
@@ -174,7 +159,7 @@ class FoldOsBackupRepository(
             }
         }
 
-        // 4. Per-app icon overrides.
+        // 3. Per-app icon overrides.
         attempt("icon choices", problems) {
             val wanted = backup.iconOverrides
             for (appKey in iconStore.overrides.first().keys) {
@@ -192,7 +177,7 @@ class FoldOsBackupRepository(
             }
         }
 
-        // 5. Dock apps and app pop-up groups. Both are optional in the document: an older backup (or
+        // 4. Dock apps and app pop-up groups. Both are optional in the document: an older backup (or
         // one with default docks / no groups) leaves this device's current choices alone.
         if (backup.dockApps.isNotEmpty()) {
             attempt("dock apps", problems) {
@@ -218,7 +203,7 @@ class FoldOsBackupRepository(
             if (built.skipped > 0) {
                 append(", skipped ${built.skipped} (app not installed on this phone or not readable)")
             }
-            append(", with settings, profiles and icon choices.")
+            append(", with settings and icon choices.")
             append(" Hosted app widgets are not part of a backup; add them again from the widget picker.")
             if (problems.isNotEmpty()) append(" Could not restore: ${problems.joinToString(", ")}.")
         }

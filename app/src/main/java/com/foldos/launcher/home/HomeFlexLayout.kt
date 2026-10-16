@@ -68,7 +68,7 @@ internal fun HomeFlexLayout(
                 rows = 1,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(ctx.iconSize + (if (ctx.labels) 44.dp else 20.dp))
+                    .height(ctx.iconSize + appLabelBlockHeight(ctx.settings) + 20.dp)
                     .padding(horizontal = HomeSidePadding),
                 items = items,
             )

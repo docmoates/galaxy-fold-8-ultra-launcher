@@ -82,16 +82,17 @@ Settings > Dock, separately for cover and inner.
 
 | # | Action | Expected |
 |---|---|---|
-| 5.1 | Long-press empty home space or a widget | Edit mode: the home shrinks to about 76 % between one top bar and one bottom bar (Wallpaper, Themes, Widgets, Dock, Settings, and Profiles when on). |
-| 5.2 | Open Widgets on the cover | Bottom sheet with search, category chips and collapsible sections of live previews. Tapping a chip jumps to its section. |
-| 5.3 | Open Widgets on the inner screen | Wide card, category list on the left, preview grid on the right. |
-| 5.4 | Search "calendar" | Results match names, app names and APIs; clearing restores the groups. |
-| 5.5 | Settings > Widgets > Picker groups by App / Recently used | Grouping changes accordingly. |
+| 5.1 | Long-press empty home space or a widget | Edit mode: the home shrinks to about 76 % between one top bar and one bottom bar (Wallpaper, Themes, Widgets, Dock, Settings). |
+| 5.2 | Open Widgets on the cover | Bottom sheet (about 84 % high, grab handle) with a search field, a Featured grid of FoldOS widgets and an Apps list (FoldOS first, then apps A-Z) with filter chips. Tapping an app or a featured card replaces the list with that app's detail view and a back arrow; the back button returns to the list. |
+| 5.3 | Open Widgets on the inner screen | Floating card: the list in a left pane (320 dp) and the swipe-through detail view on the right, with the first featured widget already selected. Tapping another app or card updates the right pane. |
+| 5.4 | Search "calendar" | Flat results match widget names, app names and categories; clearing restores the Featured grid and Apps list. |
+| 5.5 | Settings > Widgets > Widget picker groups by Category / App / Recent | Category shows the filter chips, App hides them, Recent adds a "Recently used" section above Featured (after adding a widget). Reset recent widgets clears that section. |
+| 5.5a | In an app's detail view, swipe left and right | One widget per page with a large uncropped preview, its name, size, source and a short description; page dots (or "3 / 12") follow the swipe; "Add to home" adds the widget on the current page and closes the picker. Built-in widgets are placed at once; an app widget opens the system bind dialog and its configure screen as before. |
 | 5.6 | Add each built-in widget (Clock, Glance, Weather, Calendar agenda, Devices, To-do, Now Playing, Focus, Photos, News) | Placed at the first free cell; adapts to 1x1 up to 4x4; follows theme and dark / light. |
 | 5.7 | Add a Calendar agenda widget without the permission | Shows an "Allow calendar access" button; granting it shows events. Same for Photos (photo access) and Devices (Bluetooth). |
 | 5.8 | Add an app widget (e.g. Google Clock) | System bind dialog the first time; widget appears; a widget with a configure screen opens it first. Cancelling configure removes the pending widget. |
 | 5.9 | Resize a widget from its corner | Live preview while dragging; snaps to cells; content adapts. |
-| 5.10 | Drag a widget onto another | They become a stack; swiping flips between them. Settings > Widgets > Widget stacks off: the drop just moves/overlaps nothing. |
+| 5.10 | Drag a widget onto another | They become a stack; swiping flips between them. Settings > Features > Widget stacks off: the drop just moves/overlaps nothing. |
 | 5.11 | Free placement (page mode Free) | Items sit at arbitrary positions and persist after a restart. |
 | 5.12 | Delete a widget with the X on the selected item | Gone, with an Undo snackbar; after the Undo window (about 6 s) its app widget id is released (re-adding works). |
 | 5.13 | Drag an item toward the page edge and hold | Page switches; the item drops on the new page. |
@@ -154,18 +155,15 @@ Settings > Gestures. Run each on a home page with edit mode off.
 | 9.5 | Badge style off | No badges. |
 | 9.6 | Revoke access | Badges clear; Settings shows the access card again; no crash. |
 
-## 10. Profiles
+## 10. Hidden apps
 
 | # | Action | Expected |
 |---|---|---|
-| 10.1 | Settings > Profiles: Work, Home, Night present | Yes. |
-| 10.2 | Activate Night | Settings (theme, dock, hidden apps) change to the snapshot. Wizard does not reappear. |
-| 10.3 | Capture current as "Test" and change settings, then activate Test | Settings return to the captured state. |
-| 10.4 | Add a schedule 2 minutes ahead (with "Alarms & reminders" allowed) | At the minute the profile activates by itself, even with the screen off. |
-| 10.5 | Reboot before the scheduled time | The schedule still fires. |
-| 10.6 | Do Not Disturb rule: turn DND on | The linked profile activates. |
-| 10.7 | Edit bar > Profiles | Switcher sheet opens and activates a profile. |
-| 10.8 | Delete the active profile | Active profile clears; settings are unchanged. |
+| 10.1 | Settings > More settings > Hidden apps | A searchable list of every installed app with a checkbox; hidden apps are listed first. |
+| 10.2 | Tick an app | It disappears from the drawer, universal search and its home icon cell (the cell stays empty). |
+| 10.3 | Untick it | The app is back in the drawer and search. |
+| 10.4 | Long-press an icon > Hide, then open the Hidden apps page | The app is ticked there. |
+| 10.5 | Open the app after upgrading from a build that still had profiles | Old `profile` / `activeProfile` settings are ignored, nothing crashes, hidden apps are unchanged. |
 
 ## 11. Hub
 
@@ -190,10 +188,10 @@ Use Settings > Backup.
 
 | # | Action | Expected |
 |---|---|---|
-| 12.1 | Make a distinctive layout: folder with 3 apps, a pair, a stack of 2 widgets, free-placed widget, a custom icon shape, a second profile | |
-| 12.2 | Export | A `.json` file is saved or shared; opening it shows `"version": 1`, settings, pages with items, profiles. No Gmail tokens. |
+| 12.1 | Make a distinctive layout: folder with 3 apps, a pair, a stack of 2 widgets, free-placed widget, a custom icon shape, one hidden app | |
+| 12.2 | Export | A `.json` file is saved or shared; opening it shows `"version": 1`, settings, pages with items. No Gmail tokens. |
 | 12.3 | Change several settings and wipe pages | |
-| 12.4 | Import the file | Success message with an item count; layout, settings, profiles and icon overrides are back, the folder keeps its children, the stack keeps its order. Hosted app widgets are not restored (they need the system bind dialog) and are reported or skipped without a crash. |
+| 12.4 | Import the file | Success message with an item count; layout, settings (including the hidden app) and icon overrides are back, the folder keeps its children, the stack keeps its order. Hosted app widgets are not restored (they need the system bind dialog) and are reported or skipped without a crash. |
 | 12.5 | Import garbage text | Failure message; current data untouched. |
 | 12.6 | Import a file edited to `"version": 2` | Rejected with a message; data untouched. |
 | 12.7 | Uninstall, reinstall, skip the wizard if offered, import | Layout restored on a clean install; `wizardDone` stays true on the device. |
@@ -270,10 +268,28 @@ second pass over 1.0.0 data to test the duplicate-page cleanup). Both screens un
 | 16.21 | Drag a pop-up app and release over nothing (for example the status bar) | Nothing is added and the pop-up opens up again. |
 | 16.22 | Drag a dock icon to another slot, off the dock, and onto a home page | Reorders; removes it from the dock; moves it to the page (and removes it from the dock). Long-press a dock icon and release: a menu with Remove from dock and App info; the last dock app cannot be removed. |
 | 16.23 | Long-press a home app tile and drag it past the touch slop | The popup closes and the tile is carried; drop on another cell moves it, on another app makes a folder, on the dock puts the app in the dock and removes the tile from the page. |
-| 16.24 | Open Settings from the launcher | It opens on the sample cards (Screens, Home style, Look, Colors, Dock, App drawer, Widget picker, Icons) with a search icon in the top bar; tapping a card applies it and the preview updates; "More settings" lists Quick setup, Screens, Home, Dock, Hub, Look, Widgets, Gestures, Search, Profiles, Mail, AI, Backup, Accessibility, Features and About, and each opens. |
+| 16.24 | Open Settings from the launcher | It opens on the sample cards (Screens, Home style, Look, Colors, Dock, App drawer, Widget picker, Icons) with a search icon in the top bar; tapping a card applies it and the preview updates; "More settings" lists Quick setup, Screens, Home, Dock, Hub, Look, Widgets, Gestures, Search, Hidden apps, Mail, AI, Backup, Accessibility, Features and About, and each opens. |
 | 16.25 | Edit mode > Dock, and a result from the settings search | Open the matching Dock page or detailed page directly. |
 | 16.26 | Settings > Colors | Twelve primary colors drawn as light / dark split swatches plus Theme colors and Custom. Pick Blue in dark mode: dark blue home. Switch Appearance to Light: the same Blue entry shows its light version (pale wallpaper, deeper accent); text stays readable in both. The wizard's Colors step shows the same tiles. |
 | 16.27 | Theme sheet in edit mode | Lists the light and dark versions of the primary colors; the current one is highlighted. |
+
+## 17. Fix round 1.3 scenarios (1.2.0)
+
+Install 1.2.0 over 1.1.x (same signing key) and over a build that still had profiles. Both screens unless noted.
+
+| # | Action | Expected |
+|---|---|---|
+| 17.1 | Open Settings, More settings, Features, Screens and the edit-mode bottom bar | No Profiles page or row, no "Active profile" row, no Profiles button; Hidden apps is a page of its own under More settings. |
+| 17.2 | Check Settings > Apps > FoldOS > Permissions / special access | No "Alarms & reminders" request; the daily wallpaper still changes (inexact alarm). |
+| 17.3 | Restore a backup written by 1.1.x that has a `profiles` list | Imports without an error; layout, settings and icon overrides are restored. |
+| 17.4 | Settings > Home style, scroll to "Label size" | Three cards (Small, Medium, Large) each showing "Messages" and "Amazon Photos" at 11, 12 and 14 sp; the selected one has the accent border; tapping one changes the labels everywhere at once. With App labels off the card section says the size applies once labels show. |
+| 17.5 | Home grid with "Amazon Photos", "Authenticator", "Google Play Store" at Medium on the cover (4 columns) | Names are centered, medium weight, readable on a bright wallpaper (soft shadow), wrap to two lines at word boundaries and never end in an ellipsis unless a second line also overflows. Icons in a row stay aligned whether a name takes one line or two. |
+| 17.6 | Same names at Large, and in Easy mode | Larger text (14 sp, Easy mode +3 sp); a very long name wraps to two lines and only then shows an ellipsis. |
+| 17.7 | Check the app pop-up and drawer, dock labels (Labeled preset), a folder (grid and list), the pair editor and the app long-press menu header | All use the same style and size; the dock label takes up to two lines; the menu title wraps to two lines. |
+| 17.8 | System font size at the largest, then text scale 1.6x in Accessibility | App labels stop growing at about 1.15x; nothing overlaps. |
+| 17.9 | Widgets from the edit bar: open an app with several widgets (for example Google Clock) | Detail view shows its widgets one per page with a real preview (a small preview stays small, never blown up); swiping changes the name, size and dots. |
+| 17.10 | Add a built-in widget and an app widget from the new picker | Built-in lands at the first free cell; the app widget goes through the bind dialog and configure screen; cancelling configure removes the pending widget. Reopen the picker: the widget shows under Recently used when Recent grouping is on. |
+| 17.11 | Back button in the picker on the cover (list, detail) and on the inner screen | Detail on the cover goes back to the list; otherwise it closes the picker. Tapping the dimmed backdrop closes it. |
 
 ## Reporting
 

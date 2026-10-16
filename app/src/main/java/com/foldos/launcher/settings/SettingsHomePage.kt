@@ -1,5 +1,6 @@
 package com.foldos.launcher.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -59,6 +61,8 @@ import com.foldos.launcher.core.model.ThemeId
 import com.foldos.launcher.core.model.matchingPresetId
 import com.foldos.launcher.core.repo.IconShape
 import com.foldos.launcher.icons.IconPackPicker
+import com.foldos.launcher.home.AppLabel
+import com.foldos.launcher.home.AppLabelStyle
 import com.foldos.launcher.icons.IconShapes
 import com.foldos.launcher.onboarding.AppearanceSample
 import com.foldos.launcher.onboarding.CustomColorSwatch
@@ -202,7 +206,7 @@ private fun SettingsSamples(
             SampleSection(title = "Everything else") {
                 SampleLinkRow(
                     title = "More settings",
-                    subtitle = "Gestures, search, profiles, mail, AI, backup, accessibility and every other option",
+                    subtitle = "Gestures, search, hidden apps, mail, AI, backup, accessibility and every other option",
                     onClick = { onOpen(SettingsRoutes.MORE) },
                 )
             }
@@ -279,6 +283,88 @@ private fun HomeStyleSection(settings: LauncherSettings, update: SettingsUpdater
                     colors = settings.colors,
                     modifier = Modifier.fillMaxWidth().aspectRatio(PreviewRatio),
                     base = settings,
+                )
+            }
+        }
+        LabelSizeCards(settings, update)
+    }
+}
+
+/** Label size choices: stored value, card title. The sizes themselves live in [AppLabelStyle]. */
+private val LABEL_SIZES = listOf(
+    AppLabelStyle.SIZE_SMALL to "Small",
+    AppLabelStyle.SIZE_MEDIUM to "Medium",
+    AppLabelStyle.SIZE_LARGE to "Large",
+)
+
+/**
+ * App label size under icons (home, dock, drawer, folders): three preview cards that draw "Messages"
+ * and "Amazon Photos" with the shared [AppLabel] at 11 / 12 / 14sp in a 92dp cell (the cover grid's
+ * cell width minus the label inset). A hint shows while labels are switched off (they stay hidden
+ * until App labels is turned on, except in Easy mode where they are always shown).
+ */
+@Composable
+private fun LabelSizeCards(settings: LauncherSettings, update: SettingsUpdater) {
+    val colors = MaterialTheme.colorScheme
+    Text(
+        text = "Label size",
+        style = MaterialTheme.typography.titleMedium,
+        color = colors.onSurface,
+        modifier = Modifier.padding(top = 6.dp).a11yHeading(),
+    )
+    Text(
+        text = if (settings.effectiveLabels) {
+            "App names under icons. Long names wrap to two lines."
+        } else {
+            "App names are hidden right now (More settings > Home > App labels); the size applies once they show."
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.onSurfaceVariant,
+    )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().widthIn(max = 560.dp),
+    ) {
+        LABEL_SIZES.forEach { (key, name) ->
+            SampleCard(
+                label = name,
+                selected = settings.labelSize == key,
+                onClick = { update { it.copy(labelSize = key) } },
+                modifier = Modifier.weight(1f),
+                previewBackground = colors.surface,
+            ) {
+                LabelSizePreview(
+                    sizeSp = AppLabelStyle.sizeSpFor(key),
+                    ink = colors.onSurface,
+                    accent = colors.primary,
+                )
+            }
+        }
+    }
+}
+
+/** Two sample cells ("Messages", "Amazon Photos") drawn with [AppLabel] at [sizeSp]. */
+@Composable
+private fun LabelSizePreview(sizeSp: Float, ink: Color, accent: Color) {
+    Column(
+        modifier = Modifier.widthIn(max = 92.dp).fillMaxWidth().padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        listOf("Messages", "Amazon Photos").forEach { sample ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(accent.copy(alpha = 0.85f)),
+                )
+                AppLabel(
+                    text = sample,
+                    sizeSp = sizeSp,
+                    color = ink,
+                    onWallpaper = false,
+                    reserveLines = false,
                 )
             }
         }

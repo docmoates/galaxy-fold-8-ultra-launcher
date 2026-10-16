@@ -7,20 +7,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.a11y.HomeItemGridInfo
-import com.foldos.launcher.a11y.LocalLargeIcons
 import com.foldos.launcher.a11y.a11yAppLabel
 import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.a11y.a11yFocusTile
@@ -67,7 +62,6 @@ internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem, access: HomeItemGr
     val graph = LocalAppGraph.current
     val children = rememberFolderChildren(item)
     val holder = remember { HomeAnchorHolder() }
-    val large = LocalLargeIcons.current
     val folderName = item.title ?: Folders.DEFAULT_TITLE
     val itemWord = if (children.size == 1) "item" else "items"
     val openFolder: () -> Unit = { ctx.openFolder(item) }
@@ -85,7 +79,7 @@ internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem, access: HomeItemGr
             .a11yFocusTile(onActivate = openFolder, onMenu = openMenu)
             .homeAnchor(holder)
             .homeTapGestures(onTap = openFolder, onLongPress = openMenu)
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .padding(horizontal = 1.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         HomeBadgedBox(count = ctx.badgeFor(children), style = ctx.badgeStyle, modifier = Modifier.size(ctx.iconSize)) {
@@ -104,15 +98,8 @@ internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem, access: HomeItemGr
             }
         }
         if (ctx.labels) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = folderName,
-                color = tokens.onSurface,
-                fontSize = if (large) 15.sp else 12.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = homeTextShadow()),
-            )
+            Spacer(Modifier.height(AppLabelStyle.ICON_GAP))
+            AppLabel(text = folderName, color = tokens.onSurface)
         }
         // Pop-ups anchored to this tile: the open folder and the long-press menu.
         if (ctx.hooks.onOpenFolder == null && ctx.folderSheet.value?.id == item.id && item.id > 0) {
@@ -178,7 +165,6 @@ internal fun HomePairTile(ctx: HomeContext, item: HomeItem, access: HomeItemGrid
     val a = ctx.appFor(item)
     val b = ctx.appFor2(item)
     val holder = remember { HomeAnchorHolder() }
-    val large = LocalLargeIcons.current
     val pairName = item.title ?: homePairTitle(a, b)
     val launchPair: () -> Unit = { ctx.launchPair(item, context) }
     val openMenu: () -> Unit = { ctx.longPress(item, holder.bounds()) }
@@ -195,7 +181,7 @@ internal fun HomePairTile(ctx: HomeContext, item: HomeItem, access: HomeItemGrid
             .a11yFocusTile(onActivate = launchPair, onMenu = openMenu)
             .homeAnchor(holder)
             .homeTapGestures(onTap = launchPair, onLongPress = openMenu)
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .padding(horizontal = 1.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         HomeBadgedBox(count = ctx.badgeFor(item), style = ctx.badgeStyle, modifier = Modifier.size(ctx.iconSize)) {
@@ -207,15 +193,8 @@ internal fun HomePairTile(ctx: HomeContext, item: HomeItem, access: HomeItemGrid
             }
         }
         if (ctx.labels) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = pairName,
-                color = tokens.onSurface,
-                fontSize = if (large) 15.sp else 12.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = homeTextShadow()),
-            )
+            Spacer(Modifier.height(AppLabelStyle.ICON_GAP))
+            AppLabel(text = pairName, color = tokens.onSurface)
         }
         HomeItemPressOverlay(ctx, item)
     }

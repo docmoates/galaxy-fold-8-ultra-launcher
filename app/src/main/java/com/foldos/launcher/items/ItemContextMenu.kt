@@ -349,7 +349,7 @@ private fun MenuHeader(item: HomeItem, app: AppInfo?, secondApp: AppInfo?) {
                 color = tokens.onSurface,
                 fontSize = 14.5.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(

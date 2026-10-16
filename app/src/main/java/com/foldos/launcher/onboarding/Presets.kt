@@ -12,7 +12,7 @@ import com.foldos.launcher.core.model.ThemeId
 /**
  * A whole-launcher starting point (PLAN.md 5.3 "Preset gallery"). [apply] rewrites the look and
  * layout settings of the given [LauncherSettings] and records [id] in `LauncherSettings.preset`;
- * it leaves appearance (dark / light / auto), hub tabs, profile and feature switches alone unless
+ * it leaves appearance (dark / light / auto), hub tabs and feature switches alone unless
  * the preset is about them.
  */
 data class Preset(

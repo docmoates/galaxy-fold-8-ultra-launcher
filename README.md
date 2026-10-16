@@ -1,13 +1,13 @@
 # FoldOS
 
 An Android launcher for the Samsung Galaxy Z Fold 8 Ultra, written in Kotlin with Jetpack Compose
-(Material 3). Version 1.1.0.
+(Material 3). Version 1.2.0.
 
 FoldOS treats the fold as a design input. The cover screen and the inner screen get their own home
 layouts (or share one), the home keeps a gap over the hinge, Flex Mode splits the home at the
 hinge, and every behavior has an on/off switch. It ships a dock built from mixable traits, a pop-up
 app drawer, widgets (hosted Android widgets plus built-ins), gestures, universal search, folders
-and app pairs, notification badges, profiles, a Hub page (Today, Calendar, Contacts, Mail, AI),
+and app pairs, notification badges, a Hub page (Today, Calendar, Contacts, Mail, AI),
 accessibility options, backup and restore, and a full settings app.
 
 - Design: [PLAN.md](PLAN.md)
@@ -61,8 +61,9 @@ Every feature has a switch (Settings > Features and the page it belongs to).
 - Hosted Android app widgets (`AppWidgetHost`) with the system bind dialog and configure activity.
 - Built-in widgets: Clock, Glance, Weather (sample data), Calendar agenda, Devices battery, To-do,
   Now Playing, Focus timer, Photos, News.
-- Searchable widget picker grouped by category, app or recently used; bottom sheet on the cover,
-  wide card on the inner screen.
+- Two-level widget picker (1.2.0): search, a Featured grid of FoldOS widgets and an Apps list (category chips, or
+  recently used first); tapping an app opens a swipe-through detail view with a large preview and an "Add to home"
+  button. Bottom sheet on the cover, floating card with list and pager side by side on the inner screen.
 - Widget stacks (swipe to flip), free placement, resize.
 - Live edit mode: long-press, drag, resize, per-page style, add and delete pages, theme and
   wallpaper sheets.
@@ -77,14 +78,13 @@ Every feature has a switch (Settings > Features and the page it belongs to).
   with `!bangs`.
 - Folders (grid / list / big) and split-screen app pairs.
 - Notification badges, long-press previews and the quiet notification drawer.
-- Profiles (Work, Home, Night, ...) with schedule and Do Not Disturb switching.
 - Hub page: Today briefing, Calendar, Contacts, Mail (Gmail API) and AI tabs.
 - AI command router: plain-language launcher commands, template engine by default, optional
   on-device AICore.
 
 ### Phase 6: polish and release (1.0.0)
 
-- Backup and restore: export the whole launcher (settings, every page and item, profiles, icon
+- Backup and restore: export the whole launcher (settings, every page and item, icon
   overrides) as one JSON file and import it on this or another device (Settings > Backup, also
   Quick setup); Google Auto Backup status with a "request a backup now" row; grid size import from
   a Lawnchair or Nova settings file; reset layout.
@@ -111,6 +111,15 @@ Every feature has a switch (Settings > Features and the page it belongs to).
 - Twelve primary colors, each with a light and a dark version, in Settings, the setup wizard and the edit-mode theme sheet.
 - Universal search is a full-screen takeover with the field pinned at the top and the results above the keyboard; a dock
   with the search add-on no longer gets a second search bar at the top of the home.
+
+### Fix round 1.3: no profiles, readable labels, clean widget picker (1.2.0)
+
+- Profiles are gone: no profile switcher, editor, schedule or Do Not Disturb switching, and no exact-alarm permission.
+  Hidden apps moved to Settings > More settings > Hidden apps. Old settings and backups that mention profiles still load.
+- App names under icons wrap to two lines instead of being cut off, in one shared style across the home, dock, pop-up,
+  folders and pairs; Settings > Home style has Small / Medium / Large preview cards for the size.
+- The widget picker is a two-level chooser: Featured widgets and an Apps list, then a swipe-through detail view per app
+  with "Add to home".
 
 ## Building
 
@@ -141,7 +150,7 @@ Outputs: `app/build/outputs/apk/debug/app-debug.apk` and
 
 Pinned versions: Gradle 8.9, Android Gradle Plugin 8.7.3, Kotlin 2.1.0, KSP 2.1.0-1.0.29, Compose
 BOM 2024.12.01, Room 2.7.0 (2.6.1's KSP processor cannot read Kotlin 2.1 metadata; do not
-downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.1.0`, `versionCode` is `110`.
+downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.2.0`, `versionCode` is `120`.
 
 If the release build fails inside R8, build with `-Pfoldos.minify=false` to confirm that shrinking
 is the cause, then add the missing keep rule to `app/proguard-rules.pro`.
@@ -177,12 +186,12 @@ is the cause, then add the missing keep rule to `app/proguard-rules.pro`.
 4. Tag and push:
 
    ```
-   git tag v1.1.0
-   git push origin v1.1.0
+   git tag v1.2.0
+   git push origin v1.2.0
    ```
 
    The release job builds the APK, uploads `foldos-release-apk` and creates the GitHub Release
-   `FoldOS v1.1.0` with `FoldOS-v1.1.0.apk` attached.
+   `FoldOS v1.2.0` with `FoldOS-v1.2.0.apk` attached.
 
 The Gmail OAuth client (below) is tied to the signing key's SHA-1, so register the release key's
 fingerprint too.
@@ -229,8 +238,7 @@ Declining a permission only disables the feature behind it.
 | `READ_MEDIA_IMAGES`, `READ_MEDIA_VISUAL_USER_SELECTED` | Photos widget (full or "selected photos" access) | "Allow photo access" button on the widget |
 | `BLUETOOTH_CONNECT` | Devices battery widget (Watch, Buds) | "Allow" button on the widget |
 | `EXPAND_STATUS_BAR` | Gesture actions "Notifications" and "Quick settings" | Install time (normal) |
-| `RECEIVE_BOOT_COMPLETED` | Re-arm profile schedules after reboot, app update, clock or time zone change | Install time (normal) |
-| `SCHEDULE_EXACT_ALARM` | Profile schedules switch on the minute | Grant under Settings > Apps > Special app access > Alarms & reminders |
+| `RECEIVE_BOOT_COMPLETED` | Re-arm the daily wallpaper alarm after reboot, app update, clock or time zone change | Install time (normal) |
 | `SET_WALLPAPER` | Daily wallpaper (off by default) | Install time (normal) |
 | `INTERNET` | Gmail API and the OAuth token exchange (nothing else). Disabled in effect by the "No network" switch | Install time (normal) |
 | `com.google.android.gm.permission.READ_CONTENT_PROVIDER` | Unread counts per label from the Gmail app, no sign-in | Install time (normal) |
@@ -303,12 +311,6 @@ These need Notification access. Settings > Notifications > Device & app notifica
 FoldOS > Allow. On One UI the toggle is greyed out for sideloaded apps until you open the app
 info page, tap the three-dot menu and choose "Allow restricted settings".
 
-**Profile schedules fire late or not at all.**
-Time-based profiles use exact alarms. Allow FoldOS under Settings > Apps > Special app access >
-Alarms & reminders, and take FoldOS out of battery optimization (Settings > Apps > FoldOS >
-Battery > Unrestricted). Schedules are re-armed after a reboot, app update, clock change and
-time-zone change.
-
 **Calendar, contacts or missed calls are empty on the Hub.**
 Tap "Allow" on the tab; permissions are not requested until then. After a denial, enable them in
 Settings > Apps > FoldOS > Permissions.
@@ -326,7 +328,7 @@ APK, then import the backup.
 
 ```
 PLAN.md                     Design plan (screens, themes, docks, hub, settings, roadmap)
-CHANGELOG.md                Release history 0.1.0 to 1.1.0
+CHANGELOG.md                Release history 0.1.0 to 1.2.0
 mockup/foldos-mockup.html   Interactive mock-up; the JS objects S0, DOCKS, SCHEMES, HOME define behavior
 docs/                       Launcher research, the widget catalog, TESTING.md (manual device test plan)
 app/                        The single Gradle module (com.foldos.launcher)
@@ -351,7 +353,6 @@ app/                        The single Gradle module (com.foldos.launcher)
     gestures/               Home gesture detector, hinge and home-key detectors, action dispatch
     search/                 Universal search sheet, home search bar, providers
     items/                  Folders, app pairs, item context menu
-    profiles/               Persisted profiles, schedule / Do Not Disturb auto-switching, receivers
     notifications/          Notification badges and previews, quiet notification drawer
     hub/                    Hub page: Today, Calendar, Contacts; Calendar / CallLog / Contacts repository, task store
     mail/                   Gmail API through AppAuth, Gmail-app label counts, Mail tab
@@ -376,7 +377,6 @@ All of the following compile in CI but have never been run on a Galaxy Z Fold 8 
 - Hosted widgets from real apps (Samsung, Google, third party): bind, configure, resize, stacks.
 - Folders, app pairs and split-screen launch behavior under One UI's multi-window rules.
 - Notification badges with real notifications, the quiet drawer, and Now Playing.
-- Profile schedules with exact alarms and battery optimization on One UI.
 - Gmail sign-in end to end (needs a Cloud project) and the Gmail-app label counts.
 - On-device AI through AICore (the GenAI SDK is not bundled; the template engine is what runs).
 - Weather is still sample data; no provider is wired.

@@ -211,8 +211,8 @@ internal fun HomeGridPage(
         val source = if (items.isEmpty() && placeholder) ctx.autoGridItems(pageId, cols, maxRows = 8) else items
         reflowGridItems(source, cols, skipFree = free)
     }
-    // Easy mode shows bigger labels, so each row needs a little more room.
-    val labelHeight = if (ctx.labels) (if (ctx.settings.largeIcons) 32.dp else 24.dp) else 0.dp
+    // Labels reserve two lines (bigger in Easy mode / with a larger label size), so each row needs that room.
+    val labelHeight = appLabelBlockHeight(ctx.settings)
     HomeItemsGrid(
         ctx = ctx,
         pageId = pageId,

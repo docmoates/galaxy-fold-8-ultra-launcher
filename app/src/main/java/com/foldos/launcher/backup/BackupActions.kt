@@ -71,7 +71,7 @@ fun rememberBackupActions(): BackupActions {
                 val outcome = try {
                     val json = graph.backup.exportJson()
                     withContext(Dispatchers.IO) { BackupSupport.writeText(appContext, uri, json) }
-                    "Backup saved. It holds your home layout, settings, profiles and icon choices; hosted app widgets are not included."
+                    "Backup saved. It holds your home layout, settings and icon choices; hosted app widgets are not included."
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -151,7 +151,7 @@ fun rememberBackupActions(): BackupActions {
             title = { Text(text = "Restore this backup?") },
             text = {
                 Text(
-                    text = "Your home layout, settings, profiles and icon choices on this phone are replaced by the " +
+                    text = "Your home layout, settings and icon choices on this phone are replaced by the " +
                         "backup. Apps that are not installed here are skipped, and hosted app widgets are not restored.",
                 )
             },
@@ -188,7 +188,7 @@ fun rememberBackupActions(): BackupActions {
             title = { Text(text = "Reset the home layout?") },
             text = {
                 Text(
-                    text = "Pages, folders, stacks and widgets go back to the defaults. Settings, profiles and " +
+                    text = "Pages, folders, stacks and widgets go back to the defaults. Settings and " +
                         "icon choices are kept. This cannot be undone; back up to a file first if unsure.",
                 )
             },

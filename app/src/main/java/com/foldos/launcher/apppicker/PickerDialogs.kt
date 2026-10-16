@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.theme.LocalFoldOsTokens
@@ -76,7 +77,7 @@ fun AppPickerDialogs(
             containerColor = tokens.drawerScrim,
             titleContentColor = tokens.onSurface,
             textContentColor = tokens.onSurface,
-            title = { Text(actionsApp.label, maxLines = 1) },
+            title = { Text(actionsApp.label, maxLines = 2, overflow = TextOverflow.Ellipsis) },
             text = {
                 Column {
                     if (onAddToHome != null) {
