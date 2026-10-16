@@ -76,13 +76,19 @@ internal object HomeGeometryStore {
 /**
  * The item grid geometry of [screen] for the edit overlay. Returns the geometry the grid last laid
  * out with when the home screen of [screen] has been composed, otherwise an estimate from the
- * window size and the settings ([estimateGridGeometry]). Recomposes when either changes.
+ * window size and the settings ([estimateGridGeometry]; [pageStyle] is the style of the current page when
+ * pages carry their own). Recomposes when either changes.
  */
 @Composable
-fun rememberGridGeometry(screen: ScreenKind, settings: LauncherSettings, fold: FoldState): GridGeometry {
+fun rememberGridGeometry(
+    screen: ScreenKind,
+    settings: LauncherSettings,
+    fold: FoldState,
+    pageStyle: HomeStyle? = null,
+): GridGeometry {
     val measured = HomeGeometryStore.measured[screen]
     if (measured != null) return measured
-    return remember(screen, settings, fold) { estimateGridGeometry(screen, settings, fold) }
+    return remember(screen, settings, fold, pageStyle) { estimateGridGeometry(screen, settings, fold, pageStyle) }
 }
 
 /**
@@ -90,8 +96,13 @@ fun rememberGridGeometry(screen: ScreenKind, settings: LauncherSettings, fold: F
  * the same paddings `HomeScreen` lays out with (16dp page sides, 10dp vertical, 50+14dp search bar,
  * 27dp page indicator, a dock of icon size + chrome) and typical system bar heights.
  */
-fun estimateGridGeometry(screen: ScreenKind, settings: LauncherSettings, fold: FoldState): GridGeometry {
-    val style = settings.styleFor(screen)
+fun estimateGridGeometry(
+    screen: ScreenKind,
+    settings: LauncherSettings,
+    fold: FoldState,
+    pageStyle: HomeStyle? = null,
+): GridGeometry {
+    val style = pageStyle ?: settings.styleFor(screen)
     val inner = screen != ScreenKind.COVER
     val cols = when (style) {
         HomeStyle.GRID -> settings.effectiveColsFor(screen).coerceAtLeast(1)
@@ -100,8 +111,11 @@ fun estimateGridGeometry(screen: ScreenKind, settings: LauncherSettings, fold: F
         HomeStyle.HYBRID -> 4
     }
     val dock = settings.dockFor(screen)
-    val searchOn = settings.feature(LauncherSettings.FEATURE_SEARCH)
-    val bottomDock = settings.feature(LauncherSettings.FEATURE_DOCK) && dock.pos == DockPosition.BOTTOM
+    val dockOn = settings.feature(LauncherSettings.FEATURE_DOCK)
+    // The bottom dock's search add-on replaces the top search bar (LauncherRoot: topSearchBarOn).
+    val searchOn = settings.feature(LauncherSettings.FEATURE_SEARCH) &&
+        !(dockOn && dock.pos != DockPosition.RAIL && dock.search)
+    val bottomDock = dockOn && dock.pos == DockPosition.BOTTOM
     val topDp = EST_STATUS_BAR_DP + 10 + (if (searchOn) 64 else 0)
     val dockDp = if (bottomDock) settings.effectiveIconSizeDp + (if (dock.labels || dock.two) 56 else 34) else 0
     val bottomDp = 10 + 27 + dockDp + EST_NAV_BAR_DP

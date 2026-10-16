@@ -16,15 +16,23 @@ import kotlin.math.min
  *
  * - `colors.scheme == "theme"`: the theme's own palette from the mock-up CSS. For [ThemeId.MATERIAL]
  *   with a non-null [dynamic] scheme, Material You's primary / primaryContainer / surfaces are used.
- * - any preset or "custom": accent, highlight and wallpaper are derived from the picked colors
- *   exactly like `colorVars()` in the mock-up (accent lightness clamped to >= 66% in dark and
- *   <= 42% in light for contrast).
+ * - a primary color preset: every primary has a light and a dark version
+ *   ([ColorSchemes.resolveFor]); the version for [dark] is used as given (light = deeper accent over
+ *   pastel wallpaper tints, dark = lighter accent over a deep wallpaper), with no lightness clamp, and
+ *   [FoldOsTokens.onAccent] / [FoldOsTokens.onHighlight] picked from luminance so text stays legible.
+ * - "custom": accent, highlight and wallpaper are derived from the picked colors exactly like
+ *   `colorVars()` in the mock-up (accent lightness clamped to >= 66% in dark and <= 42% in light for
+ *   contrast).
  */
 fun tokensFor(theme: ThemeId, dark: Boolean, colors: ColorSchemeConfig, dynamic: ColorScheme?): FoldOsTokens {
     val base = baseTokens(theme, dark)
-    val palette = ColorSchemes.resolve(colors)
+    val palette = ColorSchemes.resolveFor(colors, dark)
+    val custom = colors.scheme == ColorSchemeConfig.SCHEME_CUSTOM
     return when {
-        palette != null -> recolor(base, theme, dark, Color(palette[0]), Color(palette[1]), Color(palette[2]))
+        palette != null -> recolor(
+            base, theme, dark, Color(palette[0]), Color(palette[1]), Color(palette[2]),
+            exact = !custom,
+        )
         theme == ThemeId.MATERIAL && dynamic != null -> withDynamicColor(base, dark, dynamic)
         else -> base
     }
@@ -259,25 +267,37 @@ private fun recolor(
     accentIn: Color,
     wall1: Color,
     wall2: Color,
+    exact: Boolean = false,
 ): FoldOsTokens {
     val a = accentIn.toHsl()
     val w1 = wall1.toHsl()
     val w2 = wall2.toHsl()
 
-    val acc = hsl(a.h, a.s, if (dark) max(a.l, 66f) else min(a.l, 42f))
-    val onAcc = if (dark) hsl(a.h, min(a.s, 60f), 12f) else Color.White
+    // exact = a primary-color preset whose accent was tuned for this mode (light: deep, dark: light):
+    // used as given, with the text color chosen from luminance. Custom colors keep the mock-up clamp.
+    val acc = if (exact) accentIn.copy(alpha = 1f) else hsl(a.h, a.s, if (dark) max(a.l, 66f) else min(a.l, 42f))
+    val onAcc = when {
+        exact -> inkOn(acc, a)
+        dark -> hsl(a.h, min(a.s, 60f), 12f)
+        else -> Color.White
+    }
     val solid = theme == ThemeId.MATERIAL || theme == ThemeId.ONEUI
     val hi = if (solid) {
         if (dark || theme == ThemeId.ONEUI) acc else hsl(a.h, min(a.s, 80f), 90f)
+    } else if (exact) {
+        acc.copy(alpha = 0.14f)
     } else {
         hsl(a.h, a.s, if (dark) 66f else 42f, 0.14f)
     }
     val onHi = if (solid) {
         when {
             dark -> onAcc
-            theme == ThemeId.ONEUI -> Color.White
+            theme == ThemeId.ONEUI -> if (exact) onAcc else Color.White
             else -> hsl(a.h, 60f, 18f)
         }
+    } else if (exact) {
+        // Text on a faint accent wash that sits on the wallpaper: the accent itself, pushed to read on this mode.
+        if (dark) hsl(a.h, a.s, max(a.l, 82f)) else hsl(a.h, a.s, min(a.l, 26f))
     } else {
         hsl(a.h, a.s, if (dark) 85f else 25f)
     }
@@ -297,6 +317,10 @@ private fun recolor(
     }
     return tokens
 }
+
+/** Text / icon color on top of [accent]: white or a hue-tinted near-black, whichever reads better. */
+private fun inkOn(accent: Color, accentHsl: Hsl): Color =
+    if (readableOn(accent) == Color.White) Color.White else hsl(accentHsl.h, min(accentHsl.s, 60f), 10f)
 
 /** Wallpaper gradient from two picked colors (mock-up `colorVars()` `--wall`), grid lines added for Bold. */
 private fun schemeWallpaper(theme: ThemeId, dark: Boolean, a: Hsl, w1: Hsl, w2: Hsl): Brush {

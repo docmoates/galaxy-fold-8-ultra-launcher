@@ -35,6 +35,8 @@ data class ImportResult(
  * The on-disk backup document. [version] is bumped when the shape changes incompatibly; readers
  * reject a version higher than they know. [createdAt] is epoch milliseconds. [iconOverrides] maps
  * `AppInfo.key` ("package/activity") to the stored override value of `IconResolver.override`.
+ * [dockApps] maps `ScreenKind.name` to that screen's dock apps (`AppInfo.key` list) and [appGroups] maps an app
+ * pop-up group name to its `AppInfo.key` list, in creation order; both are optional so older files import.
  *
  * Encode with `encodeDefaults = true`, otherwise [version] (a default) is omitted from the output.
  */
@@ -46,6 +48,8 @@ data class BackupFile(
     val pages: List<BackupPage>,
     val profiles: List<Profile> = emptyList(),
     val iconOverrides: Map<String, String> = emptyMap(),
+    val dockApps: Map<String, List<String>> = emptyMap(),
+    val appGroups: Map<String, List<String>> = emptyMap(),
 )
 
 /** One home page. [screen] is `ScreenKind.name`, [style] is `HomeStyle.name`; [index] is the page order on its screen. */

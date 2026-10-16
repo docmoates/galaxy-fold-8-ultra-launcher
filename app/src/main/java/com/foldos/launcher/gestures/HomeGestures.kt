@@ -11,6 +11,7 @@ import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.positionChangedIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.dp
@@ -20,8 +21,10 @@ import com.foldos.launcher.core.model.LauncherSettings
 import kotlin.math.abs
 
 /**
- * Home-screen gesture detection (Settings > Gestures). Put it on the page container, **after** the
- * page's long-press modifier in the chain (so it sits inside it and sees pointer events first):
+ * Home-screen gesture detection (Settings > Gestures). Put it on the container that holds everything
+ * a swipe may start on: `HomeScreen` applies it once to its root, so the pager, the page indicator
+ * and the dock are all covered (a swipe up that starts on the dock opens the drawer). It reads the
+ * events after the children of that container, so a child that scrolls or flips wins:
  *
  * - one-finger vertical swipes: [GestureKind.SWIPE_UP] / [GestureKind.SWIPE_DOWN] once the finger
  *   has travelled [SWIPE_DISTANCE_DP] (80 dp), or [FLICK_DISTANCE_DP] at [FLICK_VELOCITY_DP_PER_S]
@@ -182,7 +185,7 @@ internal suspend fun AwaitPointerEventScope.detectHomeGesture(
 
         if (!cancelled) {
             val owned = verticalOwned || maxPointers >= 2
-            val takenByChild = event.changes.any { it.isConsumed && it.positionChanged() }
+            val takenByChild = event.changes.any { it.isConsumed && it.positionChangedIgnoreConsumed() }
             if (takenByChild && !owned) {
                 cancelled = true
             } else if (pressed.size >= 2) {
@@ -221,7 +224,7 @@ internal suspend fun AwaitPointerEventScope.detectHomeGesture(
             // Not ours yet. Parents (the pager) run after this node in the Main pass; wait for the
             // Final pass of the same event to learn whether one of them claimed the drag.
             awaitPointerEvent(PointerEventPass.Final)
-            if (event.changes.any { it.isConsumed && it.positionChanged() }) cancelled = true
+            if (event.changes.any { it.isConsumed && it.positionChangedIgnoreConsumed() }) cancelled = true
         }
     }
 

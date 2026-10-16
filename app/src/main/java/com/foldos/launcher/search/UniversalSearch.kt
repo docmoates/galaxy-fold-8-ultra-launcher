@@ -2,6 +2,8 @@ package com.foldos.launcher.search
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -10,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,7 +20,10 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
@@ -146,35 +150,39 @@ fun UniversalSearch(
         if (close) onDismiss()
     }
 
+    // Full-screen takeover: one opaque surface that reaches every window edge (status bar included),
+    // so nothing of the home screen can show as a strip. Only a quick fade runs on the surface; the
+    // sheet content slides a few dp inside it (see SearchSheet).
     Box(modifier = modifier.fillMaxSize()) {
-        AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(140)),
+            exit = fadeOut(tween(110)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
             val tokens = LocalFoldOsTokens.current
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(if (tokens.isDark) Color.Black.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.25f))
+                    // Wallpaper first so a translucent drawerScrim still ends up opaque.
+                    .background(tokens.wallpaper)
+                    .background(tokens.drawerScrim)
                     .pointerInput(onDismiss) { detectTapGestures { onDismiss() } },
-            )
-        }
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInVertically { -it / 3 } + fadeIn(),
-            exit = slideOutVertically { -it / 3 } + fadeOut(),
-            modifier = Modifier.align(Alignment.TopCenter),
-        ) {
-            SearchSheet(
-                screen = screen,
-                settings = settings,
-                query = query,
-                onQueryChange = { query = it },
-                results = results,
-                recent = recent,
-                highlighted = highlighted,
-                onHighlight = { highlighted = it },
-                onActivate = activate,
-                onRecent = { query = it },
-                onDismiss = onDismiss,
-            )
+            ) {
+                SearchSheet(
+                    screen = screen,
+                    settings = settings,
+                    query = query,
+                    onQueryChange = { query = it },
+                    results = results,
+                    recent = recent,
+                    highlighted = highlighted,
+                    onHighlight = { highlighted = it },
+                    onActivate = activate,
+                    onRecent = { query = it },
+                    onDismiss = onDismiss,
+                )
+            }
         }
     }
 }
@@ -235,7 +243,7 @@ private fun buildRows(results: List<SearchResult>, recent: List<String>, setting
 }
 
 @Composable
-private fun SearchSheet(
+private fun AnimatedVisibilityScope.SearchSheet(
     screen: ScreenKind,
     settings: LauncherSettings,
     query: String,
@@ -284,17 +292,23 @@ private fun SearchSheet(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val maxSheetHeight = maxHeight * 0.8f
+    // Edge-to-edge: the window is not resized (decorFitsSystemWindows=false), the IME inset is delivered
+    // (adjustResize) and the keyboard is handled here.
+    // Top: status bar. Bottom: keyboard or navigation bar, whichever is taller, so the results list
+    // shrinks and scrolls above the keyboard.
+    val insets = WindowInsets.statusBars.union(WindowInsets.ime).union(WindowInsets.navigationBars)
+    Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(insets)) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 10.dp, start = 12.dp, end = 12.dp)
+                .fillMaxHeight()
+                .padding(top = 10.dp, bottom = 10.dp, start = 12.dp, end = 12.dp)
                 .then(if (wide) Modifier.widthIn(max = 640.dp) else Modifier.fillMaxWidth())
-                .heightIn(max = maxSheetHeight)
-                // Swallow taps so they do not fall through to the scrim.
-                .pointerInput(Unit) { detectTapGestures { } },
+                // Only the sheet content slides (a few dp); the surface behind it only fades.
+                .animateEnterExit(
+                    enter = slideInVertically(tween(180)) { -it / 14 } + fadeIn(tween(180)),
+                    exit = slideOutVertically(tween(110)) { -it / 14 } + fadeOut(tween(110)),
+                ),
         ) {
             SearchField(
                 query = query,
@@ -314,7 +328,9 @@ private fun SearchSheet(
                 FoldOsSurface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f, fill = false),
+                        .weight(1f, fill = false)
+                        // Swallow taps so they do not fall through to the dismiss area behind.
+                        .pointerInput(Unit) { detectTapGestures { } },
                     shape = RoundedCornerShape(tokens.radius),
                 ) {
                     LazyColumn(

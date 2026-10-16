@@ -17,7 +17,7 @@ core-ktx 1.15.0, navigation-compose 2.8.5).
 
 | Package / path | Owner | Public API it must expose |
 |---|---|---|
-| `core/` (everything below) | Scaffold / Contracts | Shared contracts. Read, do not edit. |
+| `core/` (everything below, incl. Fix round 1.1 `core/ui/Drag.kt`) | Scaffold / Contracts | Shared contracts. Read, do not edit. |
 | `MainActivity.kt`, `LauncherViewModel.kt`, `LauncherRoot.kt` | Integrate | `com.foldos.launcher.MainActivity : ComponentActivity` (ROLE_HOME entry; declared in the manifest), the `LauncherViewModel` and the `LauncherRoot` composable that wires home, dock, drawer, hub placeholder and search bar together |
 | `home/` | Home | Home pages, grid/dashboard/list/hybrid styles, dock rendering from `DockConfig`, page indicator, hub page shell |
 | `drawer/` | Drawer | Pop-up and full-screen app drawer, search, folders |
@@ -162,6 +162,78 @@ Backup, perf and release all touch `app/build.gradle.kts`: perf owns dependencie
   (`-Pfoldos.minify=false` bisects), debug-keystore fallback signing, versionName 1.0.0 / versionCode 100.
 - Docs: `README.md`, `CHANGELOG.md` (1.0.0) and `docs/TESTING.md` describe all of the above.
 
+
+### Fix round 1.1 (device feedback on 1.0.0; see `app/DIAGNOSIS.md`)
+
+Contracts-owned changes (everything below already exists in `core/` and `data/`; the agents only consume it).
+
+| Package / path | Owner | Task |
+|---|---|---|
+| `core/ui/Drag.kt`, `core/model/ColorSchemeConfig.kt`, `core/repo/LayoutRepository.kt`, `data/DockAppsStore.kt`, `LayoutRepositoryImpl` (`placeApp`, `setDockApps`, `dockApps`), this file, `DIAGNOSIS.md` | Contracts | Shared drag-and-drop, light/dark color families, dock apps + `placeApp` |
+| `home/` | Home | Hide indicator + dock on the hub page; swipe-up detector on the whole `HomeScreen` root; grid `dragTarget` |
+| `dock/` | Dock | Always an "All apps" button; `dragTarget(DOCK)`; reorder / remove |
+| `drawer/` | Drawer | App pop-up with group folders and `dragSource` tiles |
+| `edit/` | Edit | `Modifier.editModeScale`, overlay geometry for the scaled home, Remove chip |
+| `search/` | Search | Full-screen opaque search surface, fade only, `imePadding()` |
+| `settings/`, wizard color step | Settings | Sample-based pages; color families |
+| `theme/` | Theme | `ColorTone` aware `recolor` |
+| `data/LayoutRepositoryImpl.kt` seeding | Data | One default page per screen; no re-seeding |
+| `LauncherRoot.kt`, `LauncherViewModel.kt`, `AndroidManifest.xml` | Integrate | Provide the controller, dock apps flow, edit scale, `searchBar = null` with the dock search add-on, `adjustNothing` |
+
+#### Drag and drop (`core/ui/Drag.kt`, package `com.foldos.launcher.core.ui`)
+
+- `sealed interface DragPayload { data class App(val app: AppInfo); data class Item(val item: HomeItem) }`.
+- `class DragController` (`@Stable`): `val payload: State<DragPayload?>`, `val pointerInRoot: State<Offset>`, `val hoverTargetId: State<String?>`
+  (the accepting target under the pointer), `val isDragging: Boolean`, `fun start(payload, pointerInRoot)`, `fun move(pointerInRoot)`,
+  `fun drop(): Boolean` (true when a target took the payload), `fun cancel()`, `fun registerTarget(id: String, bounds: () -> Rect?, accepts: (DragPayload) -> Boolean, onDrop: (DragPayload, Offset) -> Unit)`,
+  `fun unregisterTarget(id: String)`.
+  - All positions are root coordinates (`localToRoot` / `boundsInRoot()`); the launcher fills the window, so they are window coordinates.
+  - `drop()` hit-tests the registered targets, **last registered first** (re-registering an id keeps its place); the first whose `bounds()` contains the pointer and whose
+    `accepts(payload)` is true gets `onDrop(payload, pointerInRoot)`. The state is cleared **before** `onDrop` runs. No hit = the payload is discarded and `drop()` returns false.
+  - `start` replaces a drag in progress; `move` without a drag is a no-op.
+- `val LocalDragController = staticCompositionLocalOf<DragController> { error(...) }`; `@Composable fun rememberDragController()`. The Integrate agent provides it around the whole launcher.
+- `object DragTargetIds { DOCK = "dock"; HOME_GRID = "home-grid"; REMOVE = "remove" }`: the dock registers `DOCK`, the settled home page's item grid registers `HOME_GRID`
+  (`onDrop` maps the pointer to a cell with `GridGeometry.cellAt` on dp, i.e. `pointer / density`, then the Integrate agent's view-model function calls `LayoutRepository.placeApp` or `moveItem`),
+  an optional remove strip registers `REMOVE`.
+- Helpers in the same file: `Modifier.dragSource(controller, payload: () -> DragPayload?, enabled = true, onStarted = {})` (long press, then drag; consumes moves once started; the
+  node must stay composed until the drop, so a host such as the app pop-up hides with `graphicsLayer { alpha = 0f }` while `controller.isDragging` instead of leaving composition),
+  `Modifier.dragTarget(controller, id, accepts = { true }, onDrop)` (registers while composed; lambdas are read fresh at drop), `DragGhostLayer(controller, modifier, ghost: @Composable (DragPayload) -> Unit)`
+  (draws the ghost centred on the pointer; compose last in a window-filling `Box`; never takes touches).
+
+#### Dock apps and `placeApp` (`LayoutRepository`, implemented in `data/`)
+
+- `suspend fun placeApp(app: AppInfo, pageId: Long, col: Int, row: Int, cols: Int? = null, rows: Int? = null, growsRows: Boolean = true): Boolean`: inserts a 1 x 1 APP item at the cell, moves nothing; if that cell is
+  covered it uses the nearest free cell (smallest |dcol| + |drow|, ties lower row then lower column) inside `cols` x `rows` (pass `GridGeometry.cols` / `rows`; null searches the
+  rectangle of the requested cell and the occupied cells plus one extra row). When the bounded grid is full the item goes to column 0 of the row below the lowest item when `growsRows`; with `growsRows = false` and `rows` given (fixed-row grid pages) nothing is stored and the result is false
+  (dashboard / hybrid pages grow, like `firstFreeCell`). Dropping onto an APP / FOLDER cell is the caller's decision (`Folders.createFromDrop` / `addToFolder`, as `LauncherViewModel.moveItem`
+  does); call `placeApp` only for free cells.
+- `suspend fun setDockApps(screen: ScreenKind, appKeys: List<String>)` and `fun dockApps(screen: ScreenKind): Flow<List<String>>`: the ordered `AppInfo.key` list of the dock per
+  `ScreenKind` (the value passed, FLEX is stored separately from INNER; use `effectiveScreen` as the key everywhere). Empty list = use the default dock apps (`defaultDockApps`); `setDockApps`
+  with an empty list clears the stored value; duplicates and blanks are dropped; keys of uninstalled apps stay stored and are skipped when resolving.
+  The dock shows at most `DockDefaults.pinnedCount(config, screen)` resolved apps, any extra ones fill the folder add-on, as before.
+- Persistence: `data/DockAppsStore.kt` (Preferences DataStore file `foldos_dock`, key `dock_<ScreenKind>`, newline-joined keys). `LayoutRepositoryImpl(db, dockStore)`; `AppGraphImpl`
+  builds `LayoutRepositoryImpl(database, DockAppsStore(appContext))`. No Room schema change (version stays 3). The backup file does not include dock apps.
+
+#### Light and dark color families (`core/model/ColorSchemeConfig.kt`)
+
+- `enum class ColorTone { LIGHT, DARK }`; `ColorSchemePreset(id, name, accent, wall1, wall2, family = id, tone = DARK)`; `ColorFamily(id, name, light, dark)` with `forTone(tone)`.
+- `ColorSchemes.families`: twelve primary colors (ocean, teal, forest, lime, gold, sunset, red, rose, violet, indigo, slate, mono), each with a `-dark` (the original deep mock-up colors) and a `-light` (pale tints) preset;
+  `ColorSchemes.presets` = every family's dark then light preset (24); `byId` accepts `"ocean-dark"`, `"ocean-light"` and the legacy `"ocean"` (= dark); `familyById`; `resolve(config)` unchanged.
+  `ColorSchemeConfig.scheme` stores the exact preset id.
+
+#### Fix round 1.1 integration (done)
+
+- `LauncherRoot.kt`: `LocalDragController` and `DragGhostLayer` around the whole root; `EditScaledHome(active = editMode)` wraps `HomeScreen` and the rail dock (the wallpaper stays outside, full size);
+  a touch sink below `EditModeOverlay` while editing; `Dock(... dragController, onDockAppsChange = setDockApps, onHomeItemTakenIntoDock = deleteItem)`; `AppDrawer(... dragController, onAddToHome, onAddToDock)`;
+  `EditModeOverlay(... onRestoreItem = restoreItem, selectRequestId)`; `searchBar = null` when the bottom dock has the search add-on. `HomeCallbacks.onItemLongPress` records the item as the edit selection.
+- Drop targets: each GRID / DASHBOARD page registers `page:<pageId>` (`HomeCellGrid(dropTarget = HomeGridDrop)`), list / hybrid pages register their body under the same id (cell -1 / -1), the dock registers
+  `DragTargetIds.DOCK`. `DragTargetIds.HOME_GRID` / `REMOVE` are not used. `LauncherViewModel.dropOnPage` maps a drop to `moveItem` (tile) or `placeApp` / folder create / add (app).
+- Edit scale: `edit/EditScale.kt` exports `EDIT_SCALE`, `EditChrome`, `EditFrame`, `rememberEditChrome()`, `EditScaledHome`, `LocalEditFrame` and `LocalEditHomeRoot`. `HomeCellGrid` publishes its geometry relative to the
+  home root inside the scaling layer (`localPositionOf`), so `GridGeometry` is always in UNSCALED window dp and `EditModeOverlay` maps it through the same `EditFrame`.
+- Undo: `LauncherViewModel.deleteItem(item)` keeps a removed app widget's host id for `UNDO_WINDOW_MS + 1.5 s` and then releases it; `restoreItem(item)` writes the item back (same id) and cancels the release.
+  `addAppToHome(app, pageId, style, geometry)` backs the pop-up menu's "Add to home screen". `dockApps(screen)` / `setDockApps(screen, keys)` use `effectiveScreen` as the key.
+- `AndroidManifest.xml`: `MainActivity` has `windowSoftInputMode="adjustNothing"`; the search surface and the pop-up handle the keyboard with `imePadding()`.
+
 #### Phase 2+3 integration (done)
 
 - `data/AppGraphImpl.kt`: `builtIns = FoldOsBuiltInWidgets(appContext)`, `widgets = FoldOsWidgetCatalog(...)`,
@@ -170,7 +242,7 @@ Backup, perf and release all touch `app/build.gradle.kts`: perf owns dependencie
 - `MainActivity`: provides `LocalAppGraph` and `builtins.LocalPermissionRequester` (backed by
   `ActivityResultContracts.RequestPermission`), forwards the deprecated `onActivityResult` to
   `WidgetHostController.from(this, graph)` (app-widget configure results), and calls
-  `appWidgetHost.startListening()` / `stopListening()` in `onStart` / `onStop` on top of the eager start in `AppGraphImpl`.
+  `appWidgetHost.startListening()` / `stopListening()` in `onStart` / `onStop` (`AppGraphImpl` no longer starts listening, so processes without an Activity do not).
 - `LauncherViewModel`: edit mode, widget picker and current-page state; layout mutations (`moveItem` turns a drop onto
   another widget into `createStack` when the Stacks feature is on, `resizeItem`, `deleteItem` also releases the app
   widget id, `addPage` / `setPageStyle` / `deletePage`, `addBuiltInWidget` / `addAppWidget` at the first free cell);
@@ -217,8 +289,8 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 
 ### model/ColorSchemeConfig.kt
 - `@Serializable data class ColorSchemeConfig(scheme: String = "theme", accent: Long = 0xFF7AD1FF, wall1: Long = 0xFF4F46E5, wall2: Long = 0xFFDB2777)` with `SCHEME_THEME`, `SCHEME_CUSTOM` constants
-- `data class ColorSchemePreset(id, name, accent: Long, wall1: Long, wall2: Long)`
-- `object ColorSchemes { val presets: List<ColorSchemePreset> /* ocean, forest, sunset, rose, gold, mono */; fun byId(id): ColorSchemePreset?; fun resolve(config): List<Long>? }`
+- `data class ColorSchemePreset(id, name, accent: Long, wall1: Long, wall2: Long, family = id, tone: ColorTone = DARK)`, `enum class ColorTone { LIGHT, DARK }`, `data class ColorFamily(id, name, light, dark)` (Fix round 1.1: every primary color has a light and a dark preset)
+- `object ColorSchemes { val families: List<ColorFamily> /* ocean, forest, sunset, rose, gold, violet, teal, red, mono */; val presets: List<ColorSchemePreset> /* "<family>-dark" and "<family>-light" */; fun byId(id): ColorSchemePreset? /* legacy "ocean" = dark */; fun familyById(id): ColorFamily?; fun resolve(config): List<Long>? }`
 
 ### model/LauncherSettings.kt
 - `@Serializable data class LauncherSettings(screenMode = DIFFERENT, appearance = DARK, styleCover = GRID, styleInner = DASHBOARD, theme = GLASS, gridMode = GRID, colsCover = 4, colsInner = 6, iconSizeDp = 58, radiusDp = 22, labels = true, profile = "Work", dockCover: DockConfig = pill, dockInner: DockConfig = taskbar, drawerStyle = POPUP, popBlur = true, hubOn = true, hubPos = "left", hubBar = "bottom", hubTabs: Set<String> = {ai, mail, cal, people}, colors: ColorSchemeConfig = ColorSchemeConfig(), wpGroup = "category", features: Map<String, Boolean> = {search, dock, badges, gestures, pairs, ai, stacks, smart, drawerTabs, profiles -> true}, iconPack: String? = null, iconShape: IconShape = IconShape.SYSTEM, wizardDone: Boolean = false, preset: String? = null, hiddenApps: Set<String> = emptySet(), gestures: Map<String, GestureAction> = DEFAULT_GESTURES, searchEngine: String = "google", searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(), badgeStyle: String = "count", activeProfile: String? = null, mailClientId: String? = null, aiMode: String = "template", folderStyle: String = "grid", notificationPreview: Boolean = true, highContrast: Boolean = false, reduceMotion: Boolean = false, textScale: Float = 1.0f, largeIcons: Boolean = false, greyscale: Boolean = false, noNetwork: Boolean = false, dailyWallpaper: Boolean = false, backupAuto: Boolean = true)`
@@ -273,6 +345,8 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
   - `suspend fun removeFromFolder(itemId: Long, toPageId: Long, col: Int, row: Int)` (back onto the grid; deletes the folder when it ends up empty; no-op for an item not in a folder)
   - `suspend fun allPagesWithItems(): List<Pair<HomePage, List<HomeItem>>>` (Phase 6: all pages with all items incl. folder children and app widgets)
   - `suspend fun replaceAll(pages: List<Pair<HomePage, List<HomeItem>>>)` (Phase 6: transactional full replace; ids are local keys, see Phase 6 contracts)
+  - `suspend fun placeApp(app: AppInfo, pageId: Long, col: Int, row: Int, cols: Int? = null, rows: Int? = null, growsRows: Boolean = true): Boolean` (Fix round 1.1: inserts an APP item at the cell, nearest free cell when occupied; see "Fix round 1.1")
+  - `suspend fun setDockApps(screen: ScreenKind, appKeys: List<String>)` / `fun dockApps(screen: ScreenKind): Flow<List<String>>` (Fix round 1.1: ordered `AppInfo.key` list of the dock per screen, empty = default dock apps)
   - `}`
 
 ### repo/AppsRepository.kt
@@ -338,7 +412,7 @@ All under `app/src/main/java/com/foldos/launcher/data/`.
 - `db/LayoutDatabase.kt`: Room **version 3**, entities `PageEntity`, `ItemEntity`, converters `LayoutConverters` (enums by name). `LayoutDatabase.MIGRATION_1_2` adds to `items`: `app_widget_id INTEGER`, `builtin_id TEXT`, `stack_id INTEGER`, `stack_index INTEGER NOT NULL DEFAULT 0`, `free INTEGER NOT NULL DEFAULT 0`, `x_dp REAL`, `y_dp REAL`, `w_dp REAL`, `h_dp REAL`. `MIGRATION_2_3` adds `parent_id INTEGER` (+ `index_items_parent_id`), `package_name_2 TEXT`, `activity_name_2 TEXT`, `folder_style TEXT`. `create(context)` adds both migrations and keeps `fallbackToDestructiveMigration(dropAllTables = true)` as the last resort. Every future schema change bumps the version and adds a `Migration`.
 - `db/LayoutEntities.kt`: `PageEntity(id, screen, page_index, style)`; `ItemEntity(id, page_id, kind, grid_col, grid_row, span_x, span_y, package_name, activity_name, title, app_widget_id, builtin_id, stack_id, stack_index, free, x_dp, y_dp, w_dp, h_dp, parent_id, package_name_2, activity_name_2, folder_style)` with `toModel()` / `fromModel()`.
 - `db/LayoutDao.kt`: `pagesByScreen`, `pagesByScreenOnce`, `pageById`, `firstPage`, `countPages`, `maxPageIndex`, `upsertPage`, `setPageStyle(pageId, style: String)`, `setPageIndex`, `deletePage`, `itemsByPage` / `itemsByPageOnce` (both `parent_id IS NULL`), `childrenOf(parentId): Flow`, `childrenOfOnce`, `countChildren`, `placeInFolder(id, parentId, pageId, col, row)`, `removeFromFolder(id, pageId, col, row)`, `moveChildren(parentId, pageId)`, `setFolderStyle(id, style: String?)`, `deleteChildren(parentId)`, `itemById`, `itemsByIds`, `countItemsForScreen`, `countItemsForPage`, `upsertItem`, `upsertItems`, `moveItem`, `moveStack`, `resizeItem`, `resizeStack`, `placeInStack`, `deleteItem`, `allPagesOnce`, `allItemsByPageOnce`, `deleteAllItems`, `deleteAllPages` (Phase 6).
-- `LayoutRepositoryImpl(db: LayoutDatabase) : LayoutRepository` implements every method above (including `children`, `createFolder`, `createPair`, `removeFromFolder`); extra public `suspend fun upsertPage(page: HomePage): Long` and `suspend fun setFolderStyle(folderId: Long, style: String?)`.
+- `LayoutRepositoryImpl(db: LayoutDatabase, dockStore: DockAppsStore) : LayoutRepository` implements every method above (including `children`, `createFolder`, `createPair`, `removeFromFolder`); extra public `suspend fun upsertPage(page: HomePage): Long` and `suspend fun setFolderStyle(folderId: Long, style: String?)`. Fix round 1.1 adds `DockAppsStore(context)` (`data/DockAppsStore.kt`: `apps(screen): Flow<List<String>>`, `suspend set(screen, appKeys)`).
 - `SettingsRepositoryImpl(context)`; `AppsRepositoryImpl(context, settings: SettingsRepository? = null, iconResolver: () -> IconResolver? = { null })` — `apps` = `allApps` minus `settings.hiddenApps` (package name or `AppInfo.key`), re-emitting when the set changes; `allApps` = every launchable activity.
 - Placeholders replaced in later phases: `PlaceholderWidgetCatalog(context)`, `EmptyBuiltInWidgetRegistry()`, `PassthroughIconResolver(settings)` (Phase 2+3, now unused fallbacks); Phase 4+5: `EmptyBadgeRepository()` (empty flows), `InMemoryProfileRepository(settings)` (profiles kept in memory; `activate` / `captureCurrent` really go through `SettingsRepository`, `activate` keeps the device's `wizardDone`), `EmptyHubRepository()` (empty flows, no-op writes), `NotConfiguredMailRepository()` (`MailState.NotConfigured`, no-op calls), `TemplateAiCommandRouter(provider: AiProvider = TemplateAiProvider())` (echo reply, `appliedSettings = false`).
 - `AppGraphImpl(context) : AppGraph` wires all of the above (`badges`, `profiles`, `hub`, `mail`, `ai` are the placeholders, one `by lazy` line each); Phase 6 adds `backup` = `NotImplementedBackupRepository()` (`data/NotImplementedBackupRepository.kt`); `appWidgetHost` is created eagerly and started in `init`.

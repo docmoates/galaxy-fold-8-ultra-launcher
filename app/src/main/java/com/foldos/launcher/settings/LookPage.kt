@@ -16,6 +16,8 @@ import com.foldos.launcher.icons.IconPackPicker
 import com.foldos.launcher.icons.IconShapePicker
 import com.foldos.launcher.icons.IconShapes
 import com.foldos.launcher.onboarding.OnboardingActivity
+import com.foldos.launcher.onboarding.colorsForFamily
+import com.foldos.launcher.theme.isDarkAppearance
 
 object LookRows {
     val theme = SettingsRowInfo("Theme")
@@ -56,9 +58,10 @@ object LookRows {
         ThemeId.BOLD -> 6
     }
 
+    /** Theme colors, one entry per primary color (it has a light and a dark version), Custom. Keys are family ids. */
     val schemeOptions: List<Pair<String, String>> =
         listOf(ColorSchemeConfig.SCHEME_THEME to "Theme colors") +
-            ColorSchemes.presets.map { preset -> preset.id to preset.name } +
+            ColorSchemes.families.map { family -> family.id to family.name } +
             (ColorSchemeConfig.SCHEME_CUSTOM to "Custom")
 }
 
@@ -70,6 +73,7 @@ fun LookPage(
 ) {
     val context = LocalContext.current
     val colors = settings.colors
+    val isDark = isDarkAppearance(settings.appearance)
     var showIconPackPicker by rememberSaveable { mutableStateOf(false) }
     var showIconShapePicker by rememberSaveable { mutableStateOf(false) }
 
@@ -90,18 +94,14 @@ fun LookPage(
         )
         ChipsRow(
             info = LookRows.scheme,
-            value = colors.scheme,
+            value = ColorSchemes.familyOfScheme(colors.scheme)?.id ?: colors.scheme,
             options = LookRows.schemeOptions,
             onSelect = { id ->
                 update { current ->
-                    val preset = ColorSchemes.byId(id)
-                    val next = if (preset != null) {
-                        current.colors.copy(
-                            scheme = id,
-                            accent = preset.accent,
-                            wall1 = preset.wall1,
-                            wall2 = preset.wall2,
-                        )
+                    val family = ColorSchemes.familyById(id)
+                    val next = if (family != null) {
+                        // The light or dark version is picked by the Appearance on its own.
+                        colorsForFamily(current.colors, family, isDark)
                     } else {
                         current.colors.copy(scheme = id)
                     }

@@ -20,6 +20,8 @@ import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.model.WidgetEntry
+import com.foldos.launcher.core.ui.DragPayload
+import com.foldos.launcher.edit.UNDO_WINDOW_MS
 import com.foldos.launcher.gestures.GestureActions
 import com.foldos.launcher.gestures.GestureHost
 import com.foldos.launcher.gestures.HomeKeyDoubleTapDetector
@@ -32,7 +34,10 @@ import com.foldos.launcher.items.Folders
 import com.foldos.launcher.settings.SettingsActivity
 import com.foldos.launcher.widgets.WidgetHostController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -351,6 +356,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * Free-placed items are snapped to the cell and keep their dp size.
      */
     fun moveItem(item: HomeItem, pageId: Long, col: Int, row: Int, stacksOn: Boolean, geometry: GridGeometry) {
+        val growsRows = pageStyleOf(pageId).growsRows()
         graph.appScope.launch {
             runCatching {
                 if (Folders.canLiveInFolder(item)) {
@@ -393,6 +399,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         return@runCatching
                     }
                 }
+                // A tile that cannot fold or stack must not land on top of another item: take the nearest
+                // free cell instead, or refuse the drop when the page has none.
+                var targetCol = col
+                var targetRow = row
+                if (!item.free) {
+                    val sx = item.spanX.coerceAtLeast(1)
+                    val sy = item.spanY.coerceAtLeast(1)
+                    val others = graph.layouts.items(pageId).first().filter { other ->
+                        other.id != item.id && !other.free && (item.stackId == null || other.stackId != item.stackId)
+                    }
+                    if (others.any { it.overlapsCells(col, row, sx, sy) }) {
+                        val rowLimit = geometry.rows + if (growsRows) sy else 0
+                        val free = nearestFreeCell(others, geometry.cols, rowLimit, sx, sy, col, row)
+                        if (free == null) {
+                            toastNoRoom()
+                            return@runCatching
+                        }
+                        targetCol = free.first
+                        targetRow = free.second
+                    }
+                }
                 if (item.free) {
                     graph.layouts.upsertItem(
                         item.copy(
@@ -404,11 +431,138 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         ),
                     )
                 } else {
-                    graph.layouts.moveItem(item.id, pageId, col, row)
+                    graph.layouts.moveItem(item.id, pageId, targetCol, targetRow)
                 }
             }.onFailure { Log.w(TAG, "moveItem(${item.id}) failed", it) }
         }
     }
+
+    // ------------------------------------------------------------------------------------------
+    // Drag and drop (app pop-up -> home page / dock, tile -> other cell)
+    // ------------------------------------------------------------------------------------------
+
+    /** The ordered `AppInfo.key` list of the dock of [screen] (empty = the default dock apps). */
+    fun dockApps(screen: ScreenKind): Flow<List<String>> = graph.layouts.dockApps(screen)
+
+    /**
+     * Stores the dock apps of [screen] (an empty list goes back to the default dock apps). The app
+     * pop-up closes: this is called when an app was dropped on the dock.
+     */
+    fun setDockApps(screen: ScreenKind, appKeys: List<String>) {
+        _drawerOpen.value = false
+        graph.appScope.launch {
+            runCatching { graph.layouts.setDockApps(screen, appKeys) }
+                .onFailure { Log.w(TAG, "setDockApps($screen) failed", it) }
+        }
+    }
+
+    /**
+     * A drag ended on the cell grid of page [pageId]. [col] / [row] is the cell under the pointer, or
+     * -1 / -1 for a page without a cell grid (list, hybrid): the app is then appended below the last
+     * item. The app pop-up closes.
+     *
+     * - [DragPayload.Item]: an existing tile moves there ([moveItem]: a drop on another app makes a
+     *   folder, on a folder adds to it).
+     * - [DragPayload.App]: a new 1 x 1 APP item. A free cell takes it (`LayoutRepository.placeApp`,
+     *   the nearest free cell when the target is covered by a widget); a drop on an app turns that app
+     *   into a folder holding both; a drop on a folder adds it as the last child.
+     */
+    fun dropOnPage(payload: DragPayload, pageId: Long, col: Int, row: Int, stacksOn: Boolean, geometry: GridGeometry) {
+        _drawerOpen.value = false
+        when (payload) {
+            is DragPayload.Item -> {
+                if (col < 0 || row < 0 || payload.item.id <= 0L) return
+                moveItem(payload.item, pageId, col, row, stacksOn, geometry)
+            }
+            is DragPayload.App -> placeDroppedApp(payload.app, pageId, col, row, geometry)
+        }
+    }
+
+    private fun placeDroppedApp(app: AppInfo, pageId: Long, col: Int, row: Int, geometry: GridGeometry) {
+        val grows = pageStyleOf(pageId).growsRows()
+        graph.appScope.launch {
+            runCatching {
+                val onPage = graph.layouts.items(pageId).first()
+                if (col < 0 || row < 0) {
+                    if (hybridPageIsFull(pageId, onPage)) {
+                        toastNoRoom()
+                        return@runCatching
+                    }
+                    val lowest = onPage.maxOfOrNull { it.row + it.spanY.coerceAtLeast(1) - 1 } ?: -1
+                    graph.layouts.placeApp(app, pageId, 0, lowest + 1)
+                    return@runCatching
+                }
+                val hit = onPage.firstOrNull { it.covers(col, row) }
+                when {
+                    hit == null -> placeAppOrToast(app, pageId, col, row, geometry, grows)
+                    hit.isFolder -> {
+                        val count = graph.layouts.children(hit.id).first().size
+                        graph.layouts.upsertItem(appChild(app, hit.pageId, hit.id, count))
+                    }
+                    Folders.canLiveInFolder(hit) -> {
+                        val folderId = graph.layouts.createFolder(hit.pageId, hit.col, hit.row, Folders.DEFAULT_TITLE, listOf(hit.id))
+                        graph.layouts.upsertItem(appChild(app, hit.pageId, folderId, 1))
+                    }
+                    else -> placeAppOrToast(app, pageId, col, row, geometry, grows)
+                }
+            }.onFailure { Log.w(TAG, "placeApp(${app.key}) on page $pageId failed", it) }
+        }
+    }
+
+    /**
+     * Puts [app] on the nearest free cell around [col]/[row]. A page with a fixed row count that is full
+     * refuses the app with a "No room on this page" toast instead of storing a row nobody draws.
+     */
+    private suspend fun placeAppOrToast(
+        app: AppInfo,
+        pageId: Long,
+        col: Int,
+        row: Int,
+        geometry: GridGeometry,
+        growsRows: Boolean,
+    ) {
+        val placed = graph.layouts.placeApp(app, pageId, col, row, geometry.cols, geometry.rows, growsRows)
+        if (!placed) toastNoRoom()
+    }
+
+    /**
+     * True when [pageId] is a Hybrid (Panels) page whose app panel already holds all the apps it
+     * draws: 8 on the cover, 16 on the inner / flex screens (`HomePages.kt`). A further app would be
+     * stored but never drawn. List pages are unbounded and never full.
+     */
+    private fun hybridPageIsFull(
+        pageId: Long,
+        onPage: List<HomeItem>,
+        style: HomeStyle? = pageStyleOf(pageId),
+    ): Boolean {
+        if (style != HomeStyle.HYBRID) return false
+        val screen = pageFlows.entries.firstOrNull { (_, flow) -> flow.value.any { it.id == pageId } }?.key
+        val capacity = if (screen == null || screen == ScreenKind.COVER) 8 else 16
+        return onPage.count { it.kind == ItemKind.APP } >= capacity
+    }
+
+    private suspend fun toastNoRoom() {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(getApplication<Application>(), "No room on this page", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** The style of the page [pageId] as far as a loaded screen knows it; null when no screen has listed it yet. */
+    private fun pageStyleOf(pageId: Long): HomeStyle? =
+        pageFlows.values.firstNotNullOfOrNull { flow -> flow.value.firstOrNull { it.id == pageId }?.style }
+
+    /** A new APP item inside the folder [folderId] (on the folder's page), as child number [order]. */
+    private fun appChild(app: AppInfo, pageId: Long, folderId: Long, order: Int): HomeItem = HomeItem(
+        id = 0L,
+        pageId = pageId,
+        kind = ItemKind.APP,
+        col = 0,
+        row = order,
+        packageName = app.packageName,
+        activityName = app.activityName,
+        title = app.label,
+        parentId = folderId,
+    )
 
     /** Resizes [item] (and its stack mates) to [spanX] x [spanY]; free-placed items get the matching dp size too. */
     fun resizeItem(item: HomeItem, spanX: Int, spanY: Int, geometry: GridGeometry) {
@@ -429,13 +583,61 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Removes [item]; a hosted app widget also releases its id from the host. */
+    /** Pending releases of removed app widgets' host ids, by item id (cancelled when the removal is undone). */
+    private val pendingWidgetReleases = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+
+    /**
+     * Removes [item]. A hosted app widget keeps its host id for [UNDO_WINDOW_MS] plus a margin so the
+     * edit overlay's Undo ([restoreItem]) can put the very same widget back; the id is released once
+     * that window has passed.
+     */
     fun deleteItem(item: HomeItem) {
         val appWidgetId = item.appWidgetId
-        if (appWidgetId != null) widgetHost.deleteId(appWidgetId)
+        if (appWidgetId != null) {
+            pendingWidgetReleases.remove(item.id)?.cancel()
+            pendingWidgetReleases[item.id] = graph.appScope.launch {
+                delay(UNDO_WINDOW_MS + WIDGET_RELEASE_MARGIN_MS)
+                withContext(Dispatchers.Main) { widgetHost.deleteId(appWidgetId) }
+                pendingWidgetReleases.remove(item.id)
+            }
+        }
         graph.appScope.launch {
             runCatching { graph.layouts.deleteItem(item.id) }
                 .onFailure { Log.w(TAG, "deleteItem(${item.id}) failed", it) }
+        }
+    }
+
+    /** Undo of [deleteItem]: writes [item] back unchanged (same id) and keeps its widget host id. */
+    fun restoreItem(item: HomeItem) {
+        pendingWidgetReleases.remove(item.id)?.cancel()
+        graph.appScope.launch {
+            runCatching { graph.layouts.upsertItem(item) }
+                .onFailure { Log.w(TAG, "restoreItem(${item.id}) failed", it) }
+        }
+    }
+
+    /**
+     * "Add to home screen" from the app pop-up menu: a new app tile on [pageId] at the first free cell
+     * ([GridGeometry.cols] x [GridGeometry.rows]), or appended below the last item on list / hybrid
+     * pages. The app pop-up closes.
+     */
+    fun addAppToHome(app: AppInfo, pageId: Long, pageStyle: HomeStyle?, geometry: GridGeometry) {
+        _drawerOpen.value = false
+        val listLike = pageStyle == HomeStyle.LIST || pageStyle == HomeStyle.HYBRID
+        graph.appScope.launch {
+            runCatching {
+                if (listLike) {
+                    val onPage = graph.layouts.items(pageId).first()
+                    if (hybridPageIsFull(pageId, onPage, pageStyle)) {
+                        toastNoRoom()
+                        return@runCatching
+                    }
+                    val lowest = onPage.maxOfOrNull { it.row + it.spanY.coerceAtLeast(1) - 1 } ?: -1
+                    graph.layouts.placeApp(app, pageId, 0, lowest + 1)
+                } else {
+                    placeAppOrToast(app, pageId, 0, 0, geometry, pageStyle.growsRows())
+                }
+            }.onFailure { Log.w(TAG, "addAppToHome(${app.key}) failed", it) }
         }
     }
 
@@ -479,10 +681,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val deleted = runCatching {
                 val items = graph.layouts.items(pageId).first()
+                graph.layouts.deletePage(pageId)
+                // Release the host ids only once the rows are gone: a failed delete keeps its widgets alive.
                 withContext(Dispatchers.Main) {
                     items.forEach { item -> item.appWidgetId?.let { widgetHost.deleteId(it) } }
                 }
-                graph.layouts.deletePage(pageId)
             }.onFailure { Log.w(TAG, "deletePage($pageId) failed", it) }.isSuccess
             if (deleted) {
                 pages(screen).first { all -> all.none { it.id == pageId } }.firstOrNull()?.let { selectPage(it.id) }
@@ -630,6 +833,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private companion object {
         const val TAG = "LauncherViewModel"
+
+        /** Extra time past the Undo window before a removed app widget's host id is released. */
+        const val WIDGET_RELEASE_MARGIN_MS = 1500L
     }
 }
 
@@ -638,6 +844,42 @@ internal fun HomeItem.covers(col: Int, row: Int): Boolean {
     val sx = spanX.coerceAtLeast(1)
     val sy = spanY.coerceAtLeast(1)
     return col >= this.col && col < this.col + sx && row >= this.row && row < this.row + sy
+}
+
+/** True when the cells of this item overlap the [sx] x [sy] rectangle whose top-left cell is [col] / [row]. */
+internal fun HomeItem.overlapsCells(col: Int, row: Int, sx: Int, sy: Int): Boolean =
+    this.col < col + sx && col < this.col + spanX.coerceAtLeast(1) &&
+        this.row < row + sy && row < this.row + spanY.coerceAtLeast(1)
+
+/**
+ * The free [sx] x [sy] spot on a [cols] x [rows] grid closest to [wantedCol] / [wantedRow] (smallest
+ * |dcol| + |drow|, ties to the lower row, then the lower column); null when [items] leave none.
+ */
+internal fun nearestFreeCell(
+    items: List<HomeItem>,
+    cols: Int,
+    rows: Int,
+    sx: Int,
+    sy: Int,
+    wantedCol: Int,
+    wantedRow: Int,
+): Pair<Int, Int>? {
+    val columns = cols.coerceAtLeast(1)
+    val w = sx.coerceIn(1, columns)
+    val h = sy.coerceAtLeast(1)
+    var best: Pair<Int, Int>? = null
+    var bestDistance = Int.MAX_VALUE
+    for (r in 0..(rows - h)) {
+        for (c in 0..(columns - w)) {
+            if (items.any { it.overlapsCells(c, r, w, h) }) continue
+            val distance = kotlin.math.abs(c - wantedCol) + kotlin.math.abs(r - wantedRow)
+            if (distance < bestDistance) {
+                bestDistance = distance
+                best = c to r
+            }
+        }
+    }
+    return best
 }
 
 /**

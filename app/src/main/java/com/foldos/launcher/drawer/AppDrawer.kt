@@ -33,14 +33,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -51,18 +52,30 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.a11y.a11yDuration
+import com.foldos.launcher.apppicker.AppPickerDialogs
+import com.foldos.launcher.apppicker.AppPickerState
+import com.foldos.launcher.apppicker.GroupChipRow
+import com.foldos.launcher.apppicker.NewGroupRequest
+import com.foldos.launcher.apppicker.PickerGroup
+import com.foldos.launcher.apppicker.PickerModel
+import com.foldos.launcher.apppicker.rememberAppPickerState
+import com.foldos.launcher.apppicker.rememberPickerModel
 import com.foldos.launcher.core.LocalAppGraph
-import kotlinx.coroutines.flow.flowOf
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.DrawerStyle
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.ui.DragController
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import kotlinx.coroutines.flow.flowOf
 
 /** Blur radius (dp) applied to the home content behind the pop-up drawer (mock-up `.scrim.blur`). */
 val DrawerBackdropBlurRadius: Dp = 18.dp
 
 private const val DRAWER_ANIM_MS = 320
+
+/** Height (dp) of the strip the pop-up shrinks to while one of its apps is being dragged. */
+private val CollapsedHandleHeight: Dp = 30.dp
 
 /**
  * Modifier the caller puts on the home content (NOT on [AppDrawer]) so the home blurs while the
@@ -81,7 +94,8 @@ fun drawerBackdropModifier(visible: Boolean, blur: Boolean): Modifier {
 
 /**
  * Composable variant of [drawerBackdropModifier] whose blur radius animates in and out together
- * with the drawer. Same API 31 guard.
+ * with the drawer. Same API 31 guard. While an app is dragged out of the pop-up the caller should
+ * pass `visible = drawerOpen && !dragController.isDragging` so the home is sharp to drop on.
  */
 @Composable
 fun rememberDrawerBackdropModifier(visible: Boolean, blur: Boolean): Modifier {
@@ -105,9 +119,14 @@ fun rememberDrawerBackdropModifier(visible: Boolean, blur: Boolean): Modifier {
     }
 }
 
+/** Remembers whether a drag that started in the pop-up ended over a drop target. */
+private class DropLanding {
+    var sawTarget: Boolean = false
+}
+
 /**
- * The FoldOS app drawer (PLAN.md 2.7). Place it as the top-most layer of the home Box, filling the
- * screen; it draws nothing while [visible] is false.
+ * The FoldOS app pop-up (PLAN.md 2.7): the place users manage their apps. Place it as the top-most
+ * layer of the home Box, filling the screen; it draws nothing while [visible] is false.
  *
  * - [DrawerStyle.POPUP] on [ScreenKind.COVER]: bottom sheet rising to ~78% height, 30dp top corners,
  *   grab handle, slide-up animation.
@@ -115,9 +134,21 @@ fun rememberDrawerBackdropModifier(visible: Boolean, blur: Boolean): Modifier {
  *   margins, 64dp top, 40dp bottom, 32dp corners), scale+fade animation.
  * - [DrawerStyle.FULL]: full-screen panel.
  *
+ * Inside: a search field, the group folders (All, Work, Media, Social, Tools, Games, Hidden and the
+ * user's own groups, "New group") and the app grid. Tapping an app calls [onLaunch] then [onDismiss].
+ * Long press on an app and release opens its menu (Add to group, App info, ...); long press and drag
+ * starts a drag with [DragPayload.App][com.foldos.launcher.core.ui.DragPayload.App] on [dragController]:
+ * the pop-up then fades to 30% and shrinks to a strip so the home screen and the dock can be dropped
+ * on, closes ([onDismiss]) when the drop landed on a target, and restores itself otherwise.
+ *
  * Behind the pop-up a scrim dims the home; the blur itself is applied by the caller through
  * [drawerBackdropModifier] / [rememberDrawerBackdropModifier]. Tapping the scrim or pressing back
- * calls [onDismiss]; tapping an app calls [onLaunch] then [onDismiss].
+ * calls [onDismiss].
+ *
+ * @param dragController the launcher-wide controller (`LocalDragController.current`); null turns
+ *   dragging off. The drawer stays composed until the drop, as `Drag.kt` requires.
+ * @param onAddToHome adds the app to the current home page ("Add to home screen" in the menu); null hides the entry.
+ * @param onAddToDock adds the app to the dock ("Add to dock" in the menu); null hides the entry.
  */
 @Composable
 fun AppDrawer(
@@ -128,35 +159,58 @@ fun AppDrawer(
     onLaunch: (AppInfo) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    dragController: DragController? = null,
+    onAddToHome: ((AppInfo) -> Unit)? = null,
+    onAddToDock: ((AppInfo) -> Unit)? = null,
 ) {
     val isPopup = settings.drawerStyle == DrawerStyle.POPUP
     val isCover = screen == ScreenKind.COVER
 
-    var query by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf(DrawerCategory.ALL) }
+    val pickerState = rememberAppPickerState()
+    val model = rememberPickerModel(pickerState, apps, settings, visible)
 
-    // Reset the search when the drawer closes so it reopens clean.
+    // Reset the search, the selected group and the dialogs when the drawer closes so it reopens clean.
     LaunchedEffect(visible) {
-        if (!visible) {
-            query = ""
-            category = DrawerCategory.ALL
-        }
+        if (!visible) pickerState.reset()
     }
 
     BackHandler(enabled = visible) { onDismiss() }
 
-    val sortedApps = remember(apps) {
-        apps.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
+    // Drag and drop out of the pop-up: it shrinks to a strip while one of its apps is dragged,
+    // closes when the drop hit a target (dock / home) and restores itself when it did not.
+    val dragging = dragController?.payload?.value != null
+    var dragFromSheet by remember { mutableStateOf(false) }
+    val landing = remember { DropLanding() }
+    if (dragController != null) {
+        LaunchedEffect(dragController) {
+            snapshotFlow { dragController.hoverTargetId.value }.collect { target ->
+                // Only while the drag is live: the clear on drop also reports null and must not undo it.
+                if (dragController.isDragging) landing.sawTarget = target != null
+            }
+        }
     }
-    val filteredApps = remember(sortedApps, query, category) {
-        val base = category.filter(sortedApps)
-        val q = query.trim()
-        if (q.isEmpty()) base else base.filter { it.label.contains(q, ignoreCase = true) }
+    LaunchedEffect(dragging) {
+        if (!dragging && dragFromSheet) {
+            dragFromSheet = false
+            val landed = landing.sawTarget
+            landing.sawTarget = false
+            if (landed) onDismiss()
+        }
+    }
+    val sheetCollapsed = dragging && dragFromSheet
+    val animMs = a11yDuration(DRAWER_ANIM_MS)
+    val collapse = animateFloatAsState(
+        targetValue = if (sheetCollapsed) 1f else 0f,
+        animationSpec = tween(durationMillis = a11yDuration(200)),
+        label = "drawerDragCollapse",
+    )
+    val onDragStarted: () -> Unit = {
+        landing.sawTarget = false
+        dragFromSheet = true
     }
 
     // Easy mode (settings.largeIcons): bigger icons, so fewer columns.
     val easy = settings.largeIcons
-    val animMs = a11yDuration(DRAWER_ANIM_MS)
     val columns = when {
         isCover -> if (easy) 3 else 4
         isPopup -> if (easy) 5 else 7
@@ -180,18 +234,39 @@ fun AppDrawer(
         onDismiss()
     }
     val launchFirst: () -> Unit = {
-        filteredApps.firstOrNull()?.let(launchAndDismiss)
+        model.shown.firstOrNull()?.let(launchAndDismiss)
+    }
+
+    val body: @Composable (Modifier, PaddingValues, Boolean) -> Unit = { bodyModifier, padding, grabHandle ->
+        DrawerBody(
+            state = pickerState,
+            model = model,
+            showChips = showChips,
+            showGrabHandle = grabHandle,
+            totalCount = apps.size,
+            columns = columns,
+            iconSize = iconSize,
+            onLaunch = launchAndDismiss,
+            onSearch = launchFirst,
+            badgeCounts = badgeCounts,
+            contentPadding = padding,
+            dragController = dragController,
+            onDragStarted = onDragStarted,
+            modifier = bodyModifier,
+        )
     }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (isPopup) {
-            DrawerScrim(visible = visible, blur = settings.popBlur, onDismiss = onDismiss)
+            DrawerScrim(visible = visible && !sheetCollapsed, blur = settings.popBlur, onDismiss = onDismiss)
         }
 
         if (!isPopup) {
             AnimatedVisibility(
                 visible = visible,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .dragCollapse { collapse.value },
                 enter = fadeIn(animationSpec = tween(animMs)) +
                     slideInVertically(animationSpec = tween(animMs)) { it / 8 },
                 exit = fadeOut(animationSpec = tween(animMs)) +
@@ -203,26 +278,14 @@ fun AppDrawer(
                     showBorder = false,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    DrawerBody(
-                        query = query,
-                        onQueryChange = { query = it },
-                        category = category,
-                        onCategoryChange = { category = it },
-                        showChips = showChips,
-                        showGrabHandle = false,
-                        apps = filteredApps,
-                        totalCount = apps.size,
-                        columns = columns,
-                        iconSize = iconSize,
-                        onLaunch = launchAndDismiss,
-                        onSearch = launchFirst,
-                        badgeCounts = badgeCounts,
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 48.dp, bottom = 30.dp),
-                        modifier = Modifier
+                    body(
+                        Modifier
                             .fillMaxSize()
                             .statusBarsPadding()
                             .navigationBarsPadding()
                             .imePadding(),
+                        PaddingValues(start = 16.dp, end = 16.dp, top = 48.dp, bottom = 30.dp),
+                        false,
                     )
                 }
             }
@@ -232,7 +295,8 @@ fun AppDrawer(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .fillMaxHeight(0.78f),
+                    .fillMaxHeight(0.78f)
+                    .dragCollapse { collapse.value },
                 enter = fadeIn(animationSpec = tween(animMs / 2)) +
                     slideInVertically(animationSpec = tween(animMs)) { it },
                 exit = fadeOut(animationSpec = tween(animMs)) +
@@ -247,24 +311,12 @@ fun AppDrawer(
                         .padding(start = 6.dp, end = 6.dp, bottom = 6.dp)
                         .imePadding(),
                 ) {
-                    DrawerBody(
-                        query = query,
-                        onQueryChange = { query = it },
-                        category = category,
-                        onCategoryChange = { category = it },
-                        showChips = showChips,
-                        showGrabHandle = true,
-                        apps = filteredApps,
-                        totalCount = apps.size,
-                        columns = columns,
-                        iconSize = iconSize,
-                        onLaunch = launchAndDismiss,
-                        onSearch = launchFirst,
-                        badgeCounts = badgeCounts,
-                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 26.dp),
-                        modifier = Modifier
+                    body(
+                        Modifier
                             .fillMaxSize()
                             .navigationBarsPadding(),
+                        PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 26.dp),
+                        true,
                     )
                 }
             }
@@ -275,7 +327,8 @@ fun AppDrawer(
                     .align(Alignment.Center)
                     .fillMaxWidth(0.82f)
                     .fillMaxHeight()
-                    .padding(top = 64.dp, bottom = 40.dp),
+                    .padding(top = 64.dp, bottom = 40.dp)
+                    .dragCollapse { collapse.value },
                 enter = fadeIn(animationSpec = tween(animMs)) +
                     scaleIn(animationSpec = tween(animMs), initialScale = 0.92f),
                 exit = fadeOut(animationSpec = tween(animMs)) +
@@ -289,26 +342,38 @@ fun AppDrawer(
                         .fillMaxSize()
                         .imePadding(),
                 ) {
-                    DrawerBody(
-                        query = query,
-                        onQueryChange = { query = it },
-                        category = category,
-                        onCategoryChange = { category = it },
-                        showChips = showChips,
-                        showGrabHandle = false,
-                        apps = filteredApps,
-                        totalCount = apps.size,
-                        columns = columns,
-                        iconSize = iconSize,
-                        onLaunch = launchAndDismiss,
-                        onSearch = launchFirst,
-                        badgeCounts = badgeCounts,
-                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 20.dp),
-                        modifier = Modifier.fillMaxSize(),
+                    body(
+                        Modifier.fillMaxSize(),
+                        PaddingValues(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 20.dp),
+                        false,
                     )
                 }
             }
         }
+
+        AppPickerDialogs(
+            state = pickerState,
+            model = model,
+            onAddToHome = onAddToHome,
+            onAddToDock = onAddToDock,
+            onDone = onDismiss,
+        )
+    }
+}
+
+/**
+ * While an app is dragged out of the pop-up, [progress] goes 0 -> 1: the sheet fades to 30% and
+ * squashes into a [CollapsedHandleHeight] strip at its top edge (a handle), so the home screen and
+ * the dock behind it are free to drop on. The node stays composed, as the drag requires.
+ */
+private fun Modifier.dragCollapse(progress: () -> Float): Modifier = this.graphicsLayer {
+    val p = progress()
+    if (p > 0f) {
+        val minScaleY = (CollapsedHandleHeight.toPx() / size.height).coerceIn(0.02f, 1f)
+        scaleY = 1f + (minScaleY - 1f) * p
+        scaleX = 1f - 0.6f * p
+        alpha = 1f - 0.7f * p
+        transformOrigin = TransformOrigin(0.5f, 0f)
     }
 }
 
@@ -375,25 +440,30 @@ private fun DrawerPanel(
     }
 }
 
-/** Search field, chips and grid stacked inside a panel. */
+/** Search field, group folders and grid stacked inside a panel. */
 @Composable
 private fun DrawerBody(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    category: DrawerCategory,
-    onCategoryChange: (DrawerCategory) -> Unit,
+    state: AppPickerState,
+    model: PickerModel,
     showChips: Boolean,
     showGrabHandle: Boolean,
-    apps: List<AppInfo>,
     totalCount: Int,
     columns: Int,
     iconSize: Dp,
     onLaunch: (AppInfo) -> Unit,
     onSearch: () -> Unit,
     contentPadding: PaddingValues,
+    dragController: DragController?,
+    onDragStarted: () -> Unit,
     modifier: Modifier = Modifier,
     badgeCounts: Map<String, Int> = emptyMap(),
 ) {
+    val emptyText = when {
+        state.query.isNotBlank() -> "No apps match"
+        model.selected.kind == PickerGroup.Kind.USER ->
+            "This group is empty.\nLong-press an app and choose “Add to group”."
+        else -> "No apps here"
+    }
     Column(
         modifier = modifier.padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -402,20 +472,32 @@ private fun DrawerBody(
             DrawerGrabHandle(modifier = Modifier.align(Alignment.CenterHorizontally))
         }
         DrawerSearchField(
-            query = query,
-            onQueryChange = onQueryChange,
+            query = state.query,
+            onQueryChange = { state.query = it },
             appCount = totalCount,
             onSearch = onSearch,
         )
         if (showChips) {
-            DrawerCategoryChips(selected = category, onSelect = onCategoryChange)
+            GroupChipRow(
+                model = model,
+                onSelect = { group ->
+                    state.query = ""
+                    state.selectedId = group.id
+                },
+                onNewGroup = { state.newGroup = NewGroupRequest(andAdd = null) },
+                onManageGroup = { group -> state.manageGroupName = group.userName },
+            )
         }
         DrawerAppGrid(
-            apps = apps,
+            apps = model.shown,
             columns = columns,
             iconSize = iconSize,
             onLaunch = onLaunch,
             badgeCounts = badgeCounts,
+            dragController = dragController,
+            onDragStarted = onDragStarted,
+            onAppMenu = { app -> state.actionsApp = app },
+            emptyText = emptyText,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),

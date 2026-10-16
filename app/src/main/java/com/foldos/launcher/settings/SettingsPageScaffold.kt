@@ -24,7 +24,6 @@ import com.foldos.launcher.a11y.a11yHeading
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.repo.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 /** Navigation routes of the settings graph. */
 object SettingsRoutes {
@@ -41,6 +40,12 @@ object SettingsRoutes {
     const val AI: String = "ai"
     const val FEATURES: String = "features"
     const val ABOUT: String = "about"
+
+    /** "More settings": the detailed pages (the old Settings root list), reached from the bottom of the sample-based home. */
+    const val MORE: String = "more"
+
+    /** Gallery of all 20 dock styles as live previews (opened from the Dock section of the home page). */
+    const val DOCK_GALLERY: String = "dock_gallery"
 }
 
 /** One settings page: where it lives, how the root list shows it, and its searchable rows. */
@@ -56,14 +61,15 @@ data class SettingsPageInfo(
  * Applies a settings change through [SettingsRepository.update] on the given scope. Pass a scope
  * that outlives the composition (the app graph's `appScope`): DataStore runs the transform in the
  * caller's context, so a write launched on a composition scope is cancelled, and lost, when the
- * screen leaves while it is in flight.
+ * screen leaves while it is in flight. Changes are applied one at a time, in call order
+ * ([SettingsWriteQueue]).
  */
 class SettingsUpdater(
     private val scope: CoroutineScope,
     private val repo: SettingsRepository,
 ) {
     operator fun invoke(transform: (LauncherSettings) -> LauncherSettings) {
-        scope.launch { repo.update(transform) }
+        SettingsWriteQueue.enqueue(scope, repo, transform)
     }
 }
 

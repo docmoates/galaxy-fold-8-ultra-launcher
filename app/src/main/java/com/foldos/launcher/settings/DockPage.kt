@@ -1,6 +1,28 @@
 package com.foldos.launcher.settings
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import com.foldos.launcher.onboarding.SampleDockPreview
 import androidx.compose.material.icons.outlined.Dock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -77,6 +99,15 @@ object DockRows {
     )
 }
 
+/** One on / off trait shown as a chip. */
+private class DockTrait(val label: String, val on: Boolean, val onToggle: (Boolean) -> Unit)
+
+/**
+ * The dock trait editor ("Customize" on the Settings home): a live preview of the dock being edited,
+ * then chips for the background, position, items, layout traits and add-ons. Picking a whole style is
+ * done on the Settings home and in [DockGalleryPage]; this page only mixes traits.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DockPage(
     settings: LauncherSettings,
@@ -98,31 +129,45 @@ fun DockPage(
     val isRail = dock.pos == DockPosition.RAIL
 
     SettingsPageScaffold(title = DockRows.page.title, onBack = onBack) {
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(modifier = Modifier.widthIn(max = 480.dp).clip(RoundedCornerShape(16.dp))) {
+                SampleDockPreview(
+                    dock = dock,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(DockStripRatio),
+                    base = settings,
+                )
+            }
+        }
+        val description = DockPresets.byId(presetId)?.description
+            ?: "Custom mix: your own combination of traits."
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
         ToggleRow(
             info = DockRows.dock,
             checked = settings.feature(LauncherSettings.FEATURE_DOCK),
             onCheckedChange = { on -> update { it.withFeature(LauncherSettings.FEATURE_DOCK, on) } },
         )
-        SelectRow(
+        ChipsRow(
             info = DockRows.editFor,
             value = screen,
             options = DockRows.editForOptions,
             onSelect = { kind -> editInner = kind == ScreenKind.INNER },
             visible = !sameLayout,
         )
-        SelectRow(
+        ChipsRow(
             info = DockRows.preset,
             value = presetId,
             options = DockRows.presetOptions,
             onSelect = { id ->
                 if (id != DockPresets.CUSTOM_ID) setDock(DockPresets.configFor(id))
             },
-        )
-        val description = DockPresets.byId(presetId)?.description
-            ?: "Custom mix: your own combination of traits."
-        StaticRow(
-            info = SettingsRowInfo("Current style", description),
-            showChevron = false,
         )
         ChipsRow(
             info = DockRows.background,
@@ -143,79 +188,62 @@ fun DockPage(
             onSelect = { content -> setDock(dock.copy(content = content)) },
         )
 
-        SectionHeader(text = "Layout")
-        ToggleRow(
-            info = DockRows.labels,
-            checked = dock.labels,
-            onCheckedChange = { on -> setDock(dock.copy(labels = on)) },
+        TraitChips(
+            title = "Layout",
+            traits = listOf(
+                DockTrait("Labels", dock.labels) { on -> setDock(dock.copy(labels = on)) },
+                DockTrait("Two rows", dock.two) { on -> setDock(dock.copy(two = on, scroll = if (on) false else dock.scroll)) },
+                DockTrait("Scrolling", dock.scroll) { on -> setDock(dock.copy(scroll = on, two = if (on) false else dock.two)) },
+                DockTrait("Magnify", dock.magnify) { on -> setDock(dock.copy(magnify = on)) },
+            ),
         )
-        ToggleRow(
-            info = DockRows.two,
-            checked = dock.two,
-            onCheckedChange = { on -> setDock(dock.copy(two = on, scroll = if (on) false else dock.scroll)) },
-        )
-        ToggleRow(
-            info = DockRows.scroll,
-            checked = dock.scroll,
-            onCheckedChange = { on -> setDock(dock.copy(scroll = on, two = if (on) false else dock.two)) },
-        )
-        ToggleRow(
-            info = DockRows.magnify,
-            checked = dock.magnify,
-            onCheckedChange = { on -> setDock(dock.copy(magnify = on)) },
-        )
-
-        if (!isRail) SectionHeader(text = "Add-ons")
-        ToggleRow(
-            info = DockRows.search,
-            checked = dock.search,
-            onCheckedChange = { on -> setDock(dock.copy(search = on)) },
-            visible = !isRail,
-        )
-        ToggleRow(
-            info = DockRows.taskbar,
-            checked = dock.taskbar,
-            onCheckedChange = { on -> setDock(dock.copy(taskbar = on)) },
-            visible = !isRail,
-        )
-        ToggleRow(
-            info = DockRows.smart,
-            checked = dock.smart,
-            onCheckedChange = { on -> setDock(dock.copy(smart = on)) },
-            visible = !isRail,
-        )
-        ToggleRow(
-            info = DockRows.folder,
-            checked = dock.folder,
-            onCheckedChange = { on -> setDock(dock.copy(folder = on)) },
-            visible = !isRail,
-        )
-        ToggleRow(
-            info = DockRows.media,
-            checked = dock.media,
-            onCheckedChange = { on -> setDock(dock.copy(media = on)) },
-            visible = !isRail,
-        )
-        ToggleRow(
-            info = DockRows.notify,
-            checked = dock.notify,
-            onCheckedChange = { on -> setDock(dock.copy(notify = on)) },
-            visible = !isRail,
-        )
-        ToggleRow(
-            info = DockRows.center,
-            checked = dock.center,
-            onCheckedChange = { on -> setDock(dock.copy(center = on)) },
-            visible = !isRail,
-        )
-        ToggleRow(
-            info = DockRows.handle,
-            checked = dock.handle,
-            onCheckedChange = { on -> setDock(dock.copy(handle = on)) },
-            visible = !isRail,
-        )
+        if (!isRail) {
+            TraitChips(
+                title = "Add-ons",
+                traits = listOf(
+                    DockTrait("Search bar", dock.search) { on -> setDock(dock.copy(search = on)) },
+                    DockTrait("Recent apps", dock.taskbar) { on -> setDock(dock.copy(taskbar = on)) },
+                    DockTrait("AI suggestions", dock.smart) { on -> setDock(dock.copy(smart = on)) },
+                    DockTrait("Folder", dock.folder) { on -> setDock(dock.copy(folder = on)) },
+                    DockTrait("Media player", dock.media) { on -> setDock(dock.copy(media = on)) },
+                    DockTrait("Notification preview", dock.notify) { on -> setDock(dock.copy(notify = on)) },
+                    DockTrait("Center button", dock.center) { on -> setDock(dock.copy(center = on)) },
+                    DockTrait("Swipe handle", dock.handle) { on -> setDock(dock.copy(handle = on)) },
+                ),
+            )
+        }
 
         StaticRow(info = DockRows.more)
         StaticRow(info = DockRows.searchProvider, trailingText = "Launcher")
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun TraitChips(title: String, traits: List<DockTrait>) {
+    SectionHeader(text = title)
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        traits.forEach { trait ->
+            FilterChip(
+                selected = trait.on,
+                onClick = { trait.onToggle(!trait.on) },
+                label = { Text(text = trait.label) },
+                leadingIcon = if (trait.on) {
+                    {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(FilterChipDefaults.IconSize),
+                        )
+                    }
+                } else {
+                    null
+                },
+            )
+        }
     }
 }

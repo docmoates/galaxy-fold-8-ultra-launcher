@@ -178,6 +178,8 @@ internal fun DockItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     contentLabel: String? = null,
+    /** Applied inside the click handler (drag / long-press gestures of the dock editor go here). */
+    innerModifier: Modifier = Modifier,
     icon: @Composable () -> Unit,
 ) {
     // TalkBack: one element named by [contentLabel] (else the visible label); the icon's own
@@ -189,6 +191,7 @@ internal fun DockItem(
             .clip(RoundedCornerShape(12.dp))
             .then(if (spoken != null) Modifier.a11yButton(label = spoken, onActivate = onClick) else Modifier)
             .clickable(onClick = onClick)
+            .then(innerModifier)
             .padding(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(7.dp),
@@ -206,6 +209,8 @@ internal fun DockTextItem(
     shadow: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Applied inside the click handler (drag / long-press gestures of the dock editor go here). */
+    innerModifier: Modifier = Modifier,
 ) {
     Text(
         text = app.label,
@@ -213,6 +218,7 @@ internal fun DockTextItem(
             .a11yMinTouchTarget()
             .clip(RoundedCornerShape(8.dp))
             .clickable(role = Role.Button, onClick = onClick)
+            .then(innerModifier)
             .padding(horizontal = 6.dp, vertical = 8.dp),
         color = palette.onSurface,
         maxLines = 1,
@@ -507,7 +513,7 @@ internal fun DockHandle(
             .a11yMinTouchTarget()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClickLabel = "Open app drawer", role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(

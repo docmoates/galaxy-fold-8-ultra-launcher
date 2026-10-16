@@ -3,6 +3,8 @@ package com.foldos.launcher.home
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +39,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
@@ -55,6 +58,8 @@ import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.core.ui.DragPayload
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
@@ -105,6 +110,13 @@ internal class HomeContext(
      * not fire twice.
      */
     val swipeUpOpensDrawer: Boolean = true,
+    /** The launcher-wide drag controller (null = drag and drop is off, e.g. in previews). */
+    val dragController: DragController? = null,
+    /**
+     * An app (from the app pop-up) or an existing item was dropped on page [pageId]; `col` / `row`
+     * are the cell under the pointer, or -1 / -1 when the page has no cell grid (list, hybrid).
+     */
+    val onDropPayload: ((payload: DragPayload, pageId: Long, col: Int, row: Int) -> Unit)? = null,
 ) {
     // Easy mode (settings.largeIcons) swaps in the larger icons, fewer columns and always-on labels.
     val cols: Int get() = settings.effectiveColsFor(screen).coerceAtLeast(1)
@@ -162,6 +174,19 @@ internal class HomeContext(
         val hook = hooks.onItemLongPress
         if (hook != null && hook(item, anchor)) return
         pressed.value = HomePressedItem(item, anchor, appFor(item))
+    }
+
+    /**
+     * Long press on a widget or widget stack: goes straight to edit mode (add widget, remove,
+     * resize, add / delete page) instead of the app-style popup, unless the items package takes the
+     * long press over through [HomeItemHooks.onItemLongPress].
+     */
+    fun widgetLongPress(item: HomeItem, anchor: Rect? = null) {
+        if (!editMode) {
+            val hook = hooks.onItemLongPress
+            if (hook != null && hook(item, anchor)) return
+        }
+        editLongPress(item)
     }
 
     /** The Phase 1 long press: the edit hook when provided, otherwise [onLongPressHome]. */
@@ -310,6 +335,130 @@ internal fun Modifier.homeLongPress(onLongPress: () -> Unit): Modifier = compose
     Modifier.pointerInput(Unit) {
         detectTapGestures(onLongPress = { latestLongPress() })
     }
+}
+
+/**
+ * Long press that works on top of interactive content (a widget, a hosted app widget, a stack):
+ * the press is watched in the **Initial** pass, before any child sees it, and nothing is consumed
+ * until the long press fires, so taps, scrolls and swipes inside the content keep working. Once it
+ * fires, the rest of the gesture is consumed so the content does not also act on the release.
+ * Movement past the touch slop, a second finger or an early release cancels it.
+ */
+internal fun Modifier.homeLongPressFirst(onLongPress: () -> Unit): Modifier = composed {
+    val latestLongPress by rememberUpdatedState(onLongPress)
+    Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val slop = viewConfiguration.touchSlop
+            val ended = withTimeoutOrNull<Boolean>(viewConfiguration.longPressTimeoutMillis) {
+                var over = false
+                while (!over) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    if (change == null ||
+                        !change.pressed ||
+                        event.changes.count { it.pressed } > 1 ||
+                        (change.position - down.position).getDistance() > slop
+                    ) {
+                        over = true
+                    }
+                }
+                true
+            }
+            if (ended == null) {
+                latestLongPress()
+                var stillDown = true
+                while (stillDown) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    event.changes.forEach { it.consume() }
+                    stillDown = event.changes.any { it.pressed }
+                }
+            }
+        }
+    }
+}
+
+/** The position of [local] (a point inside this holder's node) in root coordinates. */
+internal fun HomeAnchorHolder.toRoot(local: Offset): Offset {
+    val c = coordinates
+    return if (c != null && c.isAttached) c.localToRoot(local) else local
+}
+
+/**
+ * Lets a home tile be dragged after its long press (the item popup opens on the long press as
+ * before): moving the finger past the touch slop while still holding starts a drag of [payload] on
+ * [controller] (popups are closed through [onStarted]); release drops it, a cancelled gesture
+ * cancels it. Moves are consumed once the drag started. [holder] must be attached to the same node
+ * (it converts the pointer to root coordinates).
+ */
+internal fun Modifier.homeItemDrag(
+    controller: DragController,
+    holder: HomeAnchorHolder,
+    payload: () -> DragPayload?,
+    onStarted: () -> Unit,
+): Modifier = composed {
+    val latestPayload by rememberUpdatedState(payload)
+    val latestStarted by rememberUpdatedState(onStarted)
+    Modifier
+        .homeAnchor(holder)
+        .pointerInput(controller) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val slop = viewConfiguration.touchSlop
+                // Phase 1: the finger has to stay put until the long press time has passed.
+                val early = withTimeoutOrNull<Boolean>(viewConfiguration.longPressTimeoutMillis) {
+                    var over = false
+                    while (!over) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null ||
+                            !change.pressed ||
+                            event.changes.count { it.pressed } > 1 ||
+                            change.isConsumed ||
+                            (change.position - down.position).getDistance() > slop
+                        ) {
+                            over = true
+                        }
+                    }
+                    true
+                }
+                if (early != null) return@awaitEachGesture
+                // Phase 2: held. A move past the slop starts the drag.
+                var dragging = false
+                try {
+                    var finished = false
+                    while (!finished) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null || !change.pressed) {
+                            finished = true
+                        } else {
+                            if (!dragging && (change.position - down.position).getDistance() > slop) {
+                                val dragged = latestPayload()
+                                if (dragged == null) {
+                                    finished = true
+                                } else {
+                                    dragging = true
+                                    controller.start(dragged, holder.toRoot(change.position))
+                                    latestStarted()
+                                }
+                            }
+                            if (dragging && !finished) {
+                                change.consume()
+                                controller.move(holder.toRoot(change.position))
+                            }
+                        }
+                    }
+                    if (dragging) {
+                        dragging = false
+                        controller.drop()
+                    }
+                } finally {
+                    // The pointer input was cancelled mid-drag (the tile left the composition).
+                    if (dragging) controller.cancel()
+                }
+            }
+        }
 }
 
 /** [homeSwipeUp] while [enabled]; otherwise this modifier unchanged (the gestures package owns the swipes). */

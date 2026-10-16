@@ -53,7 +53,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,6 +92,7 @@ import com.foldos.launcher.core.repo.BuiltInWidgetRegistry
 import com.foldos.launcher.core.repo.WidgetCatalog
 import com.foldos.launcher.drawer.rememberDrawerBackdropModifier
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 private const val PICKER_ANIM_MS = 320
@@ -144,8 +145,12 @@ fun WidgetPicker(
     val builtIns = graph.builtIns
     val animMs = a11yDuration(PICKER_ANIM_MS)
 
-    val groupsFlow = remember(catalog, settings.wpGroup) { catalog.grouped(settings.wpGroup) }
-    val groups by groupsFlow.collectAsState(initial = emptyList())
+    // Only subscribed to the catalog while the picker is up (the composable stays in the tree, hidden):
+    // a completed empty flow keeps the last groups in the state, so the exit animation still has content.
+    val groupsFlow = remember(catalog, settings.wpGroup, visible) {
+        if (visible) catalog.grouped(settings.wpGroup) else emptyFlow<List<Pair<String, List<WidgetEntry>>>>()
+    }
+    val groups by groupsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
 
     var query by rememberSaveable { mutableStateOf("") }
     // Inner card: selected group title; "" = first group. Cover: chip title; "" = All.

@@ -8,9 +8,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -18,6 +24,11 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.core.ui.DragPayload
+import com.foldos.launcher.core.ui.dragTarget
+import com.foldos.launcher.edit.LocalEditHomeRoot
+import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -65,6 +76,34 @@ internal class HomeGridMetrics {
     }
 
     fun rowAt(y: Int): Int = (y / cellH).coerceIn(0, max(0, rows - 1))
+
+    /** Left edge of column [col] in px, hinge gutter included. */
+    fun startX(col: Int): Int {
+        val half = cols / 2
+        return col * cellW + (if (gutterPx > 0 && col >= half) gutterPx else 0)
+    }
+}
+
+/**
+ * Makes a [HomeCellGrid] a drop target of [controller] under [id]: a drop reports the cell under the
+ * pointer through [onDrop], and the cell under a hovering drag is highlighted.
+ */
+internal class HomeGridDrop(
+    val controller: DragController,
+    val id: String,
+    val onDrop: (payload: DragPayload, col: Int, row: Int) -> Unit,
+)
+
+/** Layout coordinates of the grid node, kept out of snapshot state (written from `onGloballyPositioned`). */
+private class HomeGridCoordinates {
+    var coordinates: LayoutCoordinates? = null
+
+    /** [rootPoint] (root coordinates) as a point inside the grid, or null while the grid is detached. */
+    fun toLocal(rootPoint: Offset): Offset? {
+        val c = coordinates ?: return null
+        if (!c.isAttached) return null
+        return c.localPositionOf(c.findRootCoordinates(), rootPoint)
+    }
 }
 
 /**
@@ -80,6 +119,7 @@ internal class HomeGridMetrics {
  * @param geometryScreen when non-null, the grid publishes its measured [GridGeometry] for that
  *   screen into the store read by [rememberGridGeometry].
  * @param onEmptyLongPress a long press that no child consumed, with the cell under the finger.
+ * @param dropTarget when non-null the grid accepts drag-and-drop (see [HomeGridDrop]).
  */
 @Composable
 internal fun HomeCellGrid(
@@ -92,14 +132,63 @@ internal fun HomeCellGrid(
     keys: List<Any>? = null,
     geometryScreen: ScreenKind? = null,
     onEmptyLongPress: ((col: Int, row: Int) -> Unit)? = null,
+    dropTarget: HomeGridDrop? = null,
     content: @Composable (index: Int) -> Unit,
 ) {
     val metrics = remember { HomeGridMetrics() }
     val density = LocalDensity.current
+    val gridCoordinates = remember { HomeGridCoordinates() }
+    val editHomeRoot = LocalEditHomeRoot.current
+    val highlight = LocalFoldOsTokens.current.accent
+    val dropModifier: Modifier = if (dropTarget != null) {
+        Modifier
+            .onGloballyPositioned { gridCoordinates.coordinates = it }
+            .dragTarget(
+                controller = dropTarget.controller,
+                id = dropTarget.id,
+                accepts = { true },
+                onDrop = { payload, pointerInRoot ->
+                    val local = gridCoordinates.toLocal(pointerInRoot)
+                    if (local != null) {
+                        dropTarget.onDrop(
+                            payload,
+                            metrics.colAt(local.x.roundToInt()),
+                            metrics.rowAt(local.y.roundToInt()),
+                        )
+                    }
+                },
+            )
+            .drawWithContent {
+                drawContent()
+                if (dropTarget.controller.hoverTargetId.value == dropTarget.id) {
+                    val local = gridCoordinates.toLocal(dropTarget.controller.pointerInRoot.value)
+                    if (local != null) {
+                        val col = metrics.colAt(local.x.roundToInt())
+                        val row = metrics.rowAt(local.y.roundToInt())
+                        drawRoundRect(
+                            color = highlight.copy(alpha = 0.28f),
+                            topLeft = Offset(metrics.startX(col).toFloat(), (row * metrics.cellH).toFloat()),
+                            size = Size(metrics.cellW.toFloat(), metrics.cellH.toFloat()),
+                            cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
+                        )
+                    }
+                }
+            }
+    } else {
+        Modifier
+    }
 
     val positioned = if (geometryScreen != null) {
         Modifier.onGloballyPositioned { coordinates ->
-            val origin = coordinates.positionInWindow()
+            // The window position of the UNSCALED grid. In edit mode the home is drawn scaled down;
+            // measured against the home root (inside the scaling layer) the origin is the same at
+            // every moment of the scale animation, so the edit overlay can map it itself.
+            val homeRoot = editHomeRoot?.coordinates
+            val origin = if (homeRoot != null && homeRoot.isAttached && coordinates.isAttached) {
+                homeRoot.localPositionOf(coordinates, Offset.Zero)
+            } else {
+                coordinates.positionInWindow()
+            }
             val geometry = with(density) {
                 GridGeometry(
                     cols = metrics.cols,
@@ -142,7 +231,7 @@ internal fun HomeCellGrid(
                 }
             }
         },
-        modifier = modifier.then(positioned).then(press),
+        modifier = modifier.then(positioned).then(press).then(dropModifier),
     ) { measurables, constraints ->
         val columns = max(1, cols)
         val width = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth

@@ -28,7 +28,8 @@ import com.foldos.launcher.core.repo.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 
 /**
- * The whole Settings UI: root list with search and the Advanced switch, plus one route per page.
+ * The whole Settings UI: the sample-based home ([SettingsHomePage], with a small search icon), "More settings"
+ * (the detailed pages and the Advanced switch), the dock gallery, plus one route per detailed page.
  * Every change is written through [repo] immediately; the UI re-renders from [SettingsRepository.settings].
  *
  * @param writeScope a scope that outlives this composition (the app graph's `appScope`), so a
@@ -70,7 +71,9 @@ fun SettingsRoot(
                 startRoute == SearchRows.ROUTE ||
                 startRoute == MailSettingsRows.ROUTE ||
                 startRoute == BackupRows.ROUTE ||
-                startRoute == AccessibilityRows.ROUTE
+                startRoute == AccessibilityRows.ROUTE ||
+                startRoute == SettingsRoutes.MORE ||
+                startRoute == SettingsRoutes.DOCK_GALLERY
             if (startRoute != null && startRoute != SettingsRoutes.ROOT && known) {
                 navController.navigate(startRoute) { launchSingleTop = true }
             }
@@ -89,7 +92,9 @@ fun SettingsRoot(
             popExitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(animationSpec = tween(700)) },
         ) {
             composable(SettingsRoutes.ROOT) {
-                SettingsRootPage(
+                SettingsHomePage(
+                    settings = current,
+                    update = update,
                     query = query,
                     onQueryChange = { query = it },
                     advanced = advanced,
@@ -98,6 +103,15 @@ fun SettingsRoot(
                     onClose = onClose,
                 )
             }
+            composable(SettingsRoutes.MORE) {
+                MoreSettingsPage(
+                    advanced = advanced,
+                    onAdvancedChange = { advanced = it },
+                    onOpen = { route -> navController.navigate(route) { launchSingleTop = true } },
+                    onBack = onBack,
+                )
+            }
+            composable(SettingsRoutes.DOCK_GALLERY) { DockGalleryPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.QUICK_SETUP) {
                 QuickSetupPage(
                     update = update,

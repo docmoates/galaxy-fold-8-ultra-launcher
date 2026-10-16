@@ -1,7 +1,7 @@
 # FoldOS
 
 An Android launcher for the Samsung Galaxy Z Fold 8 Ultra, written in Kotlin with Jetpack Compose
-(Material 3). Version 1.0.0.
+(Material 3). Version 1.1.0.
 
 FoldOS treats the fold as a design input. The cover screen and the inner screen get their own home
 layouts (or share one), the home keeps a gap over the hinge, Flex Mode splits the home at the
@@ -45,11 +45,15 @@ Every feature has a switch (Settings > Features and the page it belongs to).
 - Dock with 20 presets, every trait mixable (pill, shelf, hairline, bubbles, 3D shelf, text, two
   rows, scrolling, taskbar, search bar, folder, media, notification, center button, swipe handle,
   edge rail, magnify). Separate docks for cover and inner.
-- Pop-up app drawer (bottom sheet on the cover, floating card on the inner screen) or full screen,
-  with search, backdrop blur and category chips.
-- Four themes (Material You, Glass, One UI, Bold), dark / light / auto, six color schemes plus
-  custom colors.
-- Settings app with Simple / Advanced levels and search.
+- App pop-up (bottom sheet on the cover, floating card on the inner screen) or full screen: search, group folders
+  (All, Work, Media, Social, Tools, Games, Hidden and your own groups), backdrop blur. It is also how you change the
+  home screen and the dock: long-press an app and drag it to a home page or to the dock (the pop-up folds away while you
+  drag), or long-press and release for its menu (Add to group, Add to home screen, Add to dock, App info).
+- Four themes (Material You, Glass, One UI, Bold), dark / light / auto, twelve primary colors that each come in a light
+  and a dark version (the version follows the Appearance), plus custom colors.
+- Settings picked from samples: Screens, Home style, Look, Colors, Dock, App drawer, Widget picker and Icons are rows of
+  live preview cards (tap to apply); everything else is under "More settings" (Simple / Advanced levels). Search is the
+  icon in the top bar.
 - 0.1.1: app icon and an offer to become the default home.
 
 ### Phase 2+3: widgets, looks and styles (0.2.0)
@@ -94,6 +98,20 @@ Every feature has a switch (Settings > Features and the page it belongs to).
 - Startup and scrolling performance work, baseline profile, R8-shrunk release build.
 - Signed release APK from GitHub Actions and a GitHub Release on every `v*` tag.
 
+### Fix round 1.1: device feedback (1.1.0)
+
+- The Hub page has no home dock, page indicator or search bar: one tab bar, full height, on the cover and the inner screen.
+- Swipe up opens the app pop-up from anywhere on the home, including the dock strip; every dock has an "All apps" button.
+- Long-press anywhere on the home (apps, widgets, empty space) enters edit mode. Edit mode draws the home at 76% between
+  one top bar (page style, page strip, Done) and one bottom bar (Wallpaper, Themes, Widgets, Dock, Settings); Remove works on
+  every item and offers Undo for five seconds.
+- A fresh install gets one populated page and one empty page per screen; the duplicate pages of 1.0.0 are cleaned up once.
+- Settings opens on preview cards (Screens, Home style, Look, Colors, Dock, App drawer, Widget picker, Icons): tap a sample to apply it.
+  Toggles, dropdowns, sliders and hex fields are under "More settings".
+- Twelve primary colors, each with a light and a dark version, in Settings, the setup wizard and the edit-mode theme sheet.
+- Universal search is a full-screen takeover with the field pinned at the top and the results above the keyboard; a dock
+  with the search add-on no longer gets a second search bar at the top of the home.
+
 ## Building
 
 ### GitHub Actions (recommended)
@@ -123,7 +141,7 @@ Outputs: `app/build/outputs/apk/debug/app-debug.apk` and
 
 Pinned versions: Gradle 8.9, Android Gradle Plugin 8.7.3, Kotlin 2.1.0, KSP 2.1.0-1.0.29, Compose
 BOM 2024.12.01, Room 2.7.0 (2.6.1's KSP processor cannot read Kotlin 2.1 metadata; do not
-downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.0.0`, `versionCode` is `100`.
+downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.1.0`, `versionCode` is `110`.
 
 If the release build fails inside R8, build with `-Pfoldos.minify=false` to confirm that shrinking
 is the cause, then add the missing keep rule to `app/proguard-rules.pro`.
@@ -159,12 +177,12 @@ is the cause, then add the missing keep rule to `app/proguard-rules.pro`.
 4. Tag and push:
 
    ```
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v1.1.0
+   git push origin v1.1.0
    ```
 
    The release job builds the APK, uploads `foldos-release-apk` and creates the GitHub Release
-   `FoldOS v1.0.0` with `FoldOS-v1.0.0.apk` attached.
+   `FoldOS v1.1.0` with `FoldOS-v1.1.0.apk` attached.
 
 The Gmail OAuth client (below) is tied to the signing key's SHA-1, so register the release key's
 fingerprint too.
@@ -308,7 +326,7 @@ APK, then import the backup.
 
 ```
 PLAN.md                     Design plan (screens, themes, docks, hub, settings, roadmap)
-CHANGELOG.md                Release history 0.1.0 to 1.0.0
+CHANGELOG.md                Release history 0.1.0 to 1.1.0
 mockup/foldos-mockup.html   Interactive mock-up; the JS objects S0, DOCKS, SCHEMES, HOME define behavior
 docs/                       Launcher research, the widget catalog, TESTING.md (manual device test plan)
 app/                        The single Gradle module (com.foldos.launcher)
@@ -321,12 +339,13 @@ app/                        The single Gradle module (com.foldos.launcher)
     theme/                  FoldOsTheme, design tokens for Material / Glass / One UI / Bold, wallpaper brush
     home/                   HomeScreen pager, grid / dashboard / list / hybrid pages, hinge gutter, Flex layout
     dock/                   Dock composable: 20 presets, every trait mixable
-    drawer/                 Pop-up and full-screen app drawer with search and backdrop blur
-    settings/               SettingsActivity with Simple / Advanced rows and search
+    drawer/                 App pop-up (and full-screen variant): search, group folders, grid, backdrop blur, drag-out collapse
+    apppicker/              Group folders (Work, Media, Social, Tools, Games, Hidden, yours), app menu, tap / long-press / drag gestures
+    settings/               SettingsActivity: sample-based home (preview cards), More settings (detailed pages), search
     widgets/                AppWidgetHost wrapper: bind / configure flow, hosted widget view, stacks, sizing
     builtins/               FoldOS built-in widgets and the notification listener
     picker/                 Widget catalog (built-ins + installed providers, 17 categories) and the picker
-    edit/                   Live edit mode: drag, resize, delete, page style / add / delete, theme and wallpaper sheets
+    edit/                   Live edit mode: home scaled to 76% between one top and one bottom bar; drag, resize, delete with Undo, page style / add / delete, theme and wallpaper sheets
     icons/                  Icon pack parser, per-app overrides, icon shape masking
     onboarding/             First-run setup wizard (5 steps) and the preset gallery
     gestures/               Home gesture detector, hinge and home-key detectors, action dispatch

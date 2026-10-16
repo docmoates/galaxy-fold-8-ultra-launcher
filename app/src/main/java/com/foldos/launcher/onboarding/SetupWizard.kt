@@ -1,6 +1,8 @@
 package com.foldos.launcher.onboarding
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -29,12 +32,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.foldos.launcher.core.model.Appearance
 import com.foldos.launcher.core.model.ColorSchemeConfig
 import com.foldos.launcher.core.model.ColorSchemes
 import com.foldos.launcher.core.model.DockPresets
@@ -45,7 +49,6 @@ import com.foldos.launcher.core.model.ThemeId
 import com.foldos.launcher.core.model.matchingPresetId
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import com.foldos.launcher.theme.Wallpaper
-import com.foldos.launcher.theme.tokensFor
 
 /** True until the first-run wizard has finished or been skipped (`LauncherSettings.wizardDone`). */
 fun shouldShowWizard(settings: LauncherSettings): Boolean = !settings.wizardDone
@@ -62,7 +65,7 @@ private val STEP_TITLES = listOf(
 )
 
 /** The six dock presets the wizard offers (mock-up wizard step 5); the other 14 live in Settings > Dock. */
-private val WIZARD_DOCKS = listOf("pill", "shelf", "search", "center", "media", "text")
+internal val WIZARD_DOCKS = listOf("pill", "shelf", "search", "center", "media", "text")
 
 /**
  * First-run setup wizard (PLAN.md 2.9 / 5.3, mock-up `wizard()`): five steps, every question
@@ -245,11 +248,11 @@ private fun LookStep(local: LauncherSettings, change: ((LauncherSettings) -> Lau
 /* ------------------------------------------------------------------------------------------ */
 /* Step 4: Colors                                                                             */
 /* ------------------------------------------------------------------------------------------ */
-
 @Composable
 private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> LauncherSettings) -> Unit) {
     val tokens = LocalFoldOsTokens.current
-    WizardSubtitle("Pick a palette or choose your own accent and wallpaper colors.")
+    val isDark = tokens.isDark
+    WizardSubtitle("Every color comes in a light and a dark version. Tap one and the preview follows.")
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
@@ -266,43 +269,65 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
         }
     }
 
-    val scheme = local.colors.scheme
-    val pick: (String) -> Unit = { id -> change { it.copy(colors = it.colors.copy(scheme = id)) } }
+    // Appearance: three preview cards.
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(
+            Appearance.DARK to "Dark",
+            Appearance.LIGHT to "Light",
+            Appearance.AUTO to "Auto",
+        ).forEach { (appearance, name) ->
+            WizardPreviewCard(
+                name = name,
+                selected = local.appearance == appearance,
+                onClick = { change { it.copy(appearance = appearance) } },
+                modifier = Modifier.weight(1f),
+            ) {
+                AppearanceSample(
+                    appearance = appearance,
+                    base = local,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(PREVIEW_COVER_WIDTH.value / PREVIEW_COVER_HEIGHT.value),
+                )
+            }
+        }
+    }
 
-    // Theme colors: a swatch built from the theme's own palette so it is never a blank circle.
-    val themeTokens = remember(local.theme, tokens.isDark) {
-        tokensFor(local.theme, tokens.isDark, ColorSchemeConfig(), null)
-    }
-    val base = if (tokens.isDark) Color(0xFF0C0D12) else Color(0xFFEEF0F5)
-    val themeBrush = remember(themeTokens, base) {
-        thirds(themeTokens.accent, themeTokens.highlight.compositeOver(base), themeTokens.surface.compositeOver(base))
-    }
-    val customBrush = remember {
-        Brush.sweepGradient(
-            listOf(
-                Color(0xFFF43F5E), Color(0xFFF59E0B), Color(0xFF22C55E),
-                Color(0xFF0EA5E9), Color(0xFF8B5CF6), Color(0xFFF43F5E),
+    val scheme = local.colors.scheme
+    val selectedFamily = ColorSchemes.familyOfScheme(scheme)?.id
+
+    // One tile per primary color (split light / dark), then Theme colors and Custom.
+    val tiles = ArrayList<ColorTileSpec>(ColorSchemes.families.size + 2)
+    tiles.add(
+        ColorTileSpec(
+            name = "Theme colors",
+            selected = scheme == ColorSchemeConfig.SCHEME_THEME,
+            onClick = { change { it.copy(colors = it.colors.copy(scheme = ColorSchemeConfig.SCHEME_THEME)) } },
+            swatch = { ThemeColorsSwatch(theme = local.theme) },
+        ),
+    )
+    ColorSchemes.families.forEach { family ->
+        tiles.add(
+            ColorTileSpec(
+                name = family.name,
+                selected = selectedFamily == family.id,
+                onClick = { change { it.copy(colors = colorsForFamily(it.colors, family, isDark)) } },
+                swatch = { SplitColorSwatch(family = family) },
             ),
         )
     }
-
-    val swatches = ArrayList<Swatch>(8)
-    swatches.add(Swatch(ColorSchemeConfig.SCHEME_THEME, "Theme colors", themeBrush))
-    ColorSchemes.presets.forEach { preset ->
-        swatches.add(Swatch(preset.id, preset.name, thirds(Color(preset.accent), Color(preset.wall1), Color(preset.wall2))))
-    }
-    swatches.add(Swatch(ColorSchemeConfig.SCHEME_CUSTOM, "Custom", customBrush))
-
-    swatches.chunked(4).forEach { rowItems ->
+    tiles.add(
+        ColorTileSpec(
+            name = "Custom",
+            selected = scheme == ColorSchemeConfig.SCHEME_CUSTOM,
+            onClick = { change { it.copy(colors = colorsForCustom(it.colors, isDark)) } },
+            swatch = { CustomColorSwatch() },
+        ),
+    )
+    tiles.chunked(4).forEach { rowItems ->
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            rowItems.forEach { swatch ->
-                ColorSwatch(
-                    name = swatch.name,
-                    brush = swatch.brush,
-                    selected = scheme == swatch.id,
-                    onClick = { pick(swatch.id) },
-                    modifier = Modifier.weight(1f),
-                )
+            rowItems.forEach { tile ->
+                ColorTile(spec = tile, modifier = Modifier.weight(1f))
             }
             repeat(4 - rowItems.size) { Box(Modifier.weight(1f)) }
         }
@@ -331,15 +356,48 @@ private fun ColorsStep(local: LauncherSettings, change: ((LauncherSettings) -> L
     }
 }
 
-/** One palette circle on the Colors step. */
-private class Swatch(val id: String, val name: String, val brush: Brush)
-
-/** CSS `conic-gradient(a 0 120deg, b 0 240deg, c 0)`: three hard-edged thirds. */
-private fun thirds(a: Color, b: Color, c: Color): Brush = Brush.sweepGradient(
-    0f to a, 0.3333f to a,
-    0.3333f to b, 0.6667f to b,
-    0.6667f to c, 1f to c,
+/** One tile on the Colors step: a swatch with its name under it. */
+private class ColorTileSpec(
+    val name: String,
+    val selected: Boolean,
+    val onClick: () -> Unit,
+    val swatch: @Composable () -> Unit,
 )
+
+@Composable
+private fun ColorTile(spec: ColorTileSpec, modifier: Modifier = Modifier) {
+    val tokens = LocalFoldOsTokens.current
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = spec.onClick)
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .border(
+                    width = if (spec.selected) 3.dp else 1.dp,
+                    color = if (spec.selected) tokens.accent else tokens.surfaceBorder,
+                    shape = shape,
+                )
+                .padding(3.dp),
+        ) {
+            spec.swatch()
+        }
+        Text(
+            text = spec.name,
+            color = if (spec.selected) tokens.accent else tokens.onSurface,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
 
 /* ------------------------------------------------------------------------------------------ */
 /* Step 5: Dock                                                                                */

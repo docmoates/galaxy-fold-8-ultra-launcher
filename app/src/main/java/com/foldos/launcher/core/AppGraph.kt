@@ -54,9 +54,9 @@ interface AppGraph {
     val backup: BackupRepository
 
     /**
-     * The process-wide host for third-party app widgets, host id [APP_WIDGET_HOST_ID]. Created and
-     * started (`startListening()`) when the graph is built in `Application.onCreate`; activities
-     * call `createView` / `allocateAppWidgetId` / `deleteAppWidgetId` on it.
+     * The process-wide host for third-party app widgets, host id [APP_WIDGET_HOST_ID]. Created but not
+     * started: `MainActivity` calls `startListening()` in `onStart` and `stopListening()` in `onStop`;
+     * activities call `createView` / `allocateAppWidgetId` / `deleteAppWidgetId` on it.
      */
     val appWidgetHost: AppWidgetHost
 

@@ -12,7 +12,7 @@ import com.foldos.launcher.a11y.A11yRoot
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.theme.FoldOsTheme
-import kotlinx.coroutines.launch
+import com.foldos.launcher.settings.SettingsWriteQueue
 
 /**
  * Hosts the [SetupWizard] (default) or the [PresetGallery] ([MODE_GALLERY]) as a full-screen
@@ -30,7 +30,7 @@ class OnboardingActivity : ComponentActivity() {
         val graph = FoldOsApplication.from(this).graph
         val gallery = intent?.getStringExtra(EXTRA_MODE) == MODE_GALLERY
         val update: ((LauncherSettings) -> LauncherSettings) -> Unit = { transform ->
-            graph.appScope.launch { graph.settings.update(transform) }
+            SettingsWriteQueue.enqueue(graph.appScope, graph.settings, transform)
         }
         setContent {
             val settings by produceState<LauncherSettings?>(initialValue = null, key1 = graph) {

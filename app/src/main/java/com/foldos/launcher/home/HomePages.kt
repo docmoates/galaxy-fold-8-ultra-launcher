@@ -1,6 +1,5 @@
 package com.foldos.launcher.home
 
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,12 +13,12 @@ import androidx.compose.foundation.layout.width
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -36,6 +35,8 @@ import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomePage
 import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.ItemKind
+import com.foldos.launcher.core.ui.DragPayload
+import com.foldos.launcher.core.ui.dragTarget
 import kotlin.math.max
 
 /**
@@ -53,11 +54,35 @@ internal fun HomePageBody(
     modifier: Modifier = Modifier,
     publishGeometry: Boolean = false,
 ) {
-    when (ctx.styleFor(page)) {
+    val style = ctx.styleFor(page)
+    // A settled LIST page has no cell grid to publish: drop the geometry of the page before it so the
+    // edit overlay falls back to the estimate for this style instead of snapping to a stale grid.
+    if (publishGeometry && style == HomeStyle.LIST) {
+        LaunchedEffect(ctx.screen) { HomeGeometryStore.measured.remove(ctx.screen) }
+    }
+    // List and hybrid pages have no cell grid of their own: the whole page body is the drop target
+    // and the app is appended below the last item (col / row -1).
+    val dragController = ctx.dragController
+    val dropHandler = ctx.onDropPayload
+    val pageId = page?.id ?: 0L
+    val bodyDrop: Modifier = if (
+        dragController != null && dropHandler != null && pageId > 0L &&
+        (style == HomeStyle.LIST || style == HomeStyle.HYBRID)
+    ) {
+        Modifier.dragTarget(
+            controller = dragController,
+            id = "page:$pageId",
+            accepts = { true },
+            onDrop = { payload, _ -> dropHandler(payload, pageId, -1, -1) },
+        )
+    } else {
+        Modifier
+    }
+    when (style) {
         HomeStyle.GRID -> HomeGridPage(ctx, page, items, modifier, publishGeometry)
         HomeStyle.DASHBOARD -> HomeDashboardPage(ctx, page, items, modifier, publishGeometry)
-        HomeStyle.LIST -> HomeListPage(ctx, page, items, modifier)
-        HomeStyle.HYBRID -> HomeHybridPage(ctx, page, items, modifier, publishGeometry)
+        HomeStyle.LIST -> HomeListPage(ctx, page, items, modifier.then(bodyDrop))
+        HomeStyle.HYBRID -> HomeHybridPage(ctx, page, items, modifier.then(bodyDrop), publishGeometry)
     }
 }
 
@@ -118,8 +143,18 @@ internal fun HomeItemsGrid(
     heroHighlight: Boolean = false,
     publishGeometry: Boolean = false,
     a11yMovable: Boolean = false,
+    acceptDrops: Boolean = false,
 ) {
     val slots = remember(items) { groupHomeSlots(items) }
+    // Drag and drop: the page's cell grid is a drop target 'page:<pageId>' (apps from the app
+    // pop-up, items dragged from another cell); the drop cell comes from the grid's own metrics.
+    val dragController = ctx.dragController
+    val dropHandler = ctx.onDropPayload
+    val dropTarget: HomeGridDrop? = if (acceptDrops && dragController != null && dropHandler != null && pageId > 0L) {
+        HomeGridDrop(dragController, "page:$pageId") { payload, col, row -> dropHandler(payload, pageId, col, row) }
+    } else {
+        null
+    }
     val free = ctx.freeMode
     val cells = remember(slots, free) { slots.map { it.toCell(free) } }
     val keys = remember(slots) { slots.map { slot -> slot.anchor.stackId ?: slot.anchor.id } }
@@ -142,6 +177,7 @@ internal fun HomeItemsGrid(
         keys = keys,
         geometryScreen = if (publishGeometry) ctx.screen else null,
         onEmptyLongPress = { col, row -> ctx.emptyLongPress(pageId, col, row) },
+        dropTarget = dropTarget,
     ) { index ->
         val slot = slots[index]
         if (slot.isStack && ctx.stacksOn) {
@@ -187,6 +223,7 @@ internal fun HomeGridPage(
         gutter = ctx.hingeGutter,
         publishGeometry = publishGeometry,
         a11yMovable = true,
+        acceptDrops = true,
     )
 }
 
@@ -271,18 +308,34 @@ internal fun HomeItemTile(
         ItemKind.APP -> {
             val app = ctx.appFor(item)
             when {
-                app != null -> Box(Modifier.fillMaxSize()) {
-                    HomeAppTile(
-                        app = app,
-                        iconSize = ctx.iconSize,
-                        showLabel = ctx.labels,
-                        onClick = { ctx.onLaunch(app) },
-                        badge = ctx.badgeFor(app.packageName),
-                        badgeStyle = ctx.badgeStyle,
-                        onLongPressAt = { anchor -> ctx.longPress(item, anchor) },
-                        a11yActions = rememberHomeItemActions(ctx, item, access),
-                    )
-                    HomeItemPressOverlay(ctx, item)
+                app != null -> {
+                    // A long press opens the item popup as before; moving the finger on from there
+                    // lifts the tile and drags it (to another cell, a page, or the dock).
+                    val dragController = ctx.dragController
+                    val dragHolder = remember { HomeAnchorHolder() }
+                    val dragModifier = if (dragController != null && !ctx.editMode && item.id > 0L) {
+                        Modifier.homeItemDrag(
+                            controller = dragController,
+                            holder = dragHolder,
+                            payload = { DragPayload.Item(item) },
+                            onStarted = { ctx.pressed.value = null },
+                        )
+                    } else {
+                        Modifier
+                    }
+                    Box(Modifier.fillMaxSize().then(dragModifier)) {
+                        HomeAppTile(
+                            app = app,
+                            iconSize = ctx.iconSize,
+                            showLabel = ctx.labels,
+                            onClick = { ctx.onLaunch(app) },
+                            badge = ctx.badgeFor(app.packageName),
+                            badgeStyle = ctx.badgeStyle,
+                            onLongPressAt = { anchor -> ctx.longPress(item, anchor) },
+                            a11yActions = rememberHomeItemActions(ctx, item, access),
+                        )
+                        HomeItemPressOverlay(ctx, item)
+                    }
                 }
                 ctx.isHiddenItem(item) -> Spacer(Modifier.fillMaxSize())
                 else -> HomeMissingTile(ctx.iconSize)
@@ -304,9 +357,9 @@ internal fun HomeItemTile(
                         if (actions.isNotEmpty()) customActions = actions
                     }
                     .homeAnchor(holder)
-                    .pointerInput(item.id) {
-                        detectTapGestures(onLongPress = { ctx.longPress(item, holder.bounds()) })
-                    },
+                    // Watched in the Initial pass so it also fires on top of the widget's own
+                    // content (hosted app widgets, clickable built-ins); it opens edit mode.
+                    .homeLongPressFirst { ctx.widgetLongPress(item, holder.bounds()) },
             ) {
                 HomeWidgetItem(item, Modifier.fillMaxSize(), highlight = highlight)
                 HomeItemPressOverlay(ctx, item)

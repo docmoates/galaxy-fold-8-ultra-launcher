@@ -38,7 +38,9 @@ fun SearchBar(
     onClick: () -> Unit,
     settings: LauncherSettings,
     modifier: Modifier = Modifier,
+    hidden: Boolean = false,
 ) {
+    if (hidden) return
     val tokens = LocalFoldOsTokens.current
     val context = LocalContext.current
     val shape = RoundedCornerShape(26.dp)

@@ -13,20 +13,32 @@ import com.foldos.launcher.data.db.LayoutDao
 import com.foldos.launcher.data.db.LayoutDatabase
 import com.foldos.launcher.data.db.PageEntity
 import com.foldos.launcher.home.defaultDashboardItems
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * [LayoutRepository] on top of [LayoutDatabase]. On first run each screen gets [DEFAULT_PAGE_COUNT]
- * pages, and the first page is filled with the first apps in a grid: the caller's column count
- * (Settings > Home > Cover / Inner columns) times 4 rows on the cover or 3 rows on the inner screen.
+ * pages (one populated, one empty), and the first page is filled with the first apps in a grid: the
+ * caller's column count (Settings > Home > Cover / Inner columns) times 4 rows on the cover or 3 rows
+ * on the inner screen (a dashboard first page gets the default widgets instead).
  * Without a column count the LauncherSettings defaults apply (4 columns / 16 apps on the cover,
  * 6 columns / 18 apps on the inner screen).
  *
  * Stacks use the first (anchor) item's row id as the stack id, so stack ids never collide with
  * each other and survive the anchor being flipped to the back.
  */
-class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
+class LayoutRepositoryImpl(
+    private val db: LayoutDatabase,
+    private val dockStore: DockAppsStore,
+    /**
+     * Directory for the per-screen "legacy duplicate pages already tidied" marker files (the app's
+     * `noBackupFilesDir`, so a restore never carries a marker over). Null runs the tidy-up every time.
+     */
+    private val markerDir: File? = null,
+) : LayoutRepository {
 
     private val dao: LayoutDao = db.layoutDao()
 
@@ -39,46 +51,136 @@ class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
     override fun children(folderId: Long): Flow<List<HomeItem>> =
         dao.childrenOf(folderId).map { rows -> rows.map(ItemEntity::toModel) }
 
+    /**
+     * First run of a screen (it has no pages yet): one populated page (a dashboard gets the default
+     * built-in widgets, every other style a grid of the first apps) plus one empty page. Later calls
+     * never put anything back: a page the user emptied or restyled stays as it is. A screen that an
+     * earlier version seeded with several identical pages is tidied up once, guarded by a persisted
+     * marker so a page the user adds on purpose later is never mistaken for a legacy duplicate (see
+     * [removeLegacyDuplicatePages]).
+     */
     override suspend fun ensureDefaultLayout(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?) {
+        val marker = markerDir?.let { File(it, "foldos_legacy_pages_checked_${screen.name}") }
+        if (marker != null && withContext(Dispatchers.IO) { marker.exists() }) {
+            // Already tidied (or created by this version): only seed a screen that has no pages yet.
+            db.withTransaction {
+                if (dao.countPages(screen.name) == 0) createDefaultPages(screen, apps, columns, style)
+            }
+            return
+        }
         db.withTransaction {
-            val key = screen.name
-            if (dao.countPages(key) == 0) {
-                val pageStyle = style ?: defaultStyle(screen)
-                for (index in 0 until DEFAULT_PAGE_COUNT) {
-                    dao.upsertPage(PageEntity(screen = screen, index = index, style = pageStyle))
+            if (dao.countPages(screen.name) > 0) {
+                removeLegacyDuplicatePages(screen)
+            } else {
+                createDefaultPages(screen, apps, columns, style)
+            }
+        }
+        if (marker != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    marker.parentFile?.mkdirs()
+                    marker.createNewFile()
+                } catch (e: java.io.IOException) {
+                    // Without a marker the (idempotent) tidy-up simply runs again next launch.
                 }
             }
-            val firstPage = dao.firstPage(key) ?: return@withTransaction
-            // A dashboard first page starts with the built-in widgets (seeded below), every other
-            // style with a grid of the first apps.
-            if (firstPage.style != HomeStyle.DASHBOARD && dao.countItemsForScreen(key) == 0) {
-                val cols = columns?.coerceAtLeast(1) ?: defaultColumns(screen)
-                val count = cols * defaultRows(screen)
-                val rows = apps.take(count).mapIndexed { position, app ->
-                    ItemEntity(
-                        pageId = firstPage.id,
-                        kind = ItemKind.APP,
-                        col = position % cols,
-                        row = position / cols,
-                        packageName = app.packageName,
-                        activityName = app.activityName,
-                        title = app.label,
-                    )
-                }
-                if (rows.isNotEmpty()) dao.upsertItems(rows)
-            }
-            // Every empty dashboard page gets the default built-in widgets (PLAN.md 8.1), so they
-            // are real, editable items rather than the preview the home screen shows for an empty page.
-            dao.pagesByScreenOnce(key)
-                .filter { it.style == HomeStyle.DASHBOARD }
-                .forEach { page ->
-                    if (dao.countItemsForPage(page.id) == 0) {
-                        val widgets = defaultDashboardItems(screen, page.id).map { ItemEntity.fromModel(it) }
-                        if (widgets.isNotEmpty()) dao.upsertItems(widgets)
-                    }
-                }
         }
     }
+
+    private suspend fun createDefaultPages(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?) {
+        val pageStyle = style ?: defaultStyle(screen)
+        var firstPageId = 0L
+        for (index in 0 until DEFAULT_PAGE_COUNT) {
+            val id = dao.upsertPage(PageEntity(screen = screen, index = index, style = pageStyle))
+            if (index == 0) firstPageId = id
+        }
+        seedFirstPage(screen, firstPageId, pageStyle, apps, columns)
+    }
+
+    /** Fills the first page of a freshly created screen (see [ensureDefaultLayout]). */
+    private suspend fun seedFirstPage(
+        screen: ScreenKind,
+        pageId: Long,
+        pageStyle: HomeStyle,
+        apps: List<AppInfo>,
+        columns: Int?,
+    ) {
+        val seeded: List<ItemEntity> = if (pageStyle == HomeStyle.DASHBOARD) {
+            // Real, editable items (PLAN.md 8.1) rather than the preview the home draws for an empty page.
+            defaultDashboardItems(screen, pageId).map { ItemEntity.fromModel(it) }
+        } else {
+            val cols = columns?.coerceAtLeast(1) ?: defaultColumns(screen)
+            val count = cols * defaultRows(screen)
+            apps.take(count).mapIndexed { position, app ->
+                ItemEntity(
+                    pageId = pageId,
+                    kind = ItemKind.APP,
+                    col = position % cols,
+                    row = position / cols,
+                    packageName = app.packageName,
+                    activityName = app.activityName,
+                    title = app.label,
+                )
+            }
+        }
+        if (seeded.isNotEmpty()) dao.upsertItems(seeded)
+    }
+
+    /**
+     * Version 1.0.0 seeded three pages per screen and refilled every empty dashboard page with the
+     * default widgets, so an inner screen ended up with three identical dashboards. Deletes the pages
+     * after the first one whose items are identical (same kind, app / built-in, cell and span) to the
+     * first page's, and the extra trailing empty pages (a 1.0.0 cover install has a populated first page
+     * plus two empty ones): at most one trailing empty page is kept. A page that differs in any way or
+     * holds an item or a hosted app widget is never touched. When that leaves a single page, one empty
+     * page of the same style is added back, so the result is the same "one populated page plus one
+     * empty page" a fresh install gets. Running it again finds nothing to do.
+     */
+    private suspend fun removeLegacyDuplicatePages(screen: ScreenKind) {
+        val key = screen.name
+        val pages = dao.pagesByScreenOnce(key)
+        if (pages.size < 2) return
+        val first = pages.first()
+        val firstItems = dao.allItemsByPageOnce(first.id)
+        if (firstItems.isEmpty() || firstItems.any { it.appWidgetId != null }) return
+        val firstSignature = pageSignature(firstItems)
+        val duplicates = pages.drop(1).filter { page ->
+            val items = dao.allItemsByPageOnce(page.id)
+            items.isNotEmpty() && items.none { it.appWidgetId != null } && pageSignature(items) == firstSignature
+        }
+        val duplicateIds = duplicates.map { it.id }.toSet()
+        // Trailing empty pages (after the duplicates are gone): keep the first one, drop the rest.
+        val kept = pages.filter { it.id !in duplicateIds }
+        val trailingEmpty = kept.drop(1).reversed()
+            .takeWhile { page -> dao.allItemsByPageOnce(page.id).isEmpty() }
+            .reversed()
+        val extraEmpty = trailingEmpty.drop(1)
+        if (duplicates.isEmpty() && extraEmpty.isEmpty()) return
+        (duplicates + extraEmpty).forEach { dao.deletePage(it.id) }
+        val remaining = dao.pagesByScreenOnce(key)
+        remaining.forEachIndexed { index, page ->
+            if (page.index != index) dao.setPageIndex(page.id, index)
+        }
+        if (remaining.size == 1) {
+            dao.upsertPage(PageEntity(screen = screen, index = 1, style = remaining.first().style))
+        }
+    }
+
+    /** What a page shows, independent of row ids: sorted "kind|app|built-in|cell|span|in-folder" strings. */
+    private fun pageSignature(items: List<ItemEntity>): List<String> =
+        items.map { item ->
+            listOf(
+                item.kind.name,
+                item.packageName.orEmpty(),
+                item.activityName.orEmpty(),
+                item.builtinId.orEmpty(),
+                item.col,
+                item.row,
+                item.spanX,
+                item.spanY,
+                if (item.parentId != null) "child" else "top",
+            ).joinToString("|")
+        }.sorted()
 
     override suspend fun upsertItem(item: HomeItem) {
         dao.upsertItem(ItemEntity.fromModel(item))
@@ -259,6 +361,79 @@ class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
         }
     }
 
+    override suspend fun placeApp(
+        app: AppInfo,
+        pageId: Long,
+        col: Int,
+        row: Int,
+        cols: Int?,
+        rows: Int?,
+        growsRows: Boolean,
+    ): Boolean {
+        return db.withTransaction {
+            val existing = dao.itemsByPageOnce(pageId)
+            val occupied = HashSet<Pair<Int, Int>>()
+            var maxCol = col.coerceAtLeast(0)
+            var maxRow = row.coerceAtLeast(0)
+            var lowest = -1
+            for (item in existing) {
+                val spanX = item.spanX.coerceAtLeast(1)
+                val spanY = item.spanY.coerceAtLeast(1)
+                for (r in item.row until item.row + spanY) {
+                    for (c in item.col until item.col + spanX) occupied.add(c to r)
+                }
+                maxCol = maxOf(maxCol, item.col + spanX - 1)
+                maxRow = maxOf(maxRow, item.row + spanY - 1)
+                lowest = maxOf(lowest, item.row + spanY - 1)
+            }
+            val colLimit = cols?.coerceAtLeast(1) ?: (maxCol + 1)
+            val rowLimit = rows?.coerceAtLeast(1) ?: (maxRow + 2)
+            val wantedCol = col.coerceIn(0, colLimit - 1)
+            val wantedRow = row.coerceIn(0, rowLimit - 1)
+
+            var bestCol = -1
+            var bestRow = -1
+            var bestDistance = Int.MAX_VALUE
+            for (r in 0 until rowLimit) {
+                for (c in 0 until colLimit) {
+                    if ((c to r) in occupied) continue
+                    val distance = kotlin.math.abs(c - wantedCol) + kotlin.math.abs(r - wantedRow)
+                    // Rows and columns are visited in increasing order, so a strict < keeps the lower row, then column, on ties.
+                    if (distance < bestDistance) {
+                        bestDistance = distance
+                        bestCol = c
+                        bestRow = r
+                    }
+                }
+            }
+            if (bestCol < 0) {
+                // A page with a fixed row count never draws a row below the grid: refuse instead of storing it.
+                if (!growsRows && rows != null) return@withTransaction false
+                // The visible grid is full: start the row below the lowest item (dashboard / hybrid pages grow).
+                bestCol = 0
+                bestRow = lowest + 1
+            }
+            dao.upsertItem(
+                ItemEntity(
+                    pageId = pageId,
+                    kind = ItemKind.APP,
+                    col = bestCol,
+                    row = bestRow,
+                    packageName = app.packageName,
+                    activityName = app.activityName,
+                    title = app.label,
+                ),
+            )
+            true
+        }
+    }
+
+    override suspend fun setDockApps(screen: ScreenKind, appKeys: List<String>) {
+        dockStore.set(screen, appKeys)
+    }
+
+    override fun dockApps(screen: ScreenKind): Flow<List<String>> = dockStore.apps(screen)
+
     /** Sets or clears (null) one folder's style override ("grid", "list" or "big"). */
     suspend fun setFolderStyle(folderId: Long, style: String?) {
         dao.setFolderStyle(folderId, style)
@@ -268,7 +443,8 @@ class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
     suspend fun upsertPage(page: HomePage): Long = dao.upsertPage(PageEntity.fromModel(page))
 
     companion object {
-        const val DEFAULT_PAGE_COUNT: Int = 3
+        /** A fresh screen gets one populated page plus one empty page (both in the same style). */
+        const val DEFAULT_PAGE_COUNT: Int = 2
 
         /** Mirrors the LauncherSettings defaults: grid on the cover, dashboard inside. */
         fun defaultStyle(screen: ScreenKind): HomeStyle = when (screen) {

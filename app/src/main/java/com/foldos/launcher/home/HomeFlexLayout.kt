@@ -44,9 +44,8 @@ internal fun HomeFlexLayout(
             Modifier
                 .fillMaxWidth()
                 .height(topHeight)
-                .then(ctx.pageModifier)
+                // The swipe detectors (gestures/ and the swipe-up fallback) sit on the HomeScreen root.
                 .homeLongPress { ctx.emptyLongPress(firstPage?.id ?: 0L, -1, -1) }
-                .homeSwipeUp(ctx.swipeUpOpensDrawer, ctx.onOpenDrawer)
                 .padding(horizontal = HomeSidePadding, vertical = 10.dp),
         ) {
             if (searchBar != null) {

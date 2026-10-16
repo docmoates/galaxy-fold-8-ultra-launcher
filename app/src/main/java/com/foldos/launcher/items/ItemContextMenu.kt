@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Brush
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
@@ -62,6 +63,7 @@ import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.icons.AppIconOverrideSheet
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import com.foldos.launcher.widgets.WidgetHostController
 import kotlinx.coroutines.launch
 
 private const val TAG = "ItemContextMenu"
@@ -90,15 +92,36 @@ enum class ContextAction(val label: String, val icon: ImageVector) {
     ADD_TO_PAIR("Add to pair", Icons.Rounded.VerticalSplit),
 
     /** Open `icons.AppIconOverrideSheet` for this app. */
-    ICON_OVERRIDE("Icon override", Icons.Rounded.Brush);
+    ICON_OVERRIDE("Icon override", Icons.Rounded.Brush),
+
+    /** Widgets: same as [REMOVE] (the menu tries [REMOVE] when `onAction` does not take this one). */
+    REMOVE_WIDGET("Remove widget", Icons.Rounded.RemoveCircleOutline),
+
+    /**
+     * Widgets: enter live-edit mode with the widget selected so its corner handles can resize it
+     * (the menu tries [EDIT] when `onAction` does not take this one).
+     */
+    RESIZE("Resize", Icons.Rounded.AspectRatio),
+
+    /** Widgets: enter live-edit mode (the menu tries [EDIT] when `onAction` does not take this one). */
+    EDIT_HOME("Edit home", Icons.Rounded.Edit);
 
     val destructive: Boolean get() = this == UNINSTALL
+
+    /** The older action that means the same to a caller that predates the widget entries, or null. */
+    internal val legacyAlias: ContextAction?
+        get() = when (this) {
+            REMOVE_WIDGET -> REMOVE
+            RESIZE, EDIT_HOME -> EDIT
+            else -> null
+        }
 
     companion object {
         /**
          * The actions a long press offers for [item]: everything for an app ("Add to pair" only
-         * while `FEATURE_PAIRS` is on), Edit / Remove for folders, pairs and widgets. The menu
-         * itself still drops entries that do not apply (no package, system app for Uninstall).
+         * while `FEATURE_PAIRS` is on), "Remove widget" / "Resize" / "Edit home" for widgets, Edit /
+         * Remove for folders and pairs. The menu itself still drops entries that do not apply (no
+         * package, system app for Uninstall).
          */
         fun defaultsFor(item: HomeItem, settings: LauncherSettings): List<ContextAction> = when (item.kind) {
             ItemKind.APP -> buildList {
@@ -110,7 +133,8 @@ enum class ContextAction(val label: String, val icon: ImageVector) {
                 if (settings.feature(LauncherSettings.FEATURE_PAIRS)) add(ADD_TO_PAIR)
                 add(ICON_OVERRIDE)
             }
-            ItemKind.FOLDER, ItemKind.PAIR, ItemKind.WIDGET -> listOf(EDIT, REMOVE)
+            ItemKind.WIDGET -> listOf(REMOVE_WIDGET, RESIZE, EDIT_HOME)
+            ItemKind.FOLDER, ItemKind.PAIR -> listOf(EDIT, REMOVE)
         }
     }
 }
@@ -124,11 +148,15 @@ private enum class MenuSheet { NONE, ICON_OVERRIDE, PAIR }
  * item's icon and name on top and one row per action in [actions], filtered to the ones that apply.
  *
  * Every action has a default implementation through [LocalAppGraph] and standard intents, except
- * [ContextAction.EDIT], which needs the launcher's edit mode: pass [onAction] and return true for the
- * actions you handle yourself (the menu then closes), false to get the default:
+ * [ContextAction.EDIT] (and its widget twins [ContextAction.RESIZE] / [ContextAction.EDIT_HOME]),
+ * which need the launcher's edit mode: pass [onAction] and return true for the actions you handle
+ * yourself (the menu then closes), false to get the default. For [ContextAction.REMOVE_WIDGET],
+ * [ContextAction.RESIZE] and [ContextAction.EDIT_HOME] the menu calls [onAction] with the action
+ * itself first and, when that returns false, once more with its older alias (REMOVE / EDIT), so a
+ * handler that only knows REMOVE and EDIT keeps working:
  *
- * - REMOVE: `layouts.deleteItem(item.id)` on `appScope` (for an app widget prefer handling it in
- *   `onAction` so the ViewModel also releases the app widget id).
+ * - REMOVE / REMOVE_WIDGET: `layouts.deleteItem(item.id)` on `appScope`; an app widget's host id is
+ *   released first through `WidgetHostController`.
  * - APP_INFO / UNINSTALL: `Settings.ACTION_APPLICATION_DETAILS_SETTINGS` / `Intent.ACTION_DELETE`
  *   for the item's package (Uninstall is hidden for system apps).
  * - HIDE: adds the package to `LauncherSettings.hiddenApps`.
@@ -167,6 +195,7 @@ fun ItemContextMenu(
         actions.distinct().filter { action ->
             when (action) {
                 ContextAction.EDIT, ContextAction.REMOVE -> true
+                ContextAction.REMOVE_WIDGET, ContextAction.RESIZE, ContextAction.EDIT_HOME -> item.kind == ItemKind.WIDGET
                 ContextAction.APP_INFO, ContextAction.HIDE -> item.kind == ItemKind.APP && packageName != null
                 ContextAction.UNINSTALL -> item.kind == ItemKind.APP && packageName != null && !isSystemApp
                 ContextAction.ADD_TO_PAIR, ContextAction.ICON_OVERRIDE -> item.kind == ItemKind.APP && app != null
@@ -177,14 +206,22 @@ fun ItemContextMenu(
     var sheet by remember { mutableStateOf(MenuSheet.NONE) }
 
     fun perform(action: ContextAction) {
-        if (onAction(action)) {
+        // A caller that only knows EDIT / REMOVE still handles the widget entries through their alias.
+        val alias = action.legacyAlias
+        if (onAction(action) || (alias != null && onAction(alias))) {
             onDismiss()
             return
         }
         when (action) {
-            ContextAction.EDIT -> onDismiss()
-            ContextAction.REMOVE -> {
-                if (item.id > 0) graph.appScope.launch { graph.layouts.deleteItem(item.id) }
+            ContextAction.EDIT, ContextAction.EDIT_HOME, ContextAction.RESIZE -> onDismiss()
+            ContextAction.REMOVE, ContextAction.REMOVE_WIDGET -> {
+                if (item.id > 0) {
+                    // A hosted widget gives its host id back, otherwise the host keeps it forever.
+                    item.appWidgetId?.let { id ->
+                        runCatching { WidgetHostController.from(context, graph).deleteId(id) }
+                    }
+                    graph.appScope.launch { graph.layouts.deleteItem(item.id) }
+                }
                 onDismiss()
             }
             ContextAction.APP_INFO -> {

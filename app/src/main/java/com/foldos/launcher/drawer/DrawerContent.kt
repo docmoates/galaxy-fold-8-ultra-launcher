@@ -3,29 +3,24 @@ package com.foldos.launcher.drawer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,9 +44,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.foldos.launcher.a11y.LocalLargeIcons
@@ -59,8 +51,10 @@ import com.foldos.launcher.a11y.a11yAppLabel
 import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.a11y.a11yDirectionalFocus
 import com.foldos.launcher.a11y.a11yLiveRegion
-import com.foldos.launcher.a11y.a11yMinTouchTarget
+import com.foldos.launcher.apppicker.appTileGestures
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.core.ui.DragPayload
 import com.foldos.launcher.theme.LocalFoldOsTokens
 
 /** Pill search field at the top of the drawer (mock-up `.srch`). */
@@ -121,71 +115,6 @@ internal fun DrawerSearchField(
     )
 }
 
-/** Horizontally scrolling category chips (mock-up `.dtabs`). */
-@Composable
-internal fun DrawerCategoryChips(
-    selected: DrawerCategory,
-    onSelect: (DrawerCategory) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .selectableGroup()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        DrawerCategory.entries.forEach { category ->
-            DrawerChip(
-                category = category,
-                selected = category == selected,
-                onClick = { onSelect(category) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun DrawerChip(
-    category: DrawerCategory,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val tokens = LocalFoldOsTokens.current
-    val shape = RoundedCornerShape(50)
-    val background = if (selected) tokens.accent else tokens.surface
-    val foreground = if (selected) tokens.onAccent else tokens.onSurface
-    val borderColor = if (selected) Color.Transparent else tokens.surfaceBorder
-    Row(
-        modifier = Modifier
-            .a11yMinTouchTarget()
-            .clip(shape)
-            .background(background)
-            .border(1.dp, borderColor, shape)
-            // A tab of the category strip: read as "Media, tab, selected".
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        if (category.locked) {
-            Icon(
-                imageVector = Icons.Rounded.Lock,
-                contentDescription = null,
-                tint = foreground,
-                modifier = Modifier.size(16.dp),
-            )
-        }
-        Text(
-            text = category.title,
-            color = foreground,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-        )
-    }
-}
-
 /** A-Z app grid; the bottom 15% fades out like the mock-up's masked `.ag`. */
 @Composable
 internal fun DrawerAppGrid(
@@ -196,9 +125,15 @@ internal fun DrawerAppGrid(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(bottom = 24.dp),
     badgeCounts: Map<String, Int> = emptyMap(),
+    /** Null disables drag and drop (the long press then only opens [onAppMenu]). */
+    dragController: DragController? = null,
+    onDragStarted: () -> Unit = {},
+    /** Long press without a drag: the app's menu (Add to group, App info, ...). */
+    onAppMenu: ((AppInfo) -> Unit)? = null,
+    emptyText: String = "No apps match",
 ) {
     if (apps.isEmpty()) {
-        DrawerEmptyState(modifier = modifier)
+        DrawerEmptyState(text = emptyText, modifier = modifier)
         return
     }
     LazyVerticalGrid(
@@ -228,6 +163,9 @@ internal fun DrawerAppGrid(
                 iconSize = iconSize,
                 badge = badgeCounts[app.packageName] ?: 0,
                 onClick = { onLaunch(app) },
+                dragController = dragController,
+                onDragStarted = onDragStarted,
+                onMenu = onAppMenu?.let { menu -> { menu(app) } },
             )
         }
     }
@@ -238,6 +176,9 @@ private fun DrawerAppTile(
     app: AppInfo,
     iconSize: Dp,
     onClick: () -> Unit,
+    dragController: DragController?,
+    onDragStarted: () -> Unit,
+    onMenu: (() -> Unit)?,
     badge: Int = 0,
 ) {
     val tokens = LocalFoldOsTokens.current
@@ -245,9 +186,23 @@ private fun DrawerAppTile(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            // One TalkBack element: "Gmail, 3 notifications" (icon description and label merged).
-            .a11yButton(label = a11yAppLabel(app.label, badge), onActivate = onClick)
+            // One TalkBack element: "Gmail, 3 notifications" (icon description and label merged);
+            // the long press (menu / drag) is also offered as the "App options" action.
+            .a11yButton(
+                label = a11yAppLabel(app.label, badge),
+                onActivate = onClick,
+                onMenu = onMenu,
+                menuLabel = "App options",
+            )
             .clickable(onClick = onClick)
+            // Inside the clickable: long press then drag moves the app to the home screen or the dock,
+            // long press and release opens the menu.
+            .appTileGestures(
+                controller = dragController,
+                payload = { DragPayload.App(app) },
+                onLongPress = onMenu,
+                onDragStarted = onDragStarted,
+            )
             .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -269,11 +224,12 @@ private fun DrawerAppTile(
 }
 
 @Composable
-private fun DrawerEmptyState(modifier: Modifier = Modifier) {
+private fun DrawerEmptyState(text: String, modifier: Modifier = Modifier) {
     val tokens = LocalFoldOsTokens.current
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            text = "No apps match",
+            text = text,
+            textAlign = TextAlign.Center,
             // Announced when a search leaves no results.
             modifier = Modifier.a11yLiveRegion(),
             color = tokens.onSurface.copy(alpha = 0.7f),

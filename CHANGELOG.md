@@ -4,6 +4,49 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.1.0] - 2026-10-16
+
+Fix round 1.1: device feedback on 1.0.0 (`versionCode` 110). Written from the source; not yet run on a device.
+
+### Fixed
+1. Hub page: the home dock and page indicator no longer show on the Hub page, so there is one tab bar and the
+   content gets the full height on the cover and the inner screen (the rail dock hides there too).
+2. Swipe up for apps: the gesture detector now covers the whole home (pager, page indicator and dock), not just
+   the page columns, and every dock has an "All apps" button.
+3. Long-press on the home: a long press on an app, folder, pair, widget, stack or empty space enters edit mode
+   with that item selected (the item menu keeps an "Edit" entry); widgets are caught even over hosted app widgets.
+4. First run created three identical pages: a fresh screen now gets one populated page and one empty page, nothing
+   is re-seeded later, and the duplicate pages 1.0.0 created are removed once.
+5. Settings was too complicated: Settings opens on live preview cards (Screens, Home style, Look, Colors, Dock,
+   App drawer, Widget picker, Icons) where one tap applies a sample; toggles, dropdowns, sliders and hex fields moved
+   to "More settings". Every old route still opens its page.
+6. Colors: twelve primary colors, each with a light and a dark version (stored as `<id>-light` / `<id>-dark`; old
+   ids still resolve to the dark version), shown as split swatches in Settings, the setup wizard and the edit-mode
+   theme sheet.
+7. Search: opening search and typing no longer slides the home down and exposes it as a strip at the status bar;
+   search is a full-screen takeover with the field pinned at the top and the results above the keyboard
+   (`android:windowSoftInputMode="adjustNothing"` on `MainActivity`).
+8. Remove widget did nothing: the remove X now sits on the selected item inside the area between the bars, one tap
+   removes, and a snackbar offers Undo for five seconds (an app widget keeps its host id until the window passes).
+9. Edit widget overlapped the home: edit mode shows ONE top bar and ONE bottom bar and draws the home scaled to 76%
+   between them; the published grid geometry stays in unscaled window dp, so drag, snap and resize line up.
+10. Duplicate search: a bottom dock with the search add-on is the only search bar; the top bar is not drawn.
+11. No way to change the dock or home apps: the app pop-up has group folders (Work, Media, Social, Tools, Games,
+    Hidden, your own); apps are dragged from it onto a home page (placed on the cell, a folder when dropped on an
+    app) or onto the dock (inserted, reordered or replaced); dock icons can be dragged out, reordered or removed from
+    their menu; home tiles can be picked up after the long press and moved or dropped on the dock.
+
+### Added
+- `apppicker/` package: group store (DataStore `foldos_groups`), automatic categories, shared tap / long-press /
+  drag gesture for app tiles, group cards and dialogs.
+- Launcher-wide drag and drop (`core/ui/Drag.kt`): `DragController`, drop-target registration, a floating drag ghost.
+- Dock apps are stored per screen (`LayoutRepository.setDockApps` / `dockApps`, DataStore `foldos_dock`).
+- `LayoutRepository.placeApp` (nearest free cell). Room stays at version 3.
+
+### Changed
+- `LayoutRepositoryImpl.DEFAULT_PAGE_COUNT` is 2 and `ensureDefaultLayout` seeds only a screen with no pages.
+- `ColorSchemes` lists both versions of every family; the theme no longer clamps preset accents.
+
 ## [1.0.0] - 2026-10-16
 
 Phase 6: polish and release. First release build (`versionCode` 100).

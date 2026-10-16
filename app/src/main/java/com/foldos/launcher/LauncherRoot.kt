@@ -2,12 +2,15 @@ package com.foldos.launcher
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -18,6 +21,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,16 +39,22 @@ import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.model.WidgetEntry
+import com.foldos.launcher.core.ui.DragGhostLayer
+import com.foldos.launcher.core.ui.DragPayload
+import com.foldos.launcher.core.ui.LocalDragController
+import com.foldos.launcher.core.ui.rememberDragController
 import com.foldos.launcher.dock.Dock
 import com.foldos.launcher.dock.DockDefaults
 import com.foldos.launcher.drawer.AppDrawer
 import com.foldos.launcher.edit.EditModeOverlay
+import com.foldos.launcher.edit.EditScaledHome
 import com.foldos.launcher.edit.ThemeQuickSheet
 import com.foldos.launcher.edit.WallpaperSheet
 import com.foldos.launcher.fold.effectiveScreen
 import com.foldos.launcher.fold.rememberFoldState
 import com.foldos.launcher.gestures.HingeGestureEffect
 import com.foldos.launcher.gestures.homeGestures
+import com.foldos.launcher.home.HomeAppIcon
 import com.foldos.launcher.home.HomeCallbacks
 import com.foldos.launcher.home.HomeScreen
 import com.foldos.launcher.home.LocalHomeCallbacks
@@ -59,6 +70,7 @@ import com.foldos.launcher.search.SearchBar
 import com.foldos.launcher.search.UniversalSearch
 import com.foldos.launcher.settings.SettingsActivity
 import com.foldos.launcher.settings.SettingsRoutes
+import com.foldos.launcher.theme.LocalFoldOsTokens
 import com.foldos.launcher.theme.Wallpaper
 import com.foldos.launcher.widgets.AddAppWidgetResult
 import com.foldos.launcher.widgets.WidgetSizing
@@ -132,16 +144,40 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         if (editPageId != null) viewModel.graph.layouts.items(editPageId) else flowOf<List<HomeItem>>(emptyList())
     }
     val editItems by editItemsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
-    val geometry = rememberGridGeometry(screen, settings, fold)
+    val geometry = rememberGridGeometry(screen, settings, fold, editPageStyle)
     val stacksOn = settings.feature(LauncherSettings.FEATURE_STACKS)
 
     val dockConfig = settings.dockFor(screen)
     val dockOn = settings.feature(LauncherSettings.FEATURE_DOCK)
     val railDock = dockOn && dockConfig.pos == DockPosition.RAIL
-    val pinned = remember(apps, dockConfig, screen) {
-        defaultDockApps(apps, DockDefaults.pinnedCount(dockConfig, screen) + DockDefaults.FOLDER_SIZE)
+
+    // The dock's apps: the user's own list (LayoutRepository.dockApps, edited by dropping apps from
+    // the app pop-up on the dock), the keyword-picked defaults while that list is empty. null = the
+    // stored list has not been read yet (the dock stays empty for that moment instead of flashing
+    // the defaults).
+    val dockKeysFlow = remember(viewModel, screen) { viewModel.dockApps(screen) }
+    val unreadDockKeys: List<String>? = null
+    val dockKeys: List<String>? by dockKeysFlow.collectAsStateWithLifecycle(initialValue = unreadDockKeys)
+    val pinned = remember(apps, dockKeys, dockConfig, screen) {
+        val stored = dockKeys
+        if (stored == null) {
+            emptyList<AppInfo>()
+        } else {
+            val capacity = DockDefaults.pinnedCount(dockConfig, screen) + DockDefaults.FOLDER_SIZE
+            val byKey = apps.associateBy { it.key }
+            val chosen = stored.mapNotNull { byKey[it] }.take(capacity)
+            if (chosen.isEmpty()) defaultDockApps(apps, capacity) else chosen
+        }
     }
     val recents: List<AppInfo> = remember { emptyList() }
+
+    // Drag and drop (app pop-up / tile -> home page, dock). One controller for the whole launcher.
+    val dragController = rememberDragController()
+    // True while the pager shows the hub page: its own tab bar replaces the dock (HomeScreen hides
+    // the page indicator and the dock), so the rail dock is hidden as well.
+    var onHub by remember { mutableStateOf(false) }
+    // A drop on the dock closes the app pop-up it came from in LauncherViewModel.setDockApps (not here:
+    // the stored list also re-emits when the screen changes with the pop-up open).
 
 
     // Hardware keyboard (a11y/KeyboardNavigation.kt): a printable key on the home screen opens search
@@ -165,15 +201,22 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         context.startActivity(SettingsActivity.intent(context, route))
     }
     val enterEdit: () -> Unit = { viewModel.enterEditMode() }
+    // The item a long press (or the item menu's Edit / Resize / Edit home entry) came from: the edit
+    // overlay selects it as soon as it shows, so Remove and the resize handles are right there.
+    var editSelectId by remember { mutableStateOf<Long?>(null) }
     val homeCallbacks = remember(viewModel) {
         HomeCallbacks(
-            onItemLongPress = { viewModel.enterEditMode() },
+            onItemLongPress = { item ->
+                editSelectId = item.id.takeIf { it > 0L }
+                viewModel.enterEditMode()
+            },
             onEmptyLongPress = { _, _, _ -> viewModel.enterEditMode() },
         )
     }
 
     // Gestures (PLAN.md 4): bound actions run through the view model's GestureHost. The touch
-    // detector wraps every home page (HomeScreen.pageModifier); the hinge detector watches the
+    // detector wraps the whole home (HomeScreen.pageModifier: pages, indicator and dock, so a swipe
+    // up that starts on the dock opens the drawer; not the hub page); the hinge detector watches the
     // fold posture; the home key double press is handled in MainActivity.onNewIntent.
     val gesturesOn = settings.feature(LauncherSettings.FEATURE_GESTURES)
     val onGestureAction: (GestureAction) -> Unit = { action -> viewModel.performGesture(context, action) }
@@ -255,12 +298,16 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         if (!editMode) {
             themesOpen = false
             wallpaperOpen = false
+            editSelectId = null
         }
     }
 
+    // While an app is being dragged out of the pop-up the pop-up hides itself and the home behind it
+    // must be sharp and full size again: that is where the app is dropped.
+    // Search is not part of it: its surface is fully opaque, a blurred home behind it is never seen.
     val backdrop = rememberWidgetPickerBackdropModifier(
-        visible = drawerOpen || pickerOpen || searchOpen,
-        blur = settings.popBlur && (pickerOpen || searchOpen || settings.drawerStyle == DrawerStyle.POPUP),
+        visible = (drawerOpen && !dragController.isDragging) || pickerOpen,
+        blur = settings.popBlur && (pickerOpen || settings.drawerStyle == DrawerStyle.POPUP),
     )
     val profilesOn = settings.feature(LauncherSettings.FEATURE_PROFILES)
     val onNotifications: (() -> Unit)? = if (settings.feature(LauncherSettings.FEATURE_BADGES)) {
@@ -269,9 +316,52 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         null
     }
 
+    // The bottom dock's own search add-on is the search entry: no second search bar at the top.
+    val dockHasSearch = dockOn && !railDock && dockConfig.search
+    val topSearchBarOn = settings.feature(LauncherSettings.FEATURE_SEARCH) && !dockHasSearch
+    val onDropPayload: (DragPayload, Long, Int, Int) -> Unit = { payload, pageId, col, row ->
+        viewModel.dropOnPage(payload, pageId, col, row, stacksOn, geometry)
+    }
+
+    // Dock editing: a drop on the dock (or a reorder / remove of its own icons) reports the new ordered
+    // key list; an APP tile dragged from a home page into the dock is removed from its page.
+    val onDockAppsChange: (List<String>) -> Unit = { keys -> viewModel.setDockApps(screen, keys) }
+    val onHomeItemTakenIntoDock: (HomeItem) -> Unit = { item -> viewModel.deleteItem(item) }
+
+    // App pop-up menu entries "Add to home screen" / "Add to dock" (the drag path does the same by hand).
+    val onAddToHome: (AppInfo) -> Unit = { app ->
+        val pageId = editPageId
+        if (pageId == null) {
+            Toast.makeText(context, "No home page to add the app to", Toast.LENGTH_SHORT).show()
+        } else {
+            viewModel.addAppToHome(app, pageId, editPageStyle, geometry)
+            Toast.makeText(context, "${app.label} added to the home screen", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val onAddToDock: ((AppInfo) -> Unit)? = if (dockOn) {
+        { app ->
+            val keys = pinned.map { it.key }
+            val slots = DockDefaults.slotCount(dockConfig, screen).coerceAtLeast(1)
+            if (app.key in keys) {
+                Toast.makeText(context, "${app.label} is already in the dock", Toast.LENGTH_SHORT).show()
+            } else {
+                val next = keys.toMutableList()
+                if (next.size >= slots) next[slots - 1] = app.key else next.add(app.key)
+                viewModel.setDockApps(screen, next)
+                Toast.makeText(context, "${app.label} added to the dock", Toast.LENGTH_SHORT).show()
+            }
+        }
+    } else {
+        null
+    }
+
+    CompositionLocalProvider(LocalDragController provides dragController) {
     Box(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize().then(backdrop)) {
             Wallpaper(showSystemWallpaper = settings.dailyWallpaper)
+            // Edit mode (PLAN.md 5.2): the home (pages, search, dock) is drawn at 76% between the one top
+            // bar and the one bottom bar of the overlay; the wallpaper stays full size behind it.
+            EditScaledHome(active = editMode) {
             CompositionLocalProvider(
                 LocalHomeCallbacks provides homeCallbacks,
                 LocalKeyboardShortcuts provides keyboardShortcuts,
@@ -303,10 +393,13 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                                 onSearch = openSearch,
                                 modifier = Modifier.padding(start = sideMargin, end = sideMargin, bottom = 6.dp),
                                 onNotifications = onNotifications,
+                                dragController = dragController,
+                                onDockAppsChange = onDockAppsChange,
+                                onHomeItemTakenIntoDock = onHomeItemTakenIntoDock,
                             )
                         }
                     },
-                    searchBar = if (settings.feature(LauncherSettings.FEATURE_SEARCH)) {
+                    searchBar = if (topSearchBarOn) {
                         { SearchBar(onClick = openSearch, settings = settings) }
                     } else {
                         null
@@ -328,9 +421,12 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     hubSelectRequest = hubRequest,
                     // The home takes keyboard focus back whenever an overlay closes (type-to-search, arrow keys).
                     keyboardRefocusKey = Triple(drawerOpen, pickerOpen, searchOpen),
+                    onHubPageChanged = { isHub -> onHub = isHub },
+                    dragController = dragController,
+                    onDropPayload = onDropPayload,
                 )
             }
-            if (railDock) {
+            if (railDock && !onHub) {
                 Dock(
                     config = dockConfig,
                     screen = screen,
@@ -345,13 +441,34 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                         .windowInsetsPadding(WindowInsets.systemBars)
                         .padding(end = 10.dp),
                     onNotifications = onNotifications,
+                    dragController = dragController,
+                    onDockAppsChange = onDockAppsChange,
+                    onHomeItemTakenIntoDock = onHomeItemTakenIntoDock,
                 )
+            }
             }
         }
 
-        // Live edit (PLAN.md 5.2): same Box as the home, both fillMaxSize, so the grid geometry the
-        // home publishes in window dp maps 1:1 onto the overlay. Dropping an app onto another app
-        // makes a folder, onto a folder adds to it (LauncherViewModel.moveItem).
+        // While editing, touches that miss the overlay's own controls must not reach the scaled home
+        // underneath (its dock, search bar and app tiles would launch things). This sink sits below the overlay.
+        if (editMode) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        }
+                    },
+            )
+        }
+
+        // Live edit (PLAN.md 5.2): the overlay is the ONE top bar and ONE bottom bar around the home that
+        // EditScaledHome draws at 76%; the grid geometry the home publishes (unscaled window dp) is mapped
+        // through the same frame. Dropping an app onto another app makes a folder, onto a folder adds to
+        // it (LauncherViewModel.moveItem). Remove shows an Undo snackbar (restoreItem).
         EditModeOverlay(
             active = editMode && !pickerOpen,
             screen = screen,
@@ -378,6 +495,8 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
             onExit = { viewModel.exitEditMode() },
             modifier = Modifier.fillMaxSize(),
             onSelectPage = { pageId -> viewModel.selectPage(pageId) },
+            onRestoreItem = { item -> viewModel.restoreItem(item) },
+            selectRequestId = editSelectId,
             onOpenProfiles = if (profilesOn) {
                 { profilesOpen = true }
             } else {
@@ -404,6 +523,9 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
             onLaunch = onLaunch,
             onDismiss = { viewModel.closeDrawer() },
             modifier = Modifier.fillMaxSize(),
+            dragController = dragController,
+            onAddToHome = onAddToHome,
+            onAddToDock = onAddToDock,
         )
 
         // Universal search (PLAN.md 4): search bar tap, dock search bar, or a bound gesture.
@@ -431,6 +553,36 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         if (quietDrawerOpen) {
             QuietDrawerSheet(onDismiss = { quietDrawerOpen = false })
         }
+
+        // The dragged icon follows the finger over everything (home, dock, app pop-up).
+        val ghostTokens = LocalFoldOsTokens.current
+        DragGhostLayer(controller = dragController) { payload ->
+            val ghostApp: AppInfo? = when (payload) {
+                is DragPayload.App -> payload.app
+                is DragPayload.Item -> apps.firstOrNull { app ->
+                    app.packageName == payload.item.packageName &&
+                        (payload.item.activityName == null || app.activityName == payload.item.activityName)
+                }
+            }
+            if (ghostApp != null) {
+                HomeAppIcon(
+                    app = ghostApp,
+                    size = 60.dp,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = 1.12f
+                        scaleY = 1.12f
+                        alpha = 0.94f
+                    },
+                )
+            } else {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .background(ghostTokens.accent.copy(alpha = 0.7f), RoundedCornerShape(16.dp)),
+                )
+            }
+        }
+    }
     }
 }
 

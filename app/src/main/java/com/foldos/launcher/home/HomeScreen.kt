@@ -1,5 +1,10 @@
 package com.foldos.launcher.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -28,8 +33,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.a11y.a11yDirectionalFocus
@@ -42,8 +50,14 @@ import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomePage
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.core.ui.DragPayload
+import com.foldos.launcher.edit.LocalEditHomeRoot
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlin.math.max
 
@@ -74,11 +88,21 @@ import kotlin.math.max
  * @param editMode true while the live-edit overlay is up: an item long press then goes straight to
  *   `HomeCallbacks.onItemLongPress` (Phase 1 behaviour) instead of opening the item popup, and any
  *   open popup / folder sheet closes.
- * @param pageModifier applied to every home page container (the Flex top half included), where
- *   the `gestures/` package hooks its detector; it is placed outermost on the page.
- * @param swipeUpOpensDrawer true (default) keeps the page's own swipe-up-to-drawer detector; pass
+ * @param pageModifier applied once to the whole home root (pager, page indicator and dock; not while
+ *   the hub page is showing), where the `gestures/` package hooks its detector, so a swipe that
+ *   starts on the dock or the indicator is seen too.
+ * @param swipeUpOpensDrawer true (default) keeps the root's own swipe-up-to-drawer detector; pass
  *   false while [pageModifier] carries the `gestures/` detector, which binds SWIPE_UP itself, so a
  *   swipe up does not open the drawer twice.
+ * @param onHubPageChanged called with true when the pager settles on the hub page and false when it
+ *   leaves it. The page indicator and the home dock are hidden on the hub page (the hub draws its
+ *   own tab bar), so the host can hide anything else that belongs to the home dock (the rail dock).
+ * @param dragController the launcher-wide drag controller. Home pages with a cell grid register
+ *   the drop target `page:<pageId>` (list / hybrid pages register the whole body); a drop calls
+ *   [onDropPayload] with the cell under the pointer (-1 / -1 on pages without a cell grid). Dragging
+ *   near the left / right edge for 600 ms flips the pager. Tiles can be picked up (long press, then
+ *   move) as [DragPayload.Item] while edit mode is off.
+ * @param onDropPayload see [dragController].
  * @param hubSelectRequest a counter; every increment scrolls the pager to the hub page (gesture
  *   action `TYPE_HUB`). Ignored while the hub is off or in Flex Mode.
  * @param keyboardRefocusKey any value that changes when an overlay (drawer, search, picker) closes; the home
@@ -114,14 +138,22 @@ fun HomeScreen(
     swipeUpOpensDrawer: Boolean = true,
     hubSelectRequest: Int = 0,
     keyboardRefocusKey: Any? = null,
+    onHubPageChanged: ((isHub: Boolean) -> Unit)? = null,
+    dragController: DragController? = null,
+    onDropPayload: ((payload: DragPayload, pageId: Long, col: Int, row: Int) -> Unit)? = null,
 ) {
     val appsByKey = remember(apps) { apps.associateBy { it.key } }
+    // True while the pager shows the hub page: the page indicator and the home dock slide away
+    // (the hub has its own tab bar) and the home swipe detectors step aside for its scrolling content.
+    var onHub by remember { mutableStateOf(false) }
+    val reportHub = rememberUpdatedState(onHubPageChanged)
     val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
     val sortedPages = remember(pages) { pages.sortedBy { it.index } }
     var origin by remember { mutableStateOf(Offset.Zero) }
     val callbacks = LocalHomeCallbacks.current
     val hooks = LocalHomeItemHooks.current
     val graph = LocalAppGraph.current
+    val editHomeRoot = LocalEditHomeRoot.current
 
     // Notification badges (Settings > Notifications): only subscribed while they can show.
     val badgesOn = settings.feature(LauncherSettings.FEATURE_BADGES) && settings.badgeStyle != LauncherSettings.BADGE_OFF
@@ -164,7 +196,27 @@ fun HomeScreen(
         folderSheet = folderSheet,
         pageModifier = pageModifier,
         swipeUpOpensDrawer = swipeUpOpensDrawer,
+        dragController = dragController,
+        onDropPayload = onDropPayload,
     )
+
+    // Swipes (gestures/ detector: swipe up / down, two-finger, pinch, double tap; or the swipe-up
+    // fallback) are detected on the whole home root, so a swipe that starts on the dock, the page
+    // indicator or the dock handle opens the drawer just like one on a page. Children that scroll
+    // or flip (stacks, lists) still win. The hub page keeps its own vertical scrolling.
+    LaunchedEffect(flex) {
+        // Flex mode has no hub page: forget a hub state left over from the paged layout.
+        if (flex && onHub) {
+            onHub = false
+            reportHub.value?.invoke(false)
+        }
+    }
+    val swipesActive = flex || !onHub
+    val rootSwipes: Modifier = if (swipesActive) {
+        Modifier.then(ctx.pageModifier).homeSwipeUp(ctx.swipeUpOpensDrawer, ctx.onOpenDrawer)
+    } else {
+        Modifier
+    }
 
     Box(
         modifier
@@ -174,7 +226,16 @@ fun HomeScreen(
             .a11yDirectionalFocus()
             .a11yTypeToSearch(refocusKey = keyboardRefocusKey to editMode)
             .windowInsetsPadding(WindowInsets.systemBars)
-            .onGloballyPositioned { origin = it.positionInWindow() },
+            .onGloballyPositioned { coordinates ->
+                // Unscaled window position (edit mode draws the home scaled; see LocalEditHomeRoot).
+                val homeRoot = editHomeRoot?.coordinates
+                origin = if (homeRoot != null && homeRoot.isAttached && coordinates.isAttached) {
+                    homeRoot.localPositionOf(coordinates, Offset.Zero)
+                } else {
+                    coordinates.positionInWindow()
+                }
+            }
+            .then(rootSwipes),
     ) {
         if (flex) {
             val first = sortedPages.firstOrNull()
@@ -202,6 +263,10 @@ fun HomeScreen(
                 onCurrentPageChanged = onCurrentPageChanged,
                 pageSelectRequest = pageSelectRequest,
                 hubSelectRequest = hubSelectRequest,
+                onHubChanged = { isHub ->
+                    onHub = isHub
+                    reportHub.value?.invoke(isHub)
+                },
             )
         }
     }
@@ -226,6 +291,7 @@ private fun HomePagedLayout(
     onCurrentPageChanged: ((HomePage?) -> Unit)?,
     pageSelectRequest: PageSelectRequest?,
     hubSelectRequest: Int = 0,
+    onHubChanged: (Boolean) -> Unit = {},
 ) {
     val hubOn = ctx.settings.hubOn
     val hubLeft = ctx.settings.hubPos == LauncherSettings.HUB_POS_LEFT
@@ -282,10 +348,49 @@ private fun HomePagedLayout(
         }
     }
 
+    // The hub page has its own tab bar: the page indicator and the home dock are not shown on it.
+    val onHubPage = hubIndex >= 0 && pagerState.currentPage == hubIndex
+    val latestHubChanged = rememberUpdatedState(onHubChanged)
+    LaunchedEffect(onHubPage) { latestHubChanged.value(onHubPage) }
+
+    // Dragging an app (or tile) near the left / right edge for 600 ms flips to the next home page.
+    val dragController = ctx.dragController
+    var pagerBounds by remember { mutableStateOf(Rect.Zero) }
+    val edgePx = with(LocalDensity.current) { PAGE_EDGE_ZONE.toPx() }
+    if (dragController != null) {
+        LaunchedEffect(dragController, pagerState, total, hubIndex) {
+            snapshotFlow {
+                if (dragController.payload.value == null) {
+                    0
+                } else {
+                    val x = dragController.pointerInRoot.value.x
+                    val bounds = pagerBounds
+                    when {
+                        bounds.width <= 0f -> 0
+                        x <= bounds.left + edgePx -> -1
+                        x >= bounds.right - edgePx -> 1
+                        else -> 0
+                    }
+                }
+            }.distinctUntilChanged().collectLatest { direction ->
+                if (direction == 0) return@collectLatest
+                while (true) {
+                    delay(PAGE_EDGE_DELAY_MS)
+                    val target = pagerState.currentPage + direction
+                    if (target < 0 || target >= total || target == hubIndex) break
+                    scrollToPage(target)
+                }
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .onGloballyPositioned { pagerBounds = it.boundsInRoot() },
             key = { index ->
                 if (index == hubIndex) "hub" else (pages.getOrNull(index - firstHome)?.id?.toString() ?: "empty-$index")
             },
@@ -301,19 +406,37 @@ private fun HomePagedLayout(
         }
 
         val current = pagerState.currentPage
-        HomePageIndicator(
-            pageCount = homeCount,
-            currentPage = if (current == hubIndex) -1 else current - firstHome,
-            hubOn = hubOn,
-            hubOnLeft = hubLeft,
-            hubSelected = current == hubIndex,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(vertical = 10.dp),
-        )
-        dock()
+        AnimatedVisibility(
+            visible = !onHubPage,
+            enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+            exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // Long press on the strip around the dock enters edit mode like the page does.
+                    .homeLongPress { ctx.emptyLongPress(0L, -1, -1) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                HomePageIndicator(
+                    pageCount = homeCount,
+                    currentPage = if (current == hubIndex) -1 else current - firstHome,
+                    hubOn = hubOn,
+                    hubOnLeft = hubLeft,
+                    hubSelected = current == hubIndex,
+                    modifier = Modifier.padding(vertical = 10.dp),
+                )
+                dock()
+            }
+        }
     }
 }
+
+/** How close to the left / right edge a drag has to get before it starts flipping pages. */
+private val PAGE_EDGE_ZONE = 44.dp
+
+/** How long a drag has to rest at the edge before the pager flips (and between further flips). */
+private const val PAGE_EDGE_DELAY_MS = 600L
 
 @Composable
 private fun HomePageColumn(
@@ -328,11 +451,9 @@ private fun HomePageColumn(
     Column(
         Modifier
             .fillMaxSize()
-            // The gestures/ detector (HomeScreen.pageModifier) wraps the page.
-            .then(ctx.pageModifier)
+            // The swipe detectors (HomeScreen.pageModifier, swipe-up fallback) sit on the HomeScreen root.
             // Outside the item grid the cell is unknown (-1 / -1); the grid reports exact cells.
             .homeLongPress { ctx.emptyLongPress(pageId, -1, -1) }
-            .homeSwipeUp(ctx.swipeUpOpensDrawer, ctx.onOpenDrawer)
             .padding(horizontal = HomeSidePadding, vertical = 10.dp),
     ) {
         if (searchBar != null) {

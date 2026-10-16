@@ -49,7 +49,9 @@ import com.foldos.launcher.core.model.DockConfig
 import com.foldos.launcher.core.model.DockContent
 import com.foldos.launcher.core.model.DockPosition
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.ui.DragController
 import kotlin.math.abs
 
 /** Numbers shared with the Home agent so it can size the pinned list it hands to [Dock]. */
@@ -79,6 +81,13 @@ object DockDefaults {
 
     /** How many apps the folder add-on shows in its tile and pop-up. */
     const val FOLDER_SIZE: Int = 4
+
+    /**
+     * How many app slots the dock has for [config] on [screen] (the same number as [pinnedCount]):
+     * the most apps the user can keep in it. While an app is dragged over the dock the free slots are
+     * drawn as faint dashed placeholders, and a full dock replaces the app under the pointer.
+     */
+    fun slotCount(config: DockConfig, screen: ScreenKind): Int = pinnedCount(config, screen)
 }
 
 /**
@@ -92,6 +101,15 @@ object DockDefaults {
  *   width it is given and should sit at the bottom of the home page (above the gesture bar).
  *   For [DockPosition.RAIL] it is a vertical pill that should be aligned to the right edge,
  *   vertically centered.
+ * @param dragController the launcher-wide controller (`LocalDragController.current`). With it (and
+ *   [onDockAppsChange]) the dock is a drop target (`DragTargetIds.DOCK`) for apps dragged out of the
+ *   app pop-up or off the home screen, its icons can be dragged to reorder, off the dock to remove
+ *   them, or onto the home screen to move them there, and a long press on an icon opens a small menu
+ *   (Remove from dock, App info). Null (previews, other windows) leaves the dock read-only.
+ * @param onDockAppsChange receives the new ordered `AppInfo.key` list for `LayoutRepository.setDockApps`
+ *   (the visible apps plus the extra ones that fill the folder add-on). Never an empty list.
+ * @param onHomeItemTakenIntoDock called after a home-screen APP item ([com.foldos.launcher.core.ui.DragPayload.Item])
+ *   was dropped on the dock, so the caller can remove it from its page (the dock only stores the key).
  */
 @Composable
 fun Dock(
@@ -105,13 +123,22 @@ fun Dock(
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
     onNotifications: (() -> Unit)? = null,
+    dragController: DragController? = null,
+    onDockAppsChange: ((List<String>) -> Unit)? = null,
+    onHomeItemTakenIntoDock: ((HomeItem) -> Unit)? = null,
 ) {
     if (!settings.feature(LauncherSettings.FEATURE_DOCK)) return
     val palette = dockPalette()
     if (config.pos == DockPosition.RAIL) {
-        RailDock(config, pinned, palette, onLaunch, modifier, settings.largeIcons)
+        RailDock(
+            config, pinned, palette, onLaunch, onOpenDrawer, modifier, settings.largeIcons,
+            dragController, onDockAppsChange, onHomeItemTakenIntoDock,
+        )
     } else {
-        BottomDock(config, screen, pinned, recents, settings, palette, onLaunch, onOpenDrawer, onSearch, modifier, onNotifications)
+        BottomDock(
+            config, screen, pinned, recents, settings, palette, onLaunch, onOpenDrawer, onSearch, modifier,
+            onNotifications, dragController, onDockAppsChange, onHomeItemTakenIntoDock,
+        )
     }
 }
 
@@ -120,8 +147,12 @@ fun Dock(
 /* ------------------------------------------------------------------------------------------ */
 
 private sealed interface DockEntry {
-    data class App(val app: AppInfo, val scale: Float) : DockEntry
-    data class TextApp(val app: AppInfo) : DockEntry
+    /** A dock app; [slot] is its index among the dock's app slots (0 = first). */
+    data class App(val app: AppInfo, val scale: Float, val slot: Int) : DockEntry
+    data class TextApp(val app: AppInfo, val slot: Int) : DockEntry
+
+    /** A free app slot, drawn as a faint dashed placeholder while an app is dragged. */
+    data class Placeholder(val slot: Int) : DockEntry
     object Folder : DockEntry
     object SmartDivider : DockEntry
     data class Suggestion(val app: AppInfo) : DockEntry
@@ -147,14 +178,20 @@ private class DockContext(
     val onToggleFolder: () -> Unit,
     /** Easy mode (`LauncherSettings.largeIcons`): labels are always shown. */
     val largeIcons: Boolean = false,
+    /** Drag-and-drop editing of the dock apps; null = read-only dock. */
+    val edit: DockEditState? = null,
 ) {
     val labels: Boolean get() = config.labels || largeIcons
 }
 
+/**
+ * @param placeholders how many free-slot placeholders follow the apps (only while an app is dragged).
+ */
 private fun buildEntries(
     config: DockConfig,
     apps: List<AppInfo>,
     recents: List<AppInfo>,
+    placeholders: Int = 0,
 ): List<DockEntry> {
     val text = config.content == DockContent.TEXT
     val magnify = config.magnify && !config.two
@@ -162,7 +199,7 @@ private fun buildEntries(
     val entries = ArrayList<DockEntry>()
     apps.forEachIndexed { k, app ->
         if (text) {
-            entries.add(DockEntry.TextApp(app))
+            entries.add(DockEntry.TextApp(app, k))
         } else {
             val scale = when {
                 !magnify -> 1f
@@ -170,9 +207,10 @@ private fun buildEntries(
                 abs(k - peak) == 1 -> 1.12f
                 else -> 1f
             }
-            entries.add(DockEntry.App(app, scale))
+            entries.add(DockEntry.App(app, scale, k))
         }
     }
+    for (k in 0 until placeholders) entries.add(DockEntry.Placeholder(apps.size + k))
     if (config.folder) entries.add(DockEntry.Folder)
     if (config.smart) {
         entries.add(DockEntry.SmartDivider)
@@ -181,8 +219,9 @@ private fun buildEntries(
     if (config.taskbar) {
         entries.add(DockEntry.TaskbarDivider)
         recents.take(2).forEach { entries.add(DockEntry.Recent(it)) }
-        entries.add(DockEntry.AllApps)
     }
+    // Every dock has the "All apps" button (the way into the app pop-up besides the swipe).
+    entries.add(DockEntry.AllApps)
     if (config.center) entries.add((apps.size + 1) / 2, DockEntry.Center)
     if (config.media) entries.add(0, DockEntry.Media)
     return entries
@@ -222,15 +261,29 @@ private fun BottomDock(
     onSearch: () -> Unit,
     modifier: Modifier,
     onNotifications: (() -> Unit)? = null,
+    dragController: DragController? = null,
+    onDockAppsChange: ((List<String>) -> Unit)? = null,
+    onHomeItemTakenIntoDock: ((HomeItem) -> Unit)? = null,
 ) {
     val wide = screen != ScreenKind.COVER
-    val count = DockDefaults.pinnedCount(config, screen)
+    val count = DockDefaults.slotCount(config, screen)
     val apps = pinned.take(count)
     val folderApps = remember(pinned, recents, count) {
         (pinned.drop(count) + recents).distinctBy { it.key }.take(DockDefaults.FOLDER_SIZE)
     }
-    val entries = buildEntries(config, apps, recents)
-    val slots = entries.size + (if (config.media) 2f else 0f) - (if (config.taskbar) 0.7f else 0f)
+    val edit = rememberDockEdit(
+        controller = dragController,
+        onChange = onDockAppsChange,
+        onItemTaken = onHomeItemTakenIntoDock,
+        capacity = count,
+        keys = apps.map { it.key },
+        tail = pinned.drop(count).map { it.key },
+    )
+    // Icon size follows the entries of the resting dock, so it does not jump while empty slots show.
+    val restingEntries = buildEntries(config, apps, recents)
+    val freeSlots = if (edit != null && edit.dragActive) (count - apps.size).coerceAtLeast(0) else 0
+    val entries = if (freeSlots > 0) buildEntries(config, apps, recents, freeSlots) else restingEntries
+    val slots = restingEntries.size + (if (config.media) 2f else 0f) - (if (config.taskbar) 0.7f else 0f)
     // Easy mode (settings.largeIcons): 20% bigger icons and always-on labels.
     val iconSize = dockIconSize(config, wide, slots).let { if (settings.largeIcons) it * 1.2f else it }
     val onSurfaceBg = config.bg == DockBackground.PILL || config.bg == DockBackground.SHELF
@@ -249,11 +302,13 @@ private fun BottomDock(
         onSearch = onSearch,
         onToggleFolder = { folderOpen = !folderOpen },
         largeIcons = settings.largeIcons,
+        edit = edit,
     )
 
     Column(
         // Hardware keyboard: arrow keys move focus between the dock items.
-        modifier = modifier.fillMaxWidth().a11yDirectionalFocus(),
+        // The whole dock column is the drop target for apps dragged out of the pop-up / home.
+        modifier = modifier.fillMaxWidth().a11yDirectionalFocus().dockDropTarget(edit),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (config.handle) {
@@ -528,22 +583,43 @@ private fun EntryView(entry: DockEntry, ctx: DockContext, mediaModifier: Modifie
     val label: (String) -> String? = { if (ctx.labels) it else null }
     when (entry) {
         is DockEntry.App -> MagnifyBox(entry.scale) {
-            DockItem(
-                label = label(entry.app.label),
-                palette = palette,
-                shadowLabel = ctx.shadowLabels,
-                onClick = { ctx.onLaunch(entry.app) },
-                contentLabel = entry.app.label,
+            Box(
+                modifier = Modifier
+                    .dockSlotHighlight(ctx.edit, entry.slot, palette.accent, 18.dp)
+                    .dockDraggedFade(ctx.edit, entry.app.key),
             ) {
-                PinnedIcon(entry.app, ctx)
+                DockItem(
+                    label = label(entry.app.label),
+                    palette = palette,
+                    shadowLabel = ctx.shadowLabels,
+                    onClick = { ctx.onLaunch(entry.app) },
+                    contentLabel = entry.app.label,
+                    innerModifier = Modifier.dockAppGestures(ctx.edit, entry.app, entry.slot),
+                ) {
+                    PinnedIcon(entry.app, ctx)
+                }
+                DockAppMenu(ctx.edit, entry.app)
             }
         }
-        is DockEntry.TextApp -> DockTextItem(
-            app = entry.app,
-            palette = palette,
-            shadow = ctx.shadowLabels,
-            onClick = { ctx.onLaunch(entry.app) },
-        )
+        is DockEntry.TextApp -> Box(
+            modifier = Modifier
+                .dockSlotHighlight(ctx.edit, entry.slot, palette.accent, 12.dp)
+                .dockDraggedFade(ctx.edit, entry.app.key),
+        ) {
+            DockTextItem(
+                app = entry.app,
+                palette = palette,
+                shadow = ctx.shadowLabels,
+                onClick = { ctx.onLaunch(entry.app) },
+                innerModifier = Modifier.dockAppGestures(ctx.edit, entry.app, entry.slot),
+            )
+            DockAppMenu(ctx.edit, entry.app)
+        }
+        is DockEntry.Placeholder -> if (ctx.config.content == DockContent.TEXT) {
+            DockSlotPlaceholder(ctx.edit, entry.slot, width = 72.dp, height = 34.dp, palette = palette)
+        } else {
+            DockSlotPlaceholder(ctx.edit, entry.slot, width = ctx.iconSize, height = ctx.iconSize, palette = palette)
+        }
         DockEntry.Folder -> DockItem(
             label = label("Folder"),
             palette = palette,
@@ -623,41 +699,76 @@ private fun MagnifyBox(scale: Float, content: @Composable () -> Unit) {
 /* Edge rail                                                                                   */
 /* ------------------------------------------------------------------------------------------ */
 
-/** Mock-up `.dock.rail`: vertical pill on the right edge, icons only, add-ons ignored. */
+/** Mock-up .dock.rail: vertical pill on the right edge, icons only, add-ons ignored (plus the All apps button). */
 @Composable
 private fun RailDock(
     config: DockConfig,
     pinned: List<AppInfo>,
     palette: DockPalette,
     onLaunch: (AppInfo) -> Unit,
+    onOpenDrawer: () -> Unit,
     modifier: Modifier,
     largeIcons: Boolean = false,
+    dragController: DragController? = null,
+    onDockAppsChange: ((List<String>) -> Unit)? = null,
+    onHomeItemTakenIntoDock: ((HomeItem) -> Unit)? = null,
 ) {
-    val apps = pinned.take(DockDefaults.pinnedCount(config, ScreenKind.COVER))
+    val capacity = DockDefaults.slotCount(config, ScreenKind.COVER)
+    val apps = pinned.take(capacity)
+    val edit = rememberDockEdit(
+        controller = dragController,
+        onChange = onDockAppsChange,
+        onItemTaken = onHomeItemTakenIntoDock,
+        capacity = capacity,
+        keys = apps.map { it.key },
+        tail = pinned.drop(capacity).map { it.key },
+    )
+    val freeSlots = if (edit != null && edit.dragActive) (capacity - apps.size).coerceAtLeast(0) else 0
     val railIconSize = if (largeIcons) DockDefaults.railIconSize * 1.2f else DockDefaults.railIconSize
     val bubble = config.bg == DockBackground.BUBBLE
     val surface = !bubble && config.bg != DockBackground.NONE
     Column(
         modifier = modifier
             .then(if (surface) Modifier.dockSurface(palette, CircleShape) else Modifier)
+            .dockDropTarget(edit)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        apps.forEach { app ->
-            DockItem(
-                label = null,
-                palette = palette,
-                shadowLabel = false,
-                onClick = { onLaunch(app) },
-                contentLabel = app.label,
+        apps.forEachIndexed { slot, app ->
+            Box(
+                modifier = Modifier
+                    .dockSlotHighlight(edit, slot, palette.accent, 18.dp)
+                    .dockDraggedFade(edit, app.key),
             ) {
-                if (bubble) {
-                    BubbleSlot(palette) { AppIcon(app, railIconSize, palette) }
-                } else {
-                    AppIcon(app, railIconSize, palette)
+                DockItem(
+                    label = null,
+                    palette = palette,
+                    shadowLabel = false,
+                    onClick = { onLaunch(app) },
+                    contentLabel = app.label,
+                    innerModifier = Modifier.dockAppGestures(edit, app, slot),
+                ) {
+                    if (bubble) {
+                        BubbleSlot(palette) { AppIcon(app, railIconSize, palette) }
+                    } else {
+                        AppIcon(app, railIconSize, palette)
+                    }
                 }
+                DockAppMenu(edit, app)
             }
+        }
+        for (k in 0 until freeSlots) {
+            DockSlotPlaceholder(edit, apps.size + k, width = railIconSize, height = railIconSize, palette = palette)
+        }
+        DockItem(
+            label = null,
+            palette = palette,
+            shadowLabel = false,
+            onClick = onOpenDrawer,
+            contentLabel = "All apps",
+        ) {
+            AllAppsIcon(railIconSize, palette)
         }
     }
 }

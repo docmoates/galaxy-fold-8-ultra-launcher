@@ -74,7 +74,7 @@ Settings > Dock, separately for cover and inner.
 | 4.2 | Open the drawer on the inner screen | Floating centered card, not a bottom sheet. |
 | 4.3 | Settings > App drawer: switch to Full screen | Classic full-screen drawer. Turn "pop-up blur" off: backdrop is dimmed, not blurred. |
 | 4.4 | Type in the drawer search | List filters live; Enter launches the first result. |
-| 4.5 | Category chips, sort order | Chips filter; sort changes the order. |
+| 4.5 | Group folders (All, Work, Media, Social, Tools, Games, your own), sort order | Tapping a folder filters the grid; sort changes the order. Section 16 covers adding apps to groups and dragging them to the home screen and dock. |
 | 4.6 | Hide an app (context menu or Settings > Hidden apps) | It disappears from drawer, search and Add-to-folder pickers; it is still listed on the Hidden apps page. |
 | 4.7 | Uninstall action in the app context menu | System uninstall dialog for that package only. |
 
@@ -82,7 +82,7 @@ Settings > Dock, separately for cover and inner.
 
 | # | Action | Expected |
 |---|---|---|
-| 5.1 | Long-press empty home space | Edit mode: items wobble or show handles, bottom bar with Wallpaper, Themes, Widgets, Dock, Settings (and Profiles). |
+| 5.1 | Long-press empty home space or a widget | Edit mode: the home shrinks to about 76 % between one top bar and one bottom bar (Wallpaper, Themes, Widgets, Dock, Settings, and Profiles when on). |
 | 5.2 | Open Widgets on the cover | Bottom sheet with search, category chips and collapsible sections of live previews. Tapping a chip jumps to its section. |
 | 5.3 | Open Widgets on the inner screen | Wide card, category list on the left, preview grid on the right. |
 | 5.4 | Search "calendar" | Results match names, app names and APIs; clearing restores the groups. |
@@ -93,7 +93,7 @@ Settings > Dock, separately for cover and inner.
 | 5.9 | Resize a widget from its corner | Live preview while dragging; snaps to cells; content adapts. |
 | 5.10 | Drag a widget onto another | They become a stack; swiping flips between them. Settings > Widgets > Widget stacks off: the drop just moves/overlaps nothing. |
 | 5.11 | Free placement (page mode Free) | Items sit at arbitrary positions and persist after a restart. |
-| 5.12 | Delete a widget with the X chip | Gone, and its app widget id is released (re-adding works). |
+| 5.12 | Delete a widget with the X on the selected item | Gone, with an Undo snackbar; after the Undo window (about 6 s) its app widget id is released (re-adding works). |
 | 5.13 | Drag an item toward the page edge and hold | Page switches; the item drops on the new page. |
 | 5.14 | Lock layout on (if present) | Long-press no longer enters edit mode / moves items. |
 | 5.15 | Reboot the phone | Hosted widgets rebind and render without being re-added. |
@@ -225,7 +225,7 @@ Run with TalkBack on for 13.1 to 13.3, then without.
 |---|---|---|
 | 14.1 | Switch each of the four themes | Home, dock, drawer, settings, Hub all follow; no unreadable text. |
 | 14.2 | Appearance Dark / Light / Auto | Auto follows the system (or sunrise and sunset when chosen). |
-| 14.3 | Color schemes: Theme colors, Ocean, Forest, Sunset, Rose, Gold, Mono, Custom | Accent, highlight cards and wallpaper gradient follow. |
+| 14.3 | Color schemes: Theme colors, each of the twelve primary colors (Blue, Teal, Green, Lime, Amber, Orange, Red, Pink, Purple, Indigo, Slate, Mono), Custom, in Dark and in Light | Accent, highlight cards and wallpaper gradient follow; each primary color shows its light version in Light and its dark version in Dark. |
 | 14.4 | Icon pack and icon shape | Installed packs are listed; icons change on home at once (drawer on next launch). |
 | 14.5 | Settings > Look > Daily wallpaper on | Home wallpaper changes to a generated gradient at once; change the date or wait until after midnight and it changes again; off stops it. Reboot with it on: next change still happens. |
 
@@ -239,6 +239,41 @@ Run with TalkBack on for 13.1 to 13.3, then without.
 | 15.4 | Leave on for a day | Battery usage of FoldOS below ordinary launcher levels (a few percent); no wakelocks. |
 | 15.5 | Release-only: repeat sections 6, 7, 11.7, 12 with the R8-shrunk APK | Same behavior as debug. Gesture notification shade (reflection), Gmail sign-in, backup (serialization) and Room are the likely suspects. |
 | 15.6 | `adb logcat -b crash` while testing | No FATAL EXCEPTION from `com.foldos.launcher`. |
+
+## 16. Fix round 1.1 scenarios (1.1.0)
+
+Run these first on a fresh install of 1.1.0 (uninstall 1.0.0 once to test the first-run layout, and keep a
+second pass over 1.0.0 data to test the duplicate-page cleanup). Both screens unless noted.
+
+| # | Action | Expected |
+|---|---|---|
+| 16.1 | Fresh install, finish the wizard, look at the page dots | Exactly two home pages per screen: page 1 holds the apps (cover grid) or the dashboard widgets (inner); page 2 is empty. The inner screen does not show three copies of the same dashboard. |
+| 16.2 | Update over a 1.0.0 install that had three identical dashboards | After the first launch two pages remain (one populated, one empty); relaunching does not change them; a page you edited before updating is untouched. |
+| 16.3 | Empty page 1 completely (edit mode, remove everything), force-stop, press Home | Page 1 stays empty: defaults are not put back. |
+| 16.4 | Hub: swipe to the Hub page | The home dock, page dots and top search bar are gone; the Hub tab bar is the only bar and clears the gesture bar; the tab content uses the full height (no squeezed cards). Swipe back: dock and dots return. Check the cover and the inner screen. |
+| 16.5 | Hub with the Edge rail dock | The rail is hidden on the Hub page and returns on home pages. |
+| 16.6 | Swipe up from empty space, from a widget, and from the dock strip | The app pop-up opens each time, once. Every dock style has an "All apps" button that opens it too. |
+| 16.7 | Long-press an app icon, a widget and empty space | Empty space and widgets enter edit mode at once (the widget is selected); an app opens its menu, whose Edit entry enters edit mode with that app selected. |
+| 16.8 | In edit mode | The home shrinks to about 76 % between ONE bar at the top (page style segments, page strip, Done) and ONE bar at the bottom (Wallpaper, Themes, Widgets, Dock, Settings); nothing overlaps the dock, search bar or icons; tapping the shrunken dock or search bar does nothing. |
+| 16.9 | Select a widget, tap its remove X | The widget disappears and a snackbar "Widget removed" with Undo shows for about 5 s. Tap Undo: the same widget returns in the same cell with its content (an app widget keeps its data). Remove another and wait 6 s: it stays gone. |
+| 16.10 | Select an app, remove it, Undo | The app tile returns in its cell. A folder asks for a second tap before removal and has no Undo. |
+| 16.11 | Select a widget and drag a corner handle, drag the widget to another cell and to the next page | Handles are reachable below the top bar and above the bottom bar; resize and move snap to the grid cells under the finger (the scaled home matches the guide cells). |
+| 16.12 | Add page, delete page (confirm), restyle a page with the style segments | One page is added or removed per tap; deleting asks once; the page strip stays in sync with the pager. |
+| 16.13 | Dock with the Search bar add-on (Search dock preset) | Only the dock has a search bar; the top of the home has none. Switch to a dock without it: the top search bar returns. |
+| 16.14 | Open search from the dock bar, type "mail" | The result sheet covers the window with no strip of the old home above it, the field stays pinned at the top, results sit above the keyboard, and the home does not slide down. Close the keyboard and search: no jump. Check on the cover and the inner screen. |
+| 16.15 | With a hardware keyboard, type a letter on the home | Search opens with that letter in the field; the layout does not resize. |
+| 16.16 | Open the app pop-up, tap "New group", name it, long-press an app and choose "Add to group" | The group folder appears in the folder row with the app; All, Work, Media, Social, Tools, Games (and Hidden when apps are hidden) filter the grid. Rename and delete the group from its menu. |
+| 16.17 | Long-press an app in the pop-up and release without moving | A menu with Add to group, Add to home screen, Add to dock and App info. Add to home screen puts it on the current page's first free cell; Add to dock appends it (or replaces the last slot when full). |
+| 16.18 | Long-press an app in the pop-up and drag onto a home page cell | The pop-up folds into a strip, a ghost icon follows the finger, the hovered cell is highlighted. Release on an empty cell: the app lands there and the pop-up closes. Release on an app: a folder with both. Release on a folder: added to it. |
+| 16.19 | Drag an app from the pop-up near the left or right screen edge and hold | The pager flips to the next home page every 600 ms; release drops on that page. The Hub page is skipped. |
+| 16.20 | Drag an app from the pop-up onto the dock | Empty slots show as dashed placeholders and the slot under the finger is highlighted; release inserts the app there (a full dock replaces the app under the finger); the pop-up closes; the dock keeps the change after a restart and is separate for the cover and inner screens. |
+| 16.21 | Drag a pop-up app and release over nothing (for example the status bar) | Nothing is added and the pop-up opens up again. |
+| 16.22 | Drag a dock icon to another slot, off the dock, and onto a home page | Reorders; removes it from the dock; moves it to the page (and removes it from the dock). Long-press a dock icon and release: a menu with Remove from dock and App info; the last dock app cannot be removed. |
+| 16.23 | Long-press a home app tile and drag it past the touch slop | The popup closes and the tile is carried; drop on another cell moves it, on another app makes a folder, on the dock puts the app in the dock and removes the tile from the page. |
+| 16.24 | Open Settings from the launcher | It opens on the sample cards (Screens, Home style, Look, Colors, Dock, App drawer, Widget picker, Icons) with a search icon in the top bar; tapping a card applies it and the preview updates; "More settings" lists Quick setup, Screens, Home, Dock, Hub, Look, Widgets, Gestures, Search, Profiles, Mail, AI, Backup, Accessibility, Features and About, and each opens. |
+| 16.25 | Edit mode > Dock, and a result from the settings search | Open the matching Dock page or detailed page directly. |
+| 16.26 | Settings > Colors | Twelve primary colors drawn as light / dark split swatches plus Theme colors and Custom. Pick Blue in dark mode: dark blue home. Switch Appearance to Light: the same Blue entry shows its light version (pale wallpaper, deeper accent); text stays readable in both. The wizard's Colors step shows the same tiles. |
+| 16.27 | Theme sheet in edit mode | Lists the light and dark versions of the primary colors; the current one is highlighted. |
 
 ## Reporting
 

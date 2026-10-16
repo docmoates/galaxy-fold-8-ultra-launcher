@@ -34,7 +34,7 @@ import kotlinx.coroutines.SupervisorJob
 
 /**
  * Application-scoped [AppGraph]. Each repository is created on first use and then kept for the
- * life of the process; the [appWidgetHost] is created and started right away, because the graph
+ * life of the process; the [appWidgetHost] is created right away (not started, see its KDoc), because the graph
  * is constructed exactly once, in `FoldOsApplication.onCreate`:
  *
  * ```
@@ -58,7 +58,7 @@ class AppGraphImpl(context: Context) : AppGraph {
 
     override val settings: SettingsRepository by lazy { SettingsRepositoryImpl(appContext) }
 
-    override val layouts: LayoutRepository by lazy { LayoutRepositoryImpl(database) }
+    override val layouts: LayoutRepository by lazy { LayoutRepositoryImpl(database, DockAppsStore(appContext), appContext.noBackupFilesDir) }
 
     /**
      * Icons go through [icons] (packs, overrides, shape); the lambda keeps the two lazies acyclic.
@@ -105,24 +105,15 @@ class AppGraphImpl(context: Context) : AppGraph {
     }
 
     /**
-     * Started in the constructor, i.e. in `Application.onCreate`, so bound widgets receive updates
-     * from the first frame. `MainActivity` additionally stops listening in `onStop` and starts
-     * again in `onStart`, the way Launcher3 does, so a backgrounded launcher does not wake up for
-     * widget updates.
+     * Not started here: `MainActivity` starts listening in `onStart` and stops in `onStop`, the way
+     * Launcher3 does, so processes started without an Activity (boot receiver, wallpaper alarm,
+     * notification listener) and a backgrounded launcher never wake up for widget updates.
      */
     override val appWidgetHost: AppWidgetHost = AppWidgetHost(appContext, AppGraph.APP_WIDGET_HOST_ID)
 
     override val appScope: CoroutineScope = CoroutineScope(
         SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, t -> Log.w(TAG, "appScope task failed", t) },
     )
-
-    init {
-        try {
-            appWidgetHost.startListening()
-        } catch (e: Exception) {
-            Log.w(TAG, "AppWidgetHost.startListening failed", e)
-        }
-    }
 
     private companion object {
         const val TAG = "AppGraphImpl"

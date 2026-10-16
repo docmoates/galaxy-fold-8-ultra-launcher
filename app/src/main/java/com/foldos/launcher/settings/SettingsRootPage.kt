@@ -10,8 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -19,7 +18,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -30,7 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.foldos.launcher.a11y.a11yHeading
 
-/** Every settings page, in the order the root list shows them. */
+/** Every detailed settings page, in the order "More settings" shows them (also the settings search index). */
 object SettingsPages {
     val all: List<SettingsPageInfo> = listOf(
         QuickSetupRows.page,
@@ -57,27 +55,25 @@ object SettingsPages {
 private val advancedRow = SettingsRowInfo("Advanced", "Show every option on every page")
 
 /**
- * Root of Settings: search field, one row per page, the Advanced switch. With a query, the list is
- * replaced by matching rows from all pages; tapping one opens its page (and switches Advanced on
- * when the row needs it).
+ * "More settings": the detailed pages (the former Settings root list) with the Advanced switch. The
+ * sample-based home ([SettingsHomePage]) links here; everything that is a toggle, slider, dropdown or
+ * hex field lives on these pages.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsRootPage(
-    query: String,
-    onQueryChange: (String) -> Unit,
+fun MoreSettingsPage(
     advanced: Boolean,
     onAdvancedChange: (Boolean) -> Unit,
     onOpen: (route: String) -> Unit,
-    onClose: () -> Unit,
+    onBack: () -> Unit,
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Settings", modifier = Modifier.a11yHeading()) },
+                title = { Text(text = "More settings", modifier = Modifier.a11yHeading()) },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close")
+                    IconButton(onClick = onBack) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
             )
@@ -89,38 +85,12 @@ fun SettingsRootPage(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState()),
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text(text = "Search settings") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Filled.Search, contentDescription = null)
-                },
-                trailingIcon = if (query.isNotEmpty()) {
-                    {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(imageVector = Icons.Filled.Close, contentDescription = "Clear search")
-                        }
-                    }
-                } else {
-                    null
-                },
-                singleLine = true,
-            )
-
-            if (query.isBlank()) {
-                SettingsPages.all.forEach { page ->
-                    if (page.route == SettingsRoutes.ABOUT) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        AdvancedSwitchRow(advanced = advanced, onAdvancedChange = onAdvancedChange)
-                    }
-                    PageRow(page = page, onClick = { onOpen(page.route) })
+            SettingsPages.all.forEach { page ->
+                if (page.route == SettingsRoutes.ABOUT) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    AdvancedSwitchRow(advanced = advanced, onAdvancedChange = onAdvancedChange)
                 }
-            } else {
-                SearchResults(query = query, advanced = advanced, onAdvancedChange = onAdvancedChange, onOpen = onOpen)
+                PageRow(page = page, onClick = { onOpen(page.route) })
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -157,8 +127,12 @@ private fun PageRow(page: SettingsPageInfo, onClick: () -> Unit) {
     )
 }
 
+/**
+ * Rows of every detailed page matching [query]; tapping one opens its page (and switches Advanced on
+ * when the row needs it). Used by the search in [SettingsHomePage].
+ */
 @Composable
-private fun SearchResults(
+internal fun SearchResults(
     query: String,
     advanced: Boolean,
     onAdvancedChange: (Boolean) -> Unit,
@@ -170,7 +144,7 @@ private fun SearchResults(
         ListItem(
             leadingContent = { Icon(imageVector = Icons.Outlined.Tune, contentDescription = null) },
             headlineContent = { Text(text = "No settings match \"$query\"") },
-            supportingContent = { Text(text = "Try another word, or browse the pages.") },
+            supportingContent = { Text(text = "Try another word, or browse More settings.") },
         )
         return
     }

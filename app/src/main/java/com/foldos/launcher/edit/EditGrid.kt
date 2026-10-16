@@ -15,9 +15,12 @@ internal data class EditCellRect(val col: Int, val row: Int, val spanX: Int, val
 
 /**
  * The page grid of [GridGeometry] converted to pixels in the overlay's own coordinate space, so
- * pointer positions (px) and item rectangles can be compared directly.
+ * pointer positions (px) and item rectangles can be compared directly. The home is drawn scaled
+ * (see [EditFrame]); [from] applies that scale so every number here is on-screen pixels.
  *
- * @property density px per dp, used for free-placed items whose position is stored in dp.
+ * @property density on-screen px per dp (device density times the edit scale), used for
+ *   free-placed items whose position is stored in dp.
+ * @property gutter on-screen px of the hinge gap between the two middle columns (0 = none).
  */
 internal class EditGridPx(
     val cols: Int,
@@ -27,16 +30,24 @@ internal class EditGridPx(
     val originX: Float,
     val originY: Float,
     val density: Float,
+    val gutter: Float = 0f,
 ) {
-    val width: Float get() = cols * cellW
+    val width: Float get() = cols * cellW + gutter
     val height: Float get() = rows * cellH
     val bounds: Rect get() = Rect(originX, originY, originX + width, originY + height)
 
+    private val hasGutter: Boolean get() = gutter > 0f && cols % 2 == 0
+
+    /** Left edge of column [col], past the hinge gutter for the right half. */
+    private fun colLeft(col: Int): Float =
+        originX + col * cellW + (if (hasGutter && col >= cols / 2) gutter else 0f)
+
     /** Pixel rectangle of a cell span. */
     fun cellRect(col: Int, row: Int, spanX: Int, spanY: Int): Rect {
-        val left = originX + col * cellW
+        val left = colLeft(col)
         val top = originY + row * cellH
-        return Rect(left, top, left + max(1, spanX) * cellW, top + max(1, spanY) * cellH)
+        val right = colLeft(col + max(1, spanX) - 1) + cellW
+        return Rect(left, top, right, top + max(1, spanY) * cellH)
     }
 
     fun cellRect(rect: EditCellRect): Rect = cellRect(rect.col, rect.row, rect.spanX, rect.spanY)
@@ -56,8 +67,12 @@ internal class EditGridPx(
     }
 
     /** Nearest column for an item whose left edge is at [leftPx], kept inside the grid. */
-    fun snapCol(leftPx: Float, spanX: Int): Int =
-        ((leftPx - originX) / cellW).roundToInt().coerceIn(0, max(0, cols - max(1, spanX)))
+    fun snapCol(leftPx: Float, spanX: Int): Int {
+        val x = leftPx - originX
+        val pastGutter = hasGutter && x > (cols / 2) * cellW + gutter / 2f
+        val adjusted = if (pastGutter) x - gutter else x
+        return (adjusted / cellW).roundToInt().coerceIn(0, max(0, cols - max(1, spanX)))
+    }
 
     /** Nearest row for an item whose top edge is at [topPx], kept inside the grid. */
     fun snapRow(topPx: Float, spanY: Int): Int =
@@ -116,35 +131,49 @@ internal class EditGridPx(
     }
 
     companion object {
-        /** Converts the Home agent's dp geometry to pixels with [density] px per dp. */
-        fun from(geometry: GridGeometry, density: Float): EditGridPx = EditGridPx(
-            cols = max(1, geometry.cols),
-            rows = max(1, geometry.rows),
-            cellW = max(1f, geometry.cellWidthDp.toFloat() * density),
-            cellH = max(1f, geometry.cellHeightDp.toFloat() * density),
-            originX = geometry.originXDp.toFloat() * density,
-            originY = geometry.originYDp.toFloat() * density,
-            density = density,
-        )
+        /**
+         * Converts the Home agent's dp geometry (measured in the UNSCALED home, window dp) to
+         * on-screen pixels with [density] px per dp, then maps it through [frame], the scale and
+         * offset the home is drawn with in edit mode.
+         */
+        fun from(geometry: GridGeometry, density: Float, frame: EditFrame = EditFrame.Identity): EditGridPx {
+            val px = density * frame.scale
+            return EditGridPx(
+                cols = max(1, geometry.cols),
+                rows = max(1, geometry.rows),
+                cellW = max(1f, geometry.cellWidthDp.toFloat() * px),
+                cellH = max(1f, geometry.cellHeightDp.toFloat() * px),
+                originX = geometry.originXDp.toFloat() * px + frame.translationX,
+                originY = geometry.originYDp.toFloat() * px + frame.translationY,
+                density = px,
+                gutter = geometry.gutterDp.toFloat() * px,
+            )
+        }
     }
 }
 
-/** The corner of [rect] within [radiusPx] of [point], or null when none is. */
-internal fun cornerAt(rect: Rect, point: Offset, radiusPx: Float): EditCorner? {
-    fun near(corner: Offset): Boolean = (corner - point).getDistance() <= radiusPx
-    return when {
-        near(rect.topLeft) -> EditCorner.TOP_LEFT
-        near(rect.topRight) -> EditCorner.TOP_RIGHT
-        near(rect.bottomLeft) -> EditCorner.BOTTOM_LEFT
-        near(rect.bottomRight) -> EditCorner.BOTTOM_RIGHT
-        else -> null
+/**
+ * The corner of [rect] within [radiusPx] of [point], or null when none is. With [clamp] the corners
+ * are first pulled inside that rectangle, as they are when drawn.
+ */
+internal fun cornerAt(rect: Rect, point: Offset, radiusPx: Float, clamp: Rect? = null): EditCorner? =
+    EditCorner.entries.firstOrNull { (rect.cornerOffset(it, clamp) - point).getDistance() <= radiusPx }
+
+/** Pixel position of [corner] on [rect], pulled inside [clamp] when given (clamp must not be inverted). */
+internal fun Rect.cornerOffset(corner: EditCorner, clamp: Rect? = null): Offset {
+    val raw = when (corner) {
+        EditCorner.TOP_LEFT -> topLeft
+        EditCorner.TOP_RIGHT -> topRight
+        EditCorner.BOTTOM_LEFT -> bottomLeft
+        EditCorner.BOTTOM_RIGHT -> bottomRight
     }
+    return clampInto(raw, clamp)
 }
 
-/** Pixel position of [corner] on [rect]. */
-internal fun Rect.cornerOffset(corner: EditCorner): Offset = when (corner) {
-    EditCorner.TOP_LEFT -> topLeft
-    EditCorner.TOP_RIGHT -> topRight
-    EditCorner.BOTTOM_LEFT -> bottomLeft
-    EditCorner.BOTTOM_RIGHT -> bottomRight
-}
+/** [point] pulled inside [bounds]; unchanged when [bounds] is null. [bounds] must not be inverted. */
+internal fun clampInto(point: Offset, bounds: Rect?): Offset =
+    if (bounds == null) {
+        point
+    } else {
+        Offset(point.x.coerceIn(bounds.left, bounds.right), point.y.coerceIn(bounds.top, bounds.bottom))
+    }

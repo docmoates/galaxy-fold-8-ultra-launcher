@@ -137,5 +137,6 @@ internal fun HomeDashboardPage(
         heroHighlight = true,
         publishGeometry = publishGeometry,
         a11yMovable = true,
+        acceptDrops = true,
     )
 }

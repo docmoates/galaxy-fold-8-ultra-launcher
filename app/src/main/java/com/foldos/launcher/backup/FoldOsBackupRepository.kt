@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
+import com.foldos.launcher.apppicker.GroupStore
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.repo.AppsRepository
@@ -35,9 +36,10 @@ import kotlinx.coroutines.withContext
  * 3. writes the settings, keeping this device's `wizardDone = true` (and its Mail client id when the
  *    backup has none),
  * 4. replaces the per-app icon overrides,
- * 5. asks Android for an Auto Backup pass.
+ * 5. restores the per-screen dock apps and the app pop-up groups (both optional in the document),
+ * 6. asks Android for an Auto Backup pass.
  *
- * Steps 2 to 4 are independent: a failure there is reported in the message but does not undo the
+ * Steps 2 to 5 are independent: a failure there is reported in the message but does not undo the
  * layout.
  */
 class FoldOsBackupRepository(
@@ -51,12 +53,15 @@ class FoldOsBackupRepository(
 
     private val appContext: Context = context.applicationContext
     private val iconStore = IconOverrideStore(appContext)
+    private val groupStore = GroupStore(appContext)
 
     override suspend fun exportJson(): String {
         val currentSettings = settings.settings.first()
         val pages = layouts.allPagesWithItems()
         val savedProfiles = profiles.profiles.first()
         val overrides = iconStore.overrides.first()
+        val dock = ScreenKind.values().associate { it.name to layouts.dockApps(it).first() }.filterValues { it.isNotEmpty() }
+        val groups = groupStore.groups.first().associate { it.name to it.appKeys }
         return withContext(Dispatchers.Default) {
             val file = BackupFile(
                 version = BackupCodec.SUPPORTED_VERSION,
@@ -64,6 +69,8 @@ class FoldOsBackupRepository(
                 settings = currentSettings,
                 pages = BackupCodec.exportPages(pages),
                 profiles = savedProfiles,
+                dockApps = dock,
+                appGroups = groups,
                 iconOverrides = overrides.mapValues { (_, value) ->
                     BackupCodec.json.encodeToString(IconOverride.serializer(), value)
                 },
@@ -182,6 +189,25 @@ class FoldOsBackupRepository(
                 }
                 if (override.packageName == null && override.drawableName == null) continue
                 icons.override(appKey, override.packageName, override.drawableName)
+            }
+        }
+
+        // 5. Dock apps and app pop-up groups. Both are optional in the document: an older backup (or
+        // one with default docks / no groups) leaves this device's current choices alone.
+        if (backup.dockApps.isNotEmpty()) {
+            attempt("dock apps", problems) {
+                for (screen in ScreenKind.values()) {
+                    layouts.setDockApps(screen, backup.dockApps[screen.name].orEmpty())
+                }
+            }
+        }
+        if (backup.appGroups.isNotEmpty()) {
+            attempt("app groups", problems) {
+                for (existing in groupStore.groups.first()) groupStore.deleteGroup(existing.name)
+                for ((name, appKeys) in backup.appGroups) {
+                    val stored = groupStore.createGroup(name) ?: continue
+                    for (appKey in appKeys) groupStore.addApp(stored, appKey)
+                }
             }
         }
 

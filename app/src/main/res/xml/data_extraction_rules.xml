@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Backup and device-transfer rules for Android 12 and higher.
      Once any <include> is present only the included paths are copied, so each section lists the
-     whole policy: the Room layout database and the DataStore files that hold user choices.
-     Not copied: caches, the search ranking / usage store (foldos_search_usage), the AI usage log,
+     whole policy: the Room layout database and the DataStore files that hold user choices
+     (settings, profiles, icons, tasks, to-do, quiet drawer, dock apps, app pop-up groups).
+     Not copied: caches, the daily-wallpaper and widget-ids-checked stores (foldos_daily_wallpaper,
+     foldos_widget_ids_checked: per-device state), the search ranking / usage store (foldos_search_usage), the AI usage log,
      widget recents, the focus timer, and the Gmail tokens (Keystore-bound).
      Hosted app widgets in the restored database point at appWidgetIds that do not exist on the
      new device; the home shows them empty until the user re-adds them. -->
@@ -15,6 +17,8 @@
         <include domain="file" path="datastore/foldos_tasks.preferences_pb" />
         <include domain="file" path="datastore/foldos_todo.preferences_pb" />
         <include domain="file" path="datastore/foldos_quiet_drawer.preferences_pb" />
+        <include domain="file" path="datastore/foldos_dock.preferences_pb" />
+        <include domain="file" path="datastore/foldos_groups.preferences_pb" />
         <exclude domain="file" path="datastore/foldos_search_usage.preferences_pb" />
         <exclude domain="file" path="datastore/foldos_ai_log.preferences_pb" />
         <exclude domain="file" path="datastore/foldos_widget_recents.preferences_pb" />
@@ -36,6 +40,8 @@
         <include domain="file" path="datastore/foldos_tasks.preferences_pb" />
         <include domain="file" path="datastore/foldos_todo.preferences_pb" />
         <include domain="file" path="datastore/foldos_quiet_drawer.preferences_pb" />
+        <include domain="file" path="datastore/foldos_dock.preferences_pb" />
+        <include domain="file" path="datastore/foldos_groups.preferences_pb" />
         <exclude domain="file" path="datastore/foldos_search_usage.preferences_pb" />
         <exclude domain="file" path="datastore/foldos_ai_log.preferences_pb" />
         <exclude domain="file" path="datastore/foldos_widget_recents.preferences_pb" />

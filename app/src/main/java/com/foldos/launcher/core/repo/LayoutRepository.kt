@@ -94,4 +94,38 @@ interface LayoutRepository {
      * as given (callers should not pass any); no widget ids are released.
      */
     suspend fun replaceAll(pages: List<Pair<HomePage, List<HomeItem>>>)
+
+    /**
+     * Puts a new APP item for [app] on [pageId] at [col]/[row] (spans 1 x 1, nothing else moves).
+     * When that cell is covered by another item, the nearest free cell is used instead (smallest
+     * |dcol| + |drow|, ties to the lower row, then the lower column). [cols] / [rows] bound the search
+     * to the grid the user sees (pass `GridGeometry.cols` / `rows`); null searches the rectangle
+     * spanned by the requested cell and the page's occupied cells, extended by one row, so a cell
+     * is always found. Used when an app is dragged from the app pop-up onto a page.
+     *
+     * When the visible grid is full the row below the lowest item is used if [growsRows] (dashboard /
+     * hybrid panels grow their rows); a page with a fixed row count ([growsRows] false and [rows] given)
+     * never draws such a row, so nothing is stored then.
+     *
+     * @return true when the app was placed, false when a fixed-row page had no room.
+     */
+    suspend fun placeApp(
+        app: AppInfo,
+        pageId: Long,
+        col: Int,
+        row: Int,
+        cols: Int? = null,
+        rows: Int? = null,
+        growsRows: Boolean = true,
+    ): Boolean
+
+    /**
+     * Stores the dock's apps for [screen]: [appKeys] are `AppInfo.key` values in dock order. An empty
+     * list means "use the default dock apps" (the stored list is cleared). Keys of uninstalled apps
+     * are kept as written; the reader skips what it cannot resolve.
+     */
+    suspend fun setDockApps(screen: ScreenKind, appKeys: List<String>)
+
+    /** The dock apps stored by [setDockApps] for [screen] (`AppInfo.key` values); empty = use the defaults. */
+    fun dockApps(screen: ScreenKind): Flow<List<String>>
 }

@@ -38,14 +38,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.ColorSchemeConfig
-import com.foldos.launcher.core.model.ColorSchemePreset
+import com.foldos.launcher.core.model.ColorFamily
 import com.foldos.launcher.core.model.ColorSchemes
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ThemeId
+import com.foldos.launcher.onboarding.SplitColorSwatch
+import com.foldos.launcher.onboarding.colorsForFamily
+import com.foldos.launcher.settings.SettingsWriteQueue
 import com.foldos.launcher.theme.FoldOsTheme
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import com.foldos.launcher.theme.isDarkAppearance
 import com.foldos.launcher.theme.Wallpaper
-import kotlinx.coroutines.launch
 
 /** The four themes in mock-up order with their labels. */
 internal val ThemeQuickOptions: List<Pair<ThemeId, String>> = listOf(
@@ -65,7 +68,7 @@ internal fun editDefaultRadiusDp(theme: ThemeId): Int = when (theme) {
 
 /**
  * Edit mode > Themes: tap one of the four themes (each shown as a live mini home preview in that
- * theme) and one color scheme (Theme colors + the six presets). Every tap writes straight to
+ * theme) and one color scheme (Theme colors + the primary colors, each with a light and a dark version). Every tap writes straight to
  * `LauncherSettings` through `LocalAppGraph.current.settings`, so the launcher behind the sheet
  * restyles immediately; the full options stay in Settings > Look.
  *
@@ -80,8 +83,10 @@ fun ThemeQuickSheet(
 ) {
     if (!visible) return
     val graph = LocalAppGraph.current
+    val isDark = isDarkAppearance(settings.appearance)
+    val selectedFamily = ColorSchemes.familyOfScheme(settings.colors.scheme)
     val update: ((LauncherSettings) -> LauncherSettings) -> Unit = { transform ->
-        graph.appScope.launch { graph.settings.update(transform) }
+        SettingsWriteQueue.enqueue(graph.appScope, graph.settings, transform)
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.a11yGreyscale()) {
@@ -120,27 +125,16 @@ fun ThemeQuickSheet(
             ) {
                 SchemeSwatch(
                     label = "Theme colors",
-                    preset = null,
+                    family = null,
                     selected = settings.colors.scheme == ColorSchemeConfig.SCHEME_THEME,
                     onClick = { update { it.copy(colors = it.colors.copy(scheme = ColorSchemeConfig.SCHEME_THEME)) } },
                 )
-                ColorSchemes.presets.forEach { preset ->
+                ColorSchemes.families.forEach { family ->
                     SchemeSwatch(
-                        label = preset.name,
-                        preset = preset,
-                        selected = settings.colors.scheme == preset.id,
-                        onClick = {
-                            update { current ->
-                                current.copy(
-                                    colors = current.colors.copy(
-                                        scheme = preset.id,
-                                        accent = preset.accent,
-                                        wall1 = preset.wall1,
-                                        wall2 = preset.wall2,
-                                    ),
-                                )
-                            }
-                        },
+                        label = family.name,
+                        family = family,
+                        selected = selectedFamily?.id == family.id,
+                        onClick = { update { current -> current.copy(colors = colorsForFamily(current.colors, family, isDark)) } },
                     )
                 }
             }
@@ -248,22 +242,18 @@ private fun ThemeQuickCard(
 }
 
 /**
- * A 48dp disc split into the scheme's accent / wallpaper 1 / wallpaper 2 stripes with its name
- * under it. A null [preset] is "Theme colors", drawn from the current theme tokens.
+ * A 48dp disc with its name under it: a primary color shows its light and dark versions split along the
+ * diagonal; a null [family] is "Theme colors", drawn from the current theme tokens.
  */
 @Composable
 private fun SchemeSwatch(
     label: String,
-    preset: ColorSchemePreset?,
+    family: ColorFamily?,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     val tokens = LocalFoldOsTokens.current
-    val stripes: List<Color> = if (preset != null) {
-        listOf(Color(preset.accent), Color(preset.wall1), Color(preset.wall2))
-    } else {
-        listOf(tokens.accent, tokens.highlight, tokens.surface)
-    }
+    val stripes: List<Color> = listOf(tokens.accent, tokens.highlight, tokens.surface)
     Column(
         modifier = Modifier
             .width(64.dp)
@@ -282,14 +272,18 @@ private fun SchemeSwatch(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Row(Modifier.fillMaxSize()) {
-                stripes.forEach { color ->
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .background(color),
-                    )
+            if (family != null) {
+                SplitColorSwatch(family = family, swatchSize = 48.dp, corner = 0.dp)
+            } else {
+                Row(Modifier.fillMaxSize()) {
+                    stripes.forEach { color ->
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(color),
+                        )
+                    }
                 }
             }
             if (selected) {

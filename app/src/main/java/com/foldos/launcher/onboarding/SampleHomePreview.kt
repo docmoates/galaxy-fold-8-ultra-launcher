@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,8 @@ import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.model.ThemeId
+import com.foldos.launcher.core.ui.LocalDragController
+import com.foldos.launcher.core.ui.rememberDragController
 import com.foldos.launcher.dock.Dock
 import com.foldos.launcher.theme.FoldOsSurface
 import com.foldos.launcher.theme.FoldOsTheme
@@ -96,8 +99,11 @@ fun SampleHomePreview(
         virtualHeight = PREVIEW_COVER_HEIGHT,
         modifier = modifier,
     ) {
-        FoldOsTheme(settings = candidate) {
-            SampleCoverHome(settings = candidate)
+        // The real Dock may register as a drag target; previews get their own throw-away controller.
+        CompositionLocalProvider(LocalDragController provides rememberDragController()) {
+            FoldOsTheme(settings = candidate) {
+                SampleCoverHome(settings = candidate)
+            }
         }
     }
 }
@@ -118,19 +124,21 @@ fun SampleDockPreview(
         virtualHeight = PREVIEW_DOCK_STRIP_HEIGHT,
         modifier = modifier,
     ) {
-        FoldOsTheme(settings = candidate) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Wallpaper()
-                if (candidate.dockCover.pos == DockPosition.RAIL) {
-                    SampleDock(
-                        settings = candidate,
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 10.dp),
-                    )
-                } else {
-                    SampleDock(
-                        settings = candidate,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
-                    )
+        CompositionLocalProvider(LocalDragController provides rememberDragController()) {
+            FoldOsTheme(settings = candidate) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Wallpaper()
+                    if (candidate.dockCover.pos == DockPosition.RAIL) {
+                        SampleDock(
+                            settings = candidate,
+                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 10.dp),
+                        )
+                    } else {
+                        SampleDock(
+                            settings = candidate,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+                        )
+                    }
                 }
             }
         }
@@ -359,6 +367,9 @@ private fun SampleStatusBar() {
 @Composable
 private fun SampleSearchBar(settings: LauncherSettings) {
     if (!settings.feature(LauncherSettings.FEATURE_SEARCH)) return
+    // The bottom dock's search add-on is the search entry: no second search bar (LauncherRoot: topSearchBarOn).
+    val dock = settings.dockCover
+    if (settings.feature(LauncherSettings.FEATURE_DOCK) && dock.pos != DockPosition.RAIL && dock.search) return
     val tokens = LocalFoldOsTokens.current
     FoldOsSurface(
         modifier = Modifier.fillMaxWidth().height(50.dp),
