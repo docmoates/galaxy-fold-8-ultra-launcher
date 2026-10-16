@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foldos.launcher.a11y.KeyboardShortcuts
+import com.foldos.launcher.a11y.LocalKeyboardShortcuts
 import com.foldos.launcher.core.fold.FoldState
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.DockBackground
@@ -105,6 +107,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     val drawerOpen by viewModel.drawerOpen.collectAsStateWithLifecycle()
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
+    val searchSeed by viewModel.searchSeed.collectAsStateWithLifecycle()
     val editMode by viewModel.editMode.collectAsStateWithLifecycle()
     val pickerOpen by viewModel.widgetPickerOpen.collectAsStateWithLifecycle()
     val homeRequest by viewModel.homeRequests.collectAsStateWithLifecycle()
@@ -140,6 +143,21 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     }
     val recents: List<AppInfo> = remember { emptyList() }
 
+
+    // Hardware keyboard (a11y/KeyboardNavigation.kt): a printable key on the home screen opens search
+    // with that character as the start of the query. Off while search is switched off or an overlay is up;
+    // while search itself is opening, further characters are appended to the seed.
+    val typeToSearchOn = settings.feature(LauncherSettings.FEATURE_SEARCH) &&
+        !editMode && !drawerOpen && !pickerOpen
+    val keyboardShortcuts = remember(viewModel, typeToSearchOn) {
+        KeyboardShortcuts(
+            onTypeToSearch = if (typeToSearchOn) {
+                { typed: String -> viewModel.typeToSearch(typed) }
+            } else {
+                null
+            },
+        )
+    }
     val onLaunch: (AppInfo) -> Unit = { app -> viewModel.launch(app) }
     val openDrawer: () -> Unit = { viewModel.openDrawer() }
     val openSearch: () -> Unit = { viewModel.openSearch() }
@@ -253,8 +271,11 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
 
     Box(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize().then(backdrop)) {
-            Wallpaper()
-            CompositionLocalProvider(LocalHomeCallbacks provides homeCallbacks) {
+            Wallpaper(showSystemWallpaper = settings.dailyWallpaper)
+            CompositionLocalProvider(
+                LocalHomeCallbacks provides homeCallbacks,
+                LocalKeyboardShortcuts provides keyboardShortcuts,
+            ) {
                 HomeScreen(
                     screen = screen,
                     fold = fold,
@@ -305,6 +326,8 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     // fills in while the Gestures feature is off.
                     swipeUpOpensDrawer = !gesturesOn,
                     hubSelectRequest = hubRequest,
+                    // The home takes keyboard focus back whenever an overlay closes (type-to-search, arrow keys).
+                    keyboardRefocusKey = Triple(drawerOpen, pickerOpen, searchOpen),
                 )
             }
             if (railDock) {
@@ -398,6 +421,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                 openSettings(route)
             },
             modifier = Modifier.fillMaxSize(),
+            initialQuery = searchSeed,
         )
 
         // Profile switcher (edit bar > Profiles) and the quiet notification drawer (dock add-on).

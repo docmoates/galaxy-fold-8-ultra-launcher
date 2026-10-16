@@ -81,6 +81,22 @@ data class LauncherSettings(
     val folderStyle: String = FOLDER_GRID,
     /** Show notification previews on long-press of a badged app. */
     val notificationPreview: Boolean = true,
+    /** Accessibility: higher-contrast surfaces / text and stronger outlines. */
+    val highContrast: Boolean = false,
+    /** Accessibility: no animated transitions (pager, drawer, widget flips, parallax). */
+    val reduceMotion: Boolean = false,
+    /** Accessibility: multiplier applied on top of the system font scale to launcher text. */
+    val textScale: Float = 1.0f,
+    /** Easy / large mode: larger icons, labels always on, simpler layout. */
+    val largeIcons: Boolean = false,
+    /** Render the launcher UI and icons in greyscale (digital wellbeing). */
+    val greyscale: Boolean = false,
+    /** Hard switch: Gmail API, web search previews and AI network use are all off. */
+    val noNetwork: Boolean = false,
+    /** Set a new wallpaper from the daily source once a day. */
+    val dailyWallpaper: Boolean = false,
+    /** Back up settings and layouts automatically (Android Auto Backup / scheduled export). */
+    val backupAuto: Boolean = true,
 ) {
     /** The action bound to [kind]; [GestureAction.NONE] when unbound. */
     fun gesture(kind: GestureKind): GestureAction = gestures[kind.name] ?: GestureAction.NONE
@@ -118,7 +134,37 @@ data class LauncherSettings(
         ScreenKind.INNER, ScreenKind.FLEX -> colsInner
     }
 
+    /**
+     * Icon size actually drawn on home, dock and drawer: [iconSizeDp], plus 20% in Easy mode
+     * ([largeIcons]). Computed, so it is not part of the stored JSON.
+     */
+    val effectiveIconSizeDp: Int
+        get() = if (largeIcons) (iconSizeDp * 12 + 5) / 10 else iconSizeDp
+
+    /** App labels are always shown in Easy mode ([largeIcons]); otherwise [labels]. */
+    val effectiveLabels: Boolean
+        get() = labels || largeIcons
+
+    /**
+     * Grid columns actually drawn on [screen]: [colsFor], except Easy mode ([largeIcons]) which
+     * uses at most [EASY_COVER_COLS] on the cover and two fewer (minimum 3) on the inner screen.
+     */
+    fun effectiveColsFor(screen: ScreenKind): Int {
+        val base = colsFor(screen)
+        if (!largeIcons) return base
+        return when (screen) {
+            ScreenKind.COVER -> minOf(base, EASY_COVER_COLS)
+            ScreenKind.INNER, ScreenKind.FLEX -> (base - 2).coerceAtLeast(EASY_MIN_COLS).coerceAtMost(base)
+        }
+    }
+
     companion object {
+        /** Easy mode: columns on the cover screen. */
+        const val EASY_COVER_COLS: Int = 3
+
+        /** Easy mode: lower bound for the inner-screen columns. */
+        const val EASY_MIN_COLS: Int = 3
+
         const val HUB_POS_LEFT: String = "left"
         const val HUB_POS_RIGHT: String = "right"
         const val HUB_BAR_BOTTOM: String = "bottom"

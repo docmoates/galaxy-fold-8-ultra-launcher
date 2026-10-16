@@ -64,6 +64,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.semantics.Role
+import com.foldos.launcher.a11y.a11yHeading
+import com.foldos.launcher.a11y.a11yMinTouchTarget
 import com.foldos.launcher.builtins.LocalPermissionRequester
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.repo.HubContact
@@ -274,7 +277,7 @@ internal fun HubCardHeader(
             color = tokens.onSurface,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).a11yHeading(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -309,7 +312,7 @@ internal fun HubKicker(text: String, modifier: Modifier = Modifier) {
     val tokens = LocalFoldOsTokens.current
     Text(
         text = text.uppercase(Locale.getDefault()),
-        modifier = modifier.padding(horizontal = 4.dp),
+        modifier = modifier.a11yHeading().padding(horizontal = 4.dp),
         color = tokens.onSurface.copy(alpha = 0.72f),
         fontSize = 11.5.sp,
         fontWeight = FontWeight.SemiBold,
@@ -424,10 +427,11 @@ internal fun HubIconButton(
     val tokens = LocalFoldOsTokens.current
     Box(
         modifier = modifier
+            .a11yMinTouchTarget()
             .size(size)
             .clip(CircleShape)
             .background(if (tinted) tokens.accent.copy(alpha = 0.18f) else Color.Transparent)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

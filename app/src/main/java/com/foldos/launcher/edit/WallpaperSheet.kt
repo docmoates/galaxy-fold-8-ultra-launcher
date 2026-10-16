@@ -21,6 +21,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.foldos.launcher.a11y.a11yGreyscale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
@@ -37,7 +38,7 @@ fun WallpaperSheet(
 ) {
     if (!visible) return
     val context = LocalContext.current
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.a11yGreyscale()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

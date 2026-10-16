@@ -76,4 +76,22 @@ interface LayoutRepository {
      * empty is deleted.
      */
     suspend fun removeFromFolder(itemId: Long, toPageId: Long, col: Int, row: Int)
+
+    /**
+     * Every page of every screen (ordered by screen kind, then [HomePage.index]) with ALL of its
+     * items: grid items, folder children (`parentId` set), stack mates and hosted app widgets.
+     * One-shot read, for backup.
+     */
+    suspend fun allPagesWithItems(): List<Pair<HomePage, List<HomeItem>>>
+
+    /**
+     * Replaces the whole layout in one transaction: deletes every page and item, then inserts
+     * [pages]. Ids in the input are local keys, not database ids: every page gets a fresh id (and
+     * its items' `pageId` is set to it), every item with a non-zero `id` is remembered under that
+     * key so `parentId` (folder child -> FOLDER item) and `stackId` (stack mate -> anchor item) are
+     * rewritten to the new ids; items with id 0 get a fresh id and cannot be referenced. A
+     * `parentId` / `stackId` that names no item in [pages] is cleared. `appWidgetId`s are stored
+     * as given (callers should not pass any); no widget ids are released.
+     */
+    suspend fun replaceAll(pages: List<Pair<HomePage, List<HomeItem>>>)
 }

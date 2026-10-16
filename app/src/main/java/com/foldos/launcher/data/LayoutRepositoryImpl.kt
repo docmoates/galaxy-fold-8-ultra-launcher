@@ -209,6 +209,56 @@ class LayoutRepositoryImpl(private val db: LayoutDatabase) : LayoutRepository {
         }
     }
 
+    override suspend fun allPagesWithItems(): List<Pair<HomePage, List<HomeItem>>> =
+        db.withTransaction {
+            dao.allPagesOnce()
+                .sortedWith(compareBy({ it.screen.ordinal }, { it.index }))
+                .map { page -> page.toModel() to dao.allItemsByPageOnce(page.id).map(ItemEntity::toModel) }
+        }
+
+    override suspend fun replaceAll(pages: List<Pair<HomePage, List<HomeItem>>>) {
+        db.withTransaction {
+            dao.deleteAllItems()
+            dao.deleteAllPages()
+            // Input ids are local keys: old item id -> freshly inserted row id.
+            val newIds = HashMap<Long, Long>()
+            val linked = ArrayList<Pair<Long, HomeItem>>()
+            val newPageIds = HashMap<Long, Long>()
+            // Pass 1: insert pages and items without relations so every item has its new id.
+            for ((page, items) in pages) {
+                val newPageId = dao.upsertPage(PageEntity(screen = page.screen, index = page.index, style = page.style))
+                for (item in items) {
+                    val newId = dao.upsertItem(
+                        ItemEntity.fromModel(
+                            item.copy(id = 0, pageId = newPageId, parentId = null, stackId = null, stackIndex = 0),
+                        ),
+                    )
+                    if (item.id != 0L) newIds[item.id] = newId
+                    if (item.parentId != null || item.stackId != null) {
+                        linked += newId to item
+                        newPageIds[newId] = newPageId
+                    }
+                }
+            }
+            // Pass 2: rewrite folder / stack relations to the new ids.
+            for ((newId, item) in linked) {
+                val parent = item.parentId?.let { newIds[it] }
+                val stack = item.stackId?.let { newIds[it] }
+                dao.upsertItem(
+                    ItemEntity.fromModel(
+                        item.copy(
+                            id = newId,
+                            pageId = newPageIds.getValue(newId),
+                            parentId = parent,
+                            stackId = stack,
+                            stackIndex = if (stack != null) item.stackIndex else 0,
+                        ),
+                    ),
+                )
+            }
+        }
+    }
+
     /** Sets or clears (null) one folder's style override ("grid", "list" or "big"). */
     suspend fun setFolderStyle(folderId: Long, style: String?) {
         dao.setFolderStyle(folderId, style)

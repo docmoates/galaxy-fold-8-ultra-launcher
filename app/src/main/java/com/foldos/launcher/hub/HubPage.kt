@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.semantics.Role
+import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.ai.AiTab
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.LauncherSettings
@@ -183,6 +185,14 @@ private fun HubTabBarRow(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(15.dp))
+                        // One tab element ("Mail, 3 unread, tab, selected"): icon, label and badge
+                        // are not read separately.
+                        .a11yButton(
+                            label = if (tab == HubTab.MAIL && mailUnread > 0) "${tab.label}, $mailUnread unread" else tab.label,
+                            onActivate = { onSelect(tab) },
+                            role = Role.Tab,
+                            selected = isSelected,
+                        )
                         .clickable { onSelect(tab) }
                         .padding(horizontal = 2.dp, vertical = 2.dp),
                 ) {

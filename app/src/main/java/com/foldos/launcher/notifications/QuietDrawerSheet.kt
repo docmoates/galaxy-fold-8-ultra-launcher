@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.foldos.launcher.a11y.a11yGreyscale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +55,7 @@ fun QuietDrawerSheet(onDismiss: () -> Unit) {
             .map { (pkg, list) -> pkg to list }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.a11yGreyscale()) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
             Text(text = "Quiet notifications", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(4.dp))

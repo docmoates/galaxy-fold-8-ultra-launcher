@@ -5,10 +5,12 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.util.Log
 import com.foldos.launcher.ai.FoldOsAiCommandRouter
+import com.foldos.launcher.backup.FoldOsBackupRepository
 import com.foldos.launcher.builtins.FoldOsBuiltInWidgets
 import com.foldos.launcher.core.AppGraph
 import com.foldos.launcher.core.repo.AiCommandRouter
 import com.foldos.launcher.core.repo.AppsRepository
+import com.foldos.launcher.core.repo.BackupRepository
 import com.foldos.launcher.core.repo.BadgeRepository
 import com.foldos.launcher.core.repo.BuiltInWidgetRegistry
 import com.foldos.launcher.core.repo.HubRepository
@@ -93,6 +95,14 @@ class AppGraphImpl(context: Context) : AppGraph {
      * engine reports itself available, else the template engine again.
      */
     override val ai: AiCommandRouter by lazy { FoldOsAiCommandRouter(appContext, settings, apps, hub, badges, mail) }
+
+    /**
+     * Phase 6: JSON export / import of settings, layouts, profiles and icon overrides. The
+     * `NotImplementedBackupRepository` placeholder stays in `data/` as an unused fallback.
+     */
+    override val backup: BackupRepository by lazy {
+        FoldOsBackupRepository(appContext, settings, layouts, profiles, icons, apps)
+    }
 
     /**
      * Started in the constructor, i.e. in `Application.onCreate`, so bound widgets receive updates

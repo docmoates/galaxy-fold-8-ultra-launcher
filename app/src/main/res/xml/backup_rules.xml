@@ -1,14 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Auto Backup rules for Android 11 and lower (fullBackupContent). -->
+<!-- Auto Backup rules for Android 11 and lower (fullBackupContent).
+     Once any <include> is present only the included paths are backed up, so this list is the
+     whole policy: the Room layout database and the DataStore files that hold user choices.
+     Not backed up: caches, the search ranking / usage store (foldos_search_usage), the AI usage
+     log, widget recents, the focus timer, and the Gmail tokens (Keystore-bound). -->
 <full-backup-content>
-    <include domain="sharedpref" path="." />
+    <!-- Room: pages, items, folders, stacks, pairs. Include the whole database domain so the -wal
+         and -shm files travel with foldos_layout.db. -->
     <include domain="database" path="." />
-    <include domain="file" path="datastore/" />
-    <exclude domain="file" path="cache/" />
+
+    <!-- DataStore (files/datastore/<name>.preferences_pb): settings, profiles, per-app icon
+         overrides, hub tasks, to-do list, quiet drawer. -->
+    <include domain="file" path="datastore/foldos_settings.preferences_pb" />
+    <include domain="file" path="datastore/foldos_profiles.preferences_pb" />
+    <include domain="file" path="datastore/foldos_icons.preferences_pb" />
+    <include domain="file" path="datastore/foldos_tasks.preferences_pb" />
+    <include domain="file" path="datastore/foldos_todo.preferences_pb" />
+    <include domain="file" path="datastore/foldos_quiet_drawer.preferences_pb" />
+
+
+    <!-- foldos_launcher.xml (the "set as default home" prompt flags) is deliberately not backed up:
+         a new device must ask again. Explicit excludes, for the record. -->
+    <exclude domain="file" path="datastore/foldos_search_usage.preferences_pb" />
+    <exclude domain="file" path="datastore/foldos_ai_log.preferences_pb" />
+    <exclude domain="file" path="datastore/foldos_widget_recents.preferences_pb" />
+    <exclude domain="file" path="datastore/foldos_focus.preferences_pb" />
     <!-- Gmail tokens are encrypted with a Keystore key that never leaves the device; the
          EncryptedSharedPreferences keyset files are wrapped with that same key. -->
     <exclude domain="sharedpref" path="foldos_mail_auth.xml" />
     <exclude domain="sharedpref" path="foldos_mail_auth_plain.xml" />
+    <exclude domain="sharedpref" path="foldos_mail.xml" />
     <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
     <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
 </full-backup-content>

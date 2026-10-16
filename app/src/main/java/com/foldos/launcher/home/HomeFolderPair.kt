@@ -19,6 +19,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foldos.launcher.a11y.HomeItemGridInfo
+import com.foldos.launcher.a11y.LocalLargeIcons
+import com.foldos.launcher.a11y.a11yAppLabel
+import com.foldos.launcher.a11y.a11yButton
+import com.foldos.launcher.a11y.a11yFocusTile
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
@@ -57,16 +62,29 @@ internal fun rememberFolderChildren(folder: HomeItem): List<HomeItem> {
  * child back on the folder's page at the first free cell (`LayoutRepository.removeFromFolder`).
  */
 @Composable
-internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem) {
+internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem, access: HomeItemGridInfo? = null) {
     val tokens = LocalFoldOsTokens.current
     val graph = LocalAppGraph.current
     val children = rememberFolderChildren(item)
     val holder = remember { HomeAnchorHolder() }
+    val large = LocalLargeIcons.current
+    val folderName = item.title ?: Folders.DEFAULT_TITLE
+    val itemWord = if (children.size == 1) "item" else "items"
+    val openFolder: () -> Unit = { ctx.openFolder(item) }
+    val openMenu: () -> Unit = { ctx.longPress(item, holder.bounds()) }
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .a11yButton(
+                label = a11yAppLabel("$folderName, folder with ${children.size} $itemWord", ctx.badgeFor(children)),
+                onActivate = openFolder,
+                onMenu = openMenu,
+                activateLabel = "Open folder",
+                customActions = rememberHomeItemActions(ctx, item, access),
+            )
+            .a11yFocusTile(onActivate = openFolder, onMenu = openMenu)
             .homeAnchor(holder)
-            .homeTapGestures(onTap = { ctx.openFolder(item) }, onLongPress = { ctx.longPress(item, holder.bounds()) })
+            .homeTapGestures(onTap = openFolder, onLongPress = openMenu)
             .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -79,7 +97,7 @@ internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem) {
                     folder = item,
                     children = children,
                     apps = ctx.appsByKey,
-                    sizeDp = ctx.settings.iconSizeDp,
+                    sizeDp = ctx.settings.effectiveIconSizeDp,
                     style = Folders.styleFor(item, ctx.settings),
                     modifier = Modifier.size(ctx.iconSize),
                 )
@@ -88,9 +106,9 @@ internal fun HomeFolderTile(ctx: HomeContext, item: HomeItem) {
         if (ctx.labels) {
             Spacer(Modifier.height(6.dp))
             Text(
-                text = item.title ?: Folders.DEFAULT_TITLE,
+                text = folderName,
                 color = tokens.onSurface,
-                fontSize = 12.5.sp,
+                fontSize = if (large) 15.sp else 12.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = TextStyle(shadow = homeTextShadow()),
@@ -154,20 +172,29 @@ internal fun homeFirstFreeCell(items: List<HomeItem>, cols: Int): Pair<Int, Int>
  * ([HomeContext.launchPair]); long press opens the item popup ([HomeItemPressOverlay]).
  */
 @Composable
-internal fun HomePairTile(ctx: HomeContext, item: HomeItem) {
+internal fun HomePairTile(ctx: HomeContext, item: HomeItem, access: HomeItemGridInfo? = null) {
     val tokens = LocalFoldOsTokens.current
     val context = LocalContext.current
     val a = ctx.appFor(item)
     val b = ctx.appFor2(item)
     val holder = remember { HomeAnchorHolder() }
+    val large = LocalLargeIcons.current
+    val pairName = item.title ?: homePairTitle(a, b)
+    val launchPair: () -> Unit = { ctx.launchPair(item, context) }
+    val openMenu: () -> Unit = { ctx.longPress(item, holder.bounds()) }
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .homeAnchor(holder)
-            .homeTapGestures(
-                onTap = { ctx.launchPair(item, context) },
-                onLongPress = { ctx.longPress(item, holder.bounds()) },
+            .a11yButton(
+                label = a11yAppLabel("$pairName, app pair", ctx.badgeFor(item)),
+                onActivate = launchPair,
+                onMenu = openMenu,
+                activateLabel = "Open both apps",
+                customActions = rememberHomeItemActions(ctx, item, access),
             )
+            .a11yFocusTile(onActivate = launchPair, onMenu = openMenu)
+            .homeAnchor(holder)
+            .homeTapGestures(onTap = launchPair, onLongPress = openMenu)
             .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -176,15 +203,15 @@ internal fun HomePairTile(ctx: HomeContext, item: HomeItem) {
             if (hook != null) {
                 hook(item, a, b, ctx.iconSize, Modifier.size(ctx.iconSize))
             } else {
-                PairIcon(pair = item, a = a, b = b, sizeDp = ctx.settings.iconSizeDp, modifier = Modifier.size(ctx.iconSize))
+                PairIcon(pair = item, a = a, b = b, sizeDp = ctx.settings.effectiveIconSizeDp, modifier = Modifier.size(ctx.iconSize))
             }
         }
         if (ctx.labels) {
             Spacer(Modifier.height(6.dp))
             Text(
-                text = item.title ?: homePairTitle(a, b),
+                text = pairName,
                 color = tokens.onSurface,
-                fontSize = 12.5.sp,
+                fontSize = if (large) 15.sp else 12.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = TextStyle(shadow = homeTextShadow()),

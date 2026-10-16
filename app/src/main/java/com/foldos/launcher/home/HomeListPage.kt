@@ -36,12 +36,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.foldos.launcher.a11y.a11yAppLabel
+import com.foldos.launcher.a11y.a11yButton
+import com.foldos.launcher.a11y.a11yFocusTile
+import com.foldos.launcher.a11y.rememberA11yListScroll
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomePage
@@ -166,6 +171,7 @@ private fun HomeScrubbedFavoriteList(
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val scrollToItem = rememberA11yListScroll(listState)
     val letters = remember(favorites) { favorites.map { it.scrubberLetter() }.distinct() }
     Box(modifier) {
         HomeFavoriteList(ctx, favorites, items, listState, Modifier.fillMaxSize().padding(end = 22.dp))
@@ -174,7 +180,7 @@ private fun HomeScrubbedFavoriteList(
                 letters = letters,
                 onLetter = { letter ->
                     val index = favorites.indexOfFirst { it.scrubberLetter() == letter }
-                    if (index >= 0) scope.launch { listState.animateScrollToItem(index) }
+                    if (index >= 0) scope.launch { scrollToItem(index) }
                 },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -209,14 +215,19 @@ private fun HomeFavoriteList(
             val holder = remember { HomeAnchorHolder() }
             Box(Modifier.fillMaxWidth()) {
                 // Mock-up `.li`: the name, then an accent dot when the app has notifications.
+                val launch: () -> Unit = { ctx.onLaunch(app) }
+                val openMenu: () -> Unit = { ctx.longPressApp(app, items, holder.bounds()) }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .homeAnchor(holder)
-                        .homeTapGestures(
-                            onTap = { ctx.onLaunch(app) },
-                            onLongPress = { ctx.longPressApp(app, items, holder.bounds()) },
+                        .a11yButton(
+                            label = a11yAppLabel(app.label, ctx.badgeFor(app.packageName)),
+                            onActivate = launch,
+                            onMenu = openMenu,
                         )
+                        .a11yFocusTile(onActivate = launch, onMenu = openMenu)
+                        .homeAnchor(holder)
+                        .homeTapGestures(onTap = launch, onLongPress = openMenu)
                         .padding(vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -268,6 +279,8 @@ internal fun HomeAlphabetScrubber(
     Column(
         modifier = modifier
             .width(20.dp)
+            // A touch-only shortcut; screen readers scroll the list itself.
+            .clearAndSetSemantics { }
             .onSizeChanged { heightPx = it.height }
             .pointerInput(letters) {
                 detectTapGestures(onTap = { position -> letterAt(position.y)?.let(onLetter) })

@@ -75,6 +75,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
+import com.foldos.launcher.a11y.a11yButton
+import com.foldos.launcher.a11y.a11yDuration
+import com.foldos.launcher.a11y.a11yHeading
+import com.foldos.launcher.a11y.a11yMinTouchTarget
+import com.foldos.launcher.a11y.rememberA11yListScroll
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
@@ -133,6 +142,7 @@ fun WidgetPicker(
     val graph = LocalAppGraph.current
     val catalog = graph.widgets
     val builtIns = graph.builtIns
+    val animMs = a11yDuration(PICKER_ANIM_MS)
 
     val groupsFlow = remember(catalog, settings.wpGroup) { catalog.grouped(settings.wpGroup) }
     val groups by groupsFlow.collectAsState(initial = emptyList())
@@ -171,10 +181,10 @@ fun WidgetPicker(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .fillMaxHeight(0.84f),
-                enter = fadeIn(animationSpec = tween(PICKER_ANIM_MS / 2)) +
-                    slideInVertically(animationSpec = tween(PICKER_ANIM_MS)) { it },
-                exit = fadeOut(animationSpec = tween(PICKER_ANIM_MS)) +
-                    slideOutVertically(animationSpec = tween(PICKER_ANIM_MS)) { it },
+                enter = fadeIn(animationSpec = tween(animMs / 2)) +
+                    slideInVertically(animationSpec = tween(animMs)) { it },
+                exit = fadeOut(animationSpec = tween(animMs)) +
+                    slideOutVertically(animationSpec = tween(animMs)) { it },
                 label = "coverWidgetSheet",
             ) {
                 WidgetPickerPanel(
@@ -207,10 +217,10 @@ fun WidgetPicker(
                     .fillMaxWidth(0.9f)
                     .fillMaxHeight()
                     .padding(top = 50.dp, bottom = 34.dp),
-                enter = fadeIn(animationSpec = tween(PICKER_ANIM_MS)) +
-                    scaleIn(animationSpec = tween(PICKER_ANIM_MS), initialScale = 0.92f),
-                exit = fadeOut(animationSpec = tween(PICKER_ANIM_MS)) +
-                    scaleOut(animationSpec = tween(PICKER_ANIM_MS), targetScale = 0.94f),
+                enter = fadeIn(animationSpec = tween(animMs)) +
+                    scaleIn(animationSpec = tween(animMs), initialScale = 0.92f),
+                exit = fadeOut(animationSpec = tween(animMs)) +
+                    scaleOut(animationSpec = tween(animMs), targetScale = 0.94f),
                 label = "innerWidgetCard",
             ) {
                 WidgetPickerPanel(
@@ -255,6 +265,7 @@ private fun CoverSheetBody(
     val tokens = LocalFoldOsTokens.current
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val scrollToItem = rememberA11yListScroll(listState)
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(
@@ -287,7 +298,7 @@ private fun CoverSheetBody(
                     selected = activeChip.isEmpty(),
                     onClick = {
                         onChipSelected("")
-                        scope.launch { listState.animateScrollToItem(0) }
+                        scope.launch { scrollToItem(0) }
                     },
                 )
             }
@@ -298,7 +309,7 @@ private fun CoverSheetBody(
                     onClick = {
                         onChipSelected(group.first)
                         collapsed[group.first] = false
-                        scope.launch { listState.animateScrollToItem(index) }
+                        scope.launch { scrollToItem(index) }
                     },
                 )
             }
@@ -337,7 +348,7 @@ private fun CoverSheetBody(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .clickable { collapsed[group.first] = !isCollapsed }
+                                .clickable(onClickLabel = if (isCollapsed) "Expand section" else "Collapse section", role = Role.Button) { collapsed[group.first] = !isCollapsed }
                                 .padding(vertical = 4.dp),
                         )
                         if (!isCollapsed) {
@@ -514,9 +525,11 @@ private fun NavItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .a11yMinTouchTarget()
             .clip(shape)
             .background(if (selected) tokens.accent else Color.Transparent)
-            .clickable(onClick = onClick)
+            // Widget group list: read as "Clock & Time, tab, selected".
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -554,6 +567,7 @@ private fun NavItem(
 @Composable
 private fun WidgetPickerScrim(visible: Boolean, blur: Boolean, onDismiss: () -> Unit) {
     val tokens = LocalFoldOsTokens.current
+    val animMs = a11yDuration(PICKER_ANIM_MS)
     val scrimColor = when {
         !blur -> Color.Black.copy(alpha = 0.38f)
         tokens.isDark -> Color.Black.copy(alpha = 0.22f)
@@ -562,14 +576,16 @@ private fun WidgetPickerScrim(visible: Boolean, blur: Boolean, onDismiss: () -> 
     AnimatedVisibility(
         visible = visible,
         modifier = Modifier.fillMaxSize(),
-        enter = fadeIn(animationSpec = tween(PICKER_ANIM_MS)),
-        exit = fadeOut(animationSpec = tween(PICKER_ANIM_MS)),
+        enter = fadeIn(animationSpec = tween(animMs)),
+        exit = fadeOut(animationSpec = tween(animMs)),
         label = "widgetPickerScrim",
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(scrimColor)
+                // TalkBack: the dimmed backdrop is a "Close" button.
+                .a11yButton(label = "Close widget picker", onActivate = onDismiss)
                 .pointerInput(onDismiss) {
                     detectTapGestures(onTap = { onDismiss() })
                 },
@@ -591,6 +607,7 @@ private fun WidgetPickerPanel(
             .clip(shape)
             .background(tokens.drawerScrim)
             .border(1.dp, tokens.surfaceBorder, shape)
+            .semantics { paneTitle = "Add a widget" }
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { /* swallow: keep taps inside the panel */ })
             },
@@ -627,6 +644,7 @@ private fun PickerTitle(title: String, count: Int, modifier: Modifier = Modifier
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.a11yHeading(),
         )
         ModePill(text = count.toString())
     }
@@ -680,6 +698,7 @@ private fun SectionHeader(
             fontSize = 15.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.a11yHeading(),
         )
         Text(
             text = count.toString(),
@@ -707,10 +726,11 @@ private fun PickerChip(title: String, selected: Boolean, onClick: () -> Unit) {
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         modifier = Modifier
+            .a11yMinTouchTarget()
             .clip(shape)
             .background(background)
             .border(1.dp, borderColor, shape)
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )
 }

@@ -144,4 +144,19 @@ interface LayoutDao {
 
     @Query("DELETE FROM items WHERE id = :id")
     suspend fun deleteItem(id: Long)
+
+    // Backup / restore
+
+    @Query("SELECT * FROM pages ORDER BY page_index ASC")
+    suspend fun allPagesOnce(): List<PageEntity>
+
+    /** Every item on the page, folder children included, in id order. */
+    @Query("SELECT * FROM items WHERE page_id = :pageId ORDER BY id ASC")
+    suspend fun allItemsByPageOnce(pageId: Long): List<ItemEntity>
+
+    @Query("DELETE FROM items")
+    suspend fun deleteAllItems()
+
+    @Query("DELETE FROM pages")
+    suspend fun deleteAllPages()
 }

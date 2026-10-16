@@ -27,6 +27,10 @@ object LookRows {
     val iconPack = SettingsRowInfo("Icon pack", "Any installed icon pack; long-press an app for a per-app icon")
     val iconShape = SettingsRowInfo("Icon shape", "Circle, squircle, rounded, teardrop or the system mask")
     val wallpaper = SettingsRowInfo("Wallpaper", "Separate wallpaper per screen and per mode")
+    val dailyWallpaper = SettingsRowInfo(
+        "Daily wallpaper",
+        "A new generated gradient every day. Replaces your phone's home wallpaper and shows behind FoldOS; off by default",
+    )
     val presetGallery = SettingsRowInfo("Preset gallery", "Minimal, Dashboard, Productivity, Media, Power user, One UI Classic")
 
     val page = SettingsPageInfo(
@@ -34,7 +38,7 @@ object LookRows {
         title = "Look",
         subtitle = "Theme, color scheme, accent, icons, corner radius",
         icon = Icons.Outlined.Palette,
-        rows = listOf(theme, scheme, accent, wall1, wall2, radius, iconPack, iconShape, wallpaper, presetGallery),
+        rows = listOf(theme, scheme, accent, wall1, wall2, radius, iconPack, iconShape, wallpaper, dailyWallpaper, presetGallery),
     )
 
     val themeOptions: List<Pair<ThemeId, String>> = listOf(
@@ -138,6 +142,11 @@ fun LookPage(
             trailingText = IconShapes.displayName(settings.iconShape),
         )
         StaticRow(info = LookRows.wallpaper)
+        ToggleRow(
+            info = LookRows.dailyWallpaper,
+            checked = settings.dailyWallpaper,
+            onCheckedChange = { on -> update { it.copy(dailyWallpaper = on) } },
+        )
         StaticRow(
             info = LookRows.presetGallery,
             onClick = { runCatching { context.startActivity(OnboardingActivity.galleryIntent(context)) } },

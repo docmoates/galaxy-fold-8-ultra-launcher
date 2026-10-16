@@ -263,6 +263,16 @@ class FoldOsProfileRepository(
                 // Setup state, the Mail sign-in and the Profiles switch itself are device state.
                 wizardDone = latest.wizardDone || current.wizardDone,
                 mailClientId = latest.mailClientId,
+                // Device-level accessibility, privacy and backup switches are not profile looks: a
+                // profile saved before they existed must not turn them off when it is applied.
+                highContrast = latest.highContrast,
+                reduceMotion = latest.reduceMotion,
+                textScale = latest.textScale,
+                largeIcons = latest.largeIcons,
+                greyscale = latest.greyscale,
+                noNetwork = latest.noNetwork,
+                dailyWallpaper = latest.dailyWallpaper,
+                backupAuto = latest.backupAuto,
                 features = base.features + (LauncherSettings.FEATURE_PROFILES to latest.feature(LauncherSettings.FEATURE_PROFILES)),
             )
         }

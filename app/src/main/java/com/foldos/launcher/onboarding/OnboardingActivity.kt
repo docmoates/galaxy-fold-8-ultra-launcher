@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import com.foldos.launcher.a11y.A11yRoot
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.theme.FoldOsTheme
@@ -38,18 +39,20 @@ class OnboardingActivity : ComponentActivity() {
             val current = settings
             if (current != null) {
                 FoldOsTheme(settings = current) {
-                    if (gallery) {
-                        PresetGallery(
-                            settings = current,
-                            onApply = { preset -> update(preset.apply) },
-                            onClose = { finish() },
-                        )
-                    } else {
-                        SetupWizard(
-                            settings = current,
-                            onUpdate = update,
-                            onFinish = { finish() },
-                        )
+                    A11yRoot(settings = current) {
+                        if (gallery) {
+                            PresetGallery(
+                                settings = current,
+                                onApply = { preset -> update(preset.apply) },
+                                onClose = { finish() },
+                            )
+                        } else {
+                            SetupWizard(
+                                settings = current,
+                                onUpdate = update,
+                                onFinish = { finish() },
+                            )
+                        }
                     }
                 }
             }

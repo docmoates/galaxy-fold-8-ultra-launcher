@@ -26,9 +26,11 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -104,9 +106,10 @@ internal class HomeContext(
      */
     val swipeUpOpensDrawer: Boolean = true,
 ) {
-    val cols: Int get() = settings.colsFor(screen).coerceAtLeast(1)
-    val iconSize: Dp get() = settings.iconSizeDp.dp
-    val labels: Boolean get() = settings.labels
+    // Easy mode (settings.largeIcons) swaps in the larger icons, fewer columns and always-on labels.
+    val cols: Int get() = settings.effectiveColsFor(screen).coerceAtLeast(1)
+    val iconSize: Dp get() = settings.effectiveIconSizeDp.dp
+    val labels: Boolean get() = settings.effectiveLabels
     val isInner: Boolean get() = screen != ScreenKind.COVER
 
     /** Settings > Home > Placement is "Free placement": items with dp bounds leave the grid. */
@@ -286,37 +289,47 @@ internal fun homeTextShadow(): Shadow = Shadow(
 )
 
 /** Tap and optional long-press without a ripple; consumes the gesture so parents do not see it. */
-internal fun Modifier.homeTapGestures(onTap: () -> Unit, onLongPress: (() -> Unit)?): Modifier =
-    pointerInput(onTap, onLongPress) {
-        val longPress: ((Offset) -> Unit)? = onLongPress?.let { callback -> { _: Offset -> callback() } }
+internal fun Modifier.homeTapGestures(onTap: () -> Unit, onLongPress: (() -> Unit)?): Modifier = composed {
+    // Callers pass fresh lambdas on every recomposition; keying the pointer input on them would
+    // restart the detector (and drop a pending long press) each time. Read the latest instead.
+    val latestTap by rememberUpdatedState(onTap)
+    val latestLongPress by rememberUpdatedState(onLongPress)
+    val hasLongPress = onLongPress != null
+    Modifier.pointerInput(hasLongPress) {
+        val dispatchLongPress: (Offset) -> Unit = { latestLongPress?.invoke() }
         detectTapGestures(
-            onTap = { onTap() },
-            onLongPress = longPress,
+            onTap = { latestTap() },
+            onLongPress = if (hasLongPress) dispatchLongPress else null,
         )
     }
+}
 
 /** Long-press on empty page space opens edit mode. */
-internal fun Modifier.homeLongPress(onLongPress: () -> Unit): Modifier =
-    pointerInput(onLongPress) {
-        detectTapGestures(onLongPress = { onLongPress() })
+internal fun Modifier.homeLongPress(onLongPress: () -> Unit): Modifier = composed {
+    val latestLongPress by rememberUpdatedState(onLongPress)
+    Modifier.pointerInput(Unit) {
+        detectTapGestures(onLongPress = { latestLongPress() })
     }
+}
 
 /** [homeSwipeUp] while [enabled]; otherwise this modifier unchanged (the gestures package owns the swipes). */
 internal fun Modifier.homeSwipeUp(enabled: Boolean, onSwipeUp: () -> Unit): Modifier =
     if (enabled) homeSwipeUp(onSwipeUp) else this
 
 /** A clear upward swipe on the page opens the app drawer. */
-internal fun Modifier.homeSwipeUp(onSwipeUp: () -> Unit): Modifier =
-    pointerInput(onSwipeUp) {
+internal fun Modifier.homeSwipeUp(onSwipeUp: () -> Unit): Modifier = composed {
+    val latestSwipeUp by rememberUpdatedState(onSwipeUp)
+    Modifier.pointerInput(Unit) {
         val threshold = 72.dp.toPx()
         var total = 0f
         detectVerticalDragGestures(
             onDragStart = { total = 0f },
-            onDragEnd = { if (total < -threshold) onSwipeUp() },
+            onDragEnd = { if (total < -threshold) latestSwipeUp() },
             onDragCancel = { total = 0f },
             onVerticalDrag = { _, dragAmount -> total += dragAmount },
         )
     }
+}
 
 /** Wall clock that recomposes once a minute. */
 @Composable

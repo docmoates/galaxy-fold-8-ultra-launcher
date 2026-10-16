@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -43,7 +44,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import com.foldos.launcher.a11y.a11yHeading
+import com.foldos.launcher.a11y.a11yLabel
+import com.foldos.launcher.a11y.a11yMergedRow
+import com.foldos.launcher.a11y.a11ySelectable
 import kotlin.math.roundToInt
 
 /** Title, subtitle and advanced flag of one settings row. Also feeds settings search. */
@@ -83,7 +92,8 @@ fun SectionHeader(text: String) {
         text = text,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
+        // Section titles are headings so a screen reader can jump between them.
+        modifier = Modifier.a11yHeading().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
     )
 }
 
@@ -96,14 +106,21 @@ fun ToggleRow(
     enabled: Boolean = true,
 ) {
     if (!rowVisible(info, visible)) return
+    // One toggleable row (role Switch, on / off state): the Switch itself is only the visual, so a
+    // screen reader finds a single element instead of a row plus a nested switch.
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled) { onCheckedChange(!checked) },
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            ),
         headlineContent = { Text(text = info.title) },
         supportingContent = subtitleContent(info.subtitle),
         trailingContent = {
-            Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
         },
     )
 }
@@ -122,7 +139,7 @@ fun <T> SelectRow(
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { expanded = true },
+            .clickable(onClickLabel = "Choose ${info.title}", role = Role.DropdownList) { expanded = true },
         headlineContent = { Text(text = info.title) },
         supportingContent = subtitleContent(info.subtitle),
         trailingContent = {
@@ -144,6 +161,7 @@ fun <T> SelectRow(
                         val selected = option.first == value
                         DropdownMenuItem(
                             text = { Text(text = option.second) },
+                            modifier = Modifier.a11ySelectable(selected = selected, role = Role.RadioButton),
                             onClick = {
                                 expanded = false
                                 onSelect(option.first)
@@ -209,6 +227,7 @@ fun SliderRow(
     val stepCount = (range.last - range.first - 1).coerceAtLeast(0)
     Column(modifier = Modifier.fillMaxWidth()) {
         ListItem(
+            modifier = Modifier.a11yMergedRow(),
             headlineContent = { Text(text = info.title) },
             supportingContent = subtitleContent(info.subtitle),
             trailingContent = {
@@ -230,7 +249,12 @@ fun SliderRow(
             steps = stepCount,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                // The slider is read as "<title>, <value>", e.g. "Icon size, 58 dp".
+                .semantics {
+                    contentDescription = info.title
+                    stateDescription = "${local.roundToInt()}${unit}"
+                },
         )
     }
 }
@@ -245,7 +269,7 @@ fun StaticRow(
 ) {
     if (!rowVisible(info, visible)) return
     val base = Modifier.fillMaxWidth()
-    val modifier = if (onClick != null) base.clickable { onClick() } else base
+    val modifier = if (onClick != null) base.clickable(role = Role.Button) { onClick() } else base.a11yMergedRow()
     ListItem(
         modifier = modifier,
         headlineContent = { Text(text = info.title) },
@@ -316,7 +340,9 @@ fun ColorRow(
                     singleLine = true,
                     isError = !valid,
                     textStyle = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.width(132.dp),
+                    modifier = Modifier
+                        .width(132.dp)
+                        .a11yLabel("${info.title} hex value"),
                 )
             }
         },

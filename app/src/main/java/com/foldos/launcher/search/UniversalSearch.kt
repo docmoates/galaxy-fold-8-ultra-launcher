@@ -61,6 +61,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,6 +87,7 @@ import kotlinx.coroutines.delay
  *   value), everything else is opened by [SearchActions]. Permission rows ask through
  *   `LocalPermissionRequester`.
  * - With an empty query the sheet lists recent queries and the Lens / web quick actions.
+ * - [initialQuery] (hardware keyboard type-to-search) pre-fills the query while the sheet opens.
  *
  * Compose it last inside the launcher `Box` (above the drawer) so it draws on top; it is a no-op
  * while [visible] is false apart from its enter / exit animation.
@@ -98,6 +101,7 @@ fun UniversalSearch(
     onLaunch: (AppInfo) -> Unit,
     onOpenSettingsRoute: (String) -> Unit,
     modifier: Modifier = Modifier,
+    initialQuery: String? = null,
 ) {
     val graph = LocalAppGraph.current
     val context = LocalContext.current
@@ -118,6 +122,10 @@ fun UniversalSearch(
             results = emptyList()
             highlighted = 0
         }
+    }
+    // Type-to-search: the character typed on the home screen becomes the start of the query.
+    LaunchedEffect(visible, initialQuery) {
+        if (visible && !initialQuery.isNullOrEmpty()) query = initialQuery
     }
     LaunchedEffect(query, apps, settings, visible) {
         if (!visible) return@LaunchedEffect
@@ -190,7 +198,7 @@ private fun buildRows(results: List<SearchResult>, recent: List<String>, setting
                 targets += q
             }
         }
-        if (settings.searchProvider(LauncherSettings.SEARCH_WEB)) {
+        if (settings.webSearchOn()) {
             rows += SheetRow.Header("Quick actions")
             val visual = SearchResult.Visual("")
             rows += SheetRow.Single(visual, targets.size)
@@ -250,7 +258,7 @@ private fun SearchSheet(
         when (val target = targets.getOrNull(highlighted.coerceIn(0, (targets.size - 1).coerceAtLeast(0)))) {
             is SearchResult -> onActivate(target)
             is String -> onRecent(target)
-            else -> if (query.isNotBlank() && settings.searchProvider(LauncherSettings.SEARCH_WEB)) {
+            else -> if (query.isNotBlank() && settings.webSearchOn()) {
                 val resolved = WebSearch.resolve(query, settings.searchEngine)
                 SearchActions.openUrl(context, resolved.engine.url(resolved.query.ifEmpty { query }))
                 onDismiss()
@@ -292,7 +300,7 @@ private fun SearchSheet(
                 query = query,
                 onQueryChange = onQueryChange,
                 placeholder = searchPlaceholder(settings),
-                showLens = settings.searchProvider(LauncherSettings.SEARCH_WEB),
+                showLens = settings.webSearchOn(),
                 onSearch = activateHighlighted,
                 onMove = move,
                 onDismiss = onDismiss,
@@ -364,6 +372,10 @@ private fun SearchField(
     val shape = RoundedCornerShape(26.dp)
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    // Keep the caret at the end when the query is set from outside (type-to-search seed, recent query, clear).
+    var typed by remember { mutableStateOf(TextFieldValue(query, TextRange(query.length))) }
+    val fieldValue = if (typed.text == query) typed else TextFieldValue(query, TextRange(query.length))
+    val setFieldValue: (TextFieldValue) -> Unit = { typed = it }
     LaunchedEffect(Unit) {
         // Let the enter animation start before the IME pushes the layout around.
         delay(60)
@@ -371,8 +383,11 @@ private fun SearchField(
         keyboard?.show()
     }
     TextField(
-        value = query,
-        onValueChange = onQueryChange,
+        value = fieldValue,
+        onValueChange = { next ->
+            setFieldValue(next)
+            if (next.text != query) onQueryChange(next.text)
+        },
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, tokens.surfaceBorder, shape)

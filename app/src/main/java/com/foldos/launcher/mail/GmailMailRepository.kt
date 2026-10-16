@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -88,8 +89,11 @@ class GmailMailRepository(
         settings.settings.map { it.mailClientId?.trim().orEmpty() }.distinctUntilChanged(),
         internalState,
         storeFlow,
-    ) { clientId, current, store ->
+        settings.settings.map { it.noNetwork }.distinctUntilChanged(),
+    ) { clientId, current, store, offline ->
         when {
+            // Settings > Features > No-network mode: no sign-in, no inbox request, nothing leaves the phone.
+            offline -> MailState.Error(NO_NETWORK_MESSAGE)
             clientId.isEmpty() -> MailState.NotConfigured
             store == null -> MailState.Connecting
             // Tokens issued for another client id are useless once the id changes.
@@ -106,6 +110,12 @@ class GmailMailRepository(
             storeFlow.value = store
             if (store.signedIn) refreshInternal() else internalState.value = MailState.Disconnected
         }
+        // Leaving No-network mode: pick the inbox up again (the early return in loadInbox left the state untouched).
+        scope.launch {
+            settings.settings.map { it.noNetwork }.distinctUntilChanged().drop(1).collect { offline ->
+                if (!offline && authStore().signedIn) refreshInternal()
+            }
+        }
     }
 
     /** Gmail thread id of a listed message (for [GmailIntents.openThread]). */
@@ -114,8 +124,13 @@ class GmailMailRepository(
     /** Gmail label ids of a listed message (`STARRED`, `CATEGORY_UPDATES`, ...). */
     fun labelsFor(messageId: String): Set<String> = labelIds[messageId] ?: emptySet()
 
+    /** False while `LauncherSettings.noNetwork` is on: every Gmail / AppAuth request checks this first. */
+    private suspend fun networkAllowed(): Boolean = !settings.settings.first().noNetwork
+
     override suspend fun connect(activity: Activity) {
-        val clientId = settings.settings.first().mailClientId?.trim().orEmpty()
+        val current = settings.settings.first()
+        if (current.noNetwork) return
+        val clientId = current.mailClientId?.trim().orEmpty()
         if (clientId.isEmpty()) {
             internalState.value = MailState.NotConfigured
             return
@@ -175,6 +190,7 @@ class GmailMailRepository(
     }
 
     private suspend fun loadInbox() {
+        if (!networkAllowed()) return
         val store = authStore()
         val json = store.authStateJson
         if (json == null) {
@@ -252,6 +268,7 @@ class GmailMailRepository(
         const val TAG = "GmailMailRepository"
         const val INBOX_PAGE_SIZE = 25
         const val SIGN_IN_TIMEOUT_MS = 10L * 60L * 1000L
+        const val NO_NETWORK_MESSAGE = "No-network mode is on. Turn it off in Settings > Features to use Gmail."
     }
 }
 

@@ -42,7 +42,7 @@ fun SearchBar(
     val tokens = LocalFoldOsTokens.current
     val context = LocalContext.current
     val shape = RoundedCornerShape(26.dp)
-    val showLens = settings.searchProvider(LauncherSettings.SEARCH_WEB)
+    val showLens = settings.webSearchOn()
     val showAi = settings.feature(LauncherSettings.FEATURE_AI)
     FoldOsSurface(
         modifier = modifier
@@ -103,7 +103,7 @@ internal fun searchPlaceholder(settings: LauncherSettings): String {
     if (settings.searchProvider(LauncherSettings.SEARCH_SETTINGS)) names += "settings"
     if (settings.searchProvider(LauncherSettings.SEARCH_FILES)) names += "files"
     if (settings.searchProvider(LauncherSettings.SEARCH_CALENDAR)) names += "events"
-    if (settings.searchProvider(LauncherSettings.SEARCH_WEB)) names += "web"
+    if (settings.webSearchOn()) names += "web"
     if (names.isEmpty()) {
         return when {
             settings.searchProvider(LauncherSettings.SEARCH_CALCULATOR) -> "Calculate"

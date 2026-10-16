@@ -26,7 +26,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.foldos.launcher.a11y.a11yHeading
 
 /** Every settings page, in the order the root list shows them. */
 object SettingsPages {
@@ -43,6 +45,8 @@ object SettingsPages {
         ProfilesRows.page,
         MailSettingsRows.page,
         AiRows.page,
+        BackupRows.page,
+        AccessibilityRows.page,
         FeaturesRows.page,
         AboutRows.page,
     )
@@ -70,7 +74,7 @@ fun SettingsRootPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Settings") },
+                title = { Text(text = "Settings", modifier = Modifier.a11yHeading()) },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(imageVector = Icons.Filled.Close, contentDescription = "Close")
@@ -140,7 +144,7 @@ private fun PageRow(page: SettingsPageInfo, onClick: () -> Unit) {
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(role = Role.Button) { onClick() },
         leadingContent = {
             Icon(
                 imageVector = page.icon,

@@ -9,8 +9,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.repo.SettingsRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 
@@ -39,6 +41,8 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     override val settings: Flow<LauncherSettings> = dataStore.data
         .catch { emit(emptyPreferences()) }
         .map { prefs -> decode(prefs[SETTINGS_KEY]) }
+        // JSON decoding of the settings blob runs off the collector's (usually main) thread.
+        .flowOn(Dispatchers.Default)
 
     override suspend fun update(transform: (LauncherSettings) -> LauncherSettings) {
         dataStore.edit { prefs ->

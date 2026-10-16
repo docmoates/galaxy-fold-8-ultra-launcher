@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.foldos.launcher.a11y.a11yHeading
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.repo.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -77,7 +78,7 @@ fun SettingsPageScaffold(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = title) },
+                title = { Text(text = title, modifier = Modifier.a11yHeading()) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(

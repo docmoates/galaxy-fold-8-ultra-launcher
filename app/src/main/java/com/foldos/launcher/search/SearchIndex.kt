@@ -97,7 +97,7 @@ object SearchIndex {
         val settingsOn = settings.searchProvider(LauncherSettings.SEARCH_SETTINGS)
         val filesOn = settings.searchProvider(LauncherSettings.SEARCH_FILES)
         val calendarOn = settings.searchProvider(LauncherSettings.SEARCH_CALENDAR)
-        val webOn = settings.searchProvider(LauncherSettings.SEARCH_WEB)
+        val webOn = settings.webSearchOn()
         val calculatorOn = settings.searchProvider(LauncherSettings.SEARCH_CALCULATOR)
         val unitsOn = settings.searchProvider(LauncherSettings.SEARCH_UNITS)
 

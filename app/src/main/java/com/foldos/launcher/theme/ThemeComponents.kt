@@ -19,9 +19,13 @@ import androidx.compose.ui.unit.dp
 /**
  * Draws the current theme's wallpaper ([FoldOsTokens.wallpaper]) full-bleed. Place it as the first
  * child of the root `Box` of a screen so everything else layers on top of it.
+ *
+ * [showSystemWallpaper] draws nothing, so the phone's own wallpaper shows through the transparent
+ * launcher window (`windowShowWallpaper`); the launcher uses it while Daily wallpaper is on.
  */
 @Composable
-fun Wallpaper(modifier: Modifier = Modifier) {
+fun Wallpaper(modifier: Modifier = Modifier, showSystemWallpaper: Boolean = false) {
+    if (showSystemWallpaper) return
     val tokens = LocalFoldOsTokens.current
     Box(modifier = modifier.fillMaxSize().background(tokens.wallpaper))
 }

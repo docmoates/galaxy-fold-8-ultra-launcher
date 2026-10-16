@@ -41,7 +41,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.foldos.launcher.a11y.a11yGreyscale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -87,7 +88,7 @@ private fun rememberIconGraph(): AppGraph {
 
 @Composable
 private fun rememberLauncherSettings(graph: AppGraph): LauncherSettings? {
-    val settings by graph.settings.settings.collectAsState(initial = null)
+    val settings by graph.settings.settings.collectAsStateWithLifecycle(initialValue = null)
     return settings
 }
 
@@ -150,7 +151,7 @@ fun IconPackPicker(onClose: () -> Unit) {
     val graph = rememberIconGraph()
     val context = LocalContext.current
     val settings = rememberLauncherSettings(graph)
-    val packs by graph.icons.packs.collectAsState(initial = emptyList())
+    val packs by graph.icons.packs.collectAsStateWithLifecycle(initialValue = emptyList())
     val iconPx = with(LocalDensity.current) { 40.dp.roundToPx() }
     val packageManager = context.packageManager
     val selected = settings?.iconPack
@@ -159,7 +160,7 @@ fun IconPackPicker(onClose: () -> Unit) {
         graph.appScope.launch { graph.icons.setPack(packageName) }
     }
 
-    ModalBottomSheet(onDismissRequest = onClose) {
+    ModalBottomSheet(onDismissRequest = onClose, modifier = Modifier.a11yGreyscale()) {
         SheetHeader(title = "Icon pack", subtitle = "Any pack made for Nova, ADW, Apex or Lawnchair works")
         val systemBitmap = rememberDrawableBitmap(key = "system", sizePx = iconPx) {
             packageManager.getApplicationIcon(context.packageName)
@@ -237,7 +238,7 @@ fun IconShapePicker(onClose: () -> Unit) {
     val previewPx = with(LocalDensity.current) { 56.dp.roundToPx() }
     val packageManager = context.packageManager
 
-    ModalBottomSheet(onDismissRequest = onClose) {
+    ModalBottomSheet(onDismissRequest = onClose, modifier = Modifier.a11yGreyscale()) {
         SheetHeader(
             title = "Icon shape",
             subtitle = "Applies to app icons that the icon pack does not cover",
@@ -309,12 +310,12 @@ fun AppIconOverrideSheet(app: AppInfo, onClose: () -> Unit) {
     val graph = rememberIconGraph()
     val context = LocalContext.current
     val settings = rememberLauncherSettings(graph)
-    val packs by graph.icons.packs.collectAsState(initial = emptyList())
+    val packs by graph.icons.packs.collectAsStateWithLifecycle(initialValue = emptyList())
     val loader = remember(context) { IconPackLoader.get(context) }
     val resolver = graph.icons as? FoldOsIconResolver
     val fallbackGeneration = remember { MutableStateFlow(0) }
     val generationFlow: StateFlow<Int> = resolver?.generation ?: fallbackGeneration
-    val generation by generationFlow.collectAsState()
+    val generation by generationFlow.collectAsStateWithLifecycle()
 
     var browsePack by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -348,7 +349,7 @@ fun AppIconOverrideSheet(app: AppInfo, onClose: () -> Unit) {
         onClose()
     }
 
-    ModalBottomSheet(onDismissRequest = onClose) {
+    ModalBottomSheet(onDismissRequest = onClose, modifier = Modifier.a11yGreyscale()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

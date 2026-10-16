@@ -1,26 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Backup and device-transfer rules for Android 12 and higher. -->
+<!-- Backup and device-transfer rules for Android 12 and higher.
+     Once any <include> is present only the included paths are copied, so each section lists the
+     whole policy: the Room layout database and the DataStore files that hold user choices.
+     Not copied: caches, the search ranking / usage store (foldos_search_usage), the AI usage log,
+     widget recents, the focus timer, and the Gmail tokens (Keystore-bound).
+     Hosted app widgets in the restored database point at appWidgetIds that do not exist on the
+     new device; the home shows them empty until the user re-adds them. -->
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="sharedpref" path="." />
         <include domain="database" path="." />
-        <include domain="file" path="datastore/" />
-        <exclude domain="file" path="cache/" />
+        <include domain="file" path="datastore/foldos_settings.preferences_pb" />
+        <include domain="file" path="datastore/foldos_profiles.preferences_pb" />
+        <include domain="file" path="datastore/foldos_icons.preferences_pb" />
+        <include domain="file" path="datastore/foldos_tasks.preferences_pb" />
+        <include domain="file" path="datastore/foldos_todo.preferences_pb" />
+        <include domain="file" path="datastore/foldos_quiet_drawer.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_search_usage.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_ai_log.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_widget_recents.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_focus.preferences_pb" />
         <!-- Gmail tokens are encrypted with a Keystore key that never leaves the device. The two
              keyset files EncryptedSharedPreferences keeps beside them are wrapped with that same
              key; restored without it they make EncryptedSharedPreferences.create() fail forever. -->
         <exclude domain="sharedpref" path="foldos_mail_auth.xml" />
         <exclude domain="sharedpref" path="foldos_mail_auth_plain.xml" />
+        <exclude domain="sharedpref" path="foldos_mail.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
     </cloud-backup>
     <device-transfer>
-        <include domain="sharedpref" path="." />
         <include domain="database" path="." />
-        <include domain="file" path="datastore/" />
-        <exclude domain="file" path="cache/" />
+        <include domain="file" path="datastore/foldos_settings.preferences_pb" />
+        <include domain="file" path="datastore/foldos_profiles.preferences_pb" />
+        <include domain="file" path="datastore/foldos_icons.preferences_pb" />
+        <include domain="file" path="datastore/foldos_tasks.preferences_pb" />
+        <include domain="file" path="datastore/foldos_todo.preferences_pb" />
+        <include domain="file" path="datastore/foldos_quiet_drawer.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_search_usage.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_ai_log.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_widget_recents.preferences_pb" />
+        <exclude domain="file" path="datastore/foldos_focus.preferences_pb" />
         <exclude domain="sharedpref" path="foldos_mail_auth.xml" />
         <exclude domain="sharedpref" path="foldos_mail_auth_plain.xml" />
+        <exclude domain="sharedpref" path="foldos_mail.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
     </device-transfer>

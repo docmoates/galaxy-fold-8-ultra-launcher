@@ -39,8 +39,10 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.foldos.launcher.a11y.a11yDirectionalFocus
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.DockBackground
 import com.foldos.launcher.core.model.DockConfig
@@ -107,7 +109,7 @@ fun Dock(
     if (!settings.feature(LauncherSettings.FEATURE_DOCK)) return
     val palette = dockPalette()
     if (config.pos == DockPosition.RAIL) {
-        RailDock(config, pinned, palette, onLaunch, modifier)
+        RailDock(config, pinned, palette, onLaunch, modifier, settings.largeIcons)
     } else {
         BottomDock(config, screen, pinned, recents, settings, palette, onLaunch, onOpenDrawer, onSearch, modifier, onNotifications)
     }
@@ -143,8 +145,10 @@ private class DockContext(
     val onOpenDrawer: () -> Unit,
     val onSearch: () -> Unit,
     val onToggleFolder: () -> Unit,
+    /** Easy mode (`LauncherSettings.largeIcons`): labels are always shown. */
+    val largeIcons: Boolean = false,
 ) {
-    val labels: Boolean get() = config.labels
+    val labels: Boolean get() = config.labels || largeIcons
 }
 
 private fun buildEntries(
@@ -227,7 +231,8 @@ private fun BottomDock(
     }
     val entries = buildEntries(config, apps, recents)
     val slots = entries.size + (if (config.media) 2f else 0f) - (if (config.taskbar) 0.7f else 0f)
-    val iconSize = dockIconSize(config, wide, slots)
+    // Easy mode (settings.largeIcons): 20% bigger icons and always-on labels.
+    val iconSize = dockIconSize(config, wide, slots).let { if (settings.largeIcons) it * 1.2f else it }
     val onSurfaceBg = config.bg == DockBackground.PILL || config.bg == DockBackground.SHELF
     var folderOpen by remember { mutableStateOf(false) }
 
@@ -243,10 +248,12 @@ private fun BottomDock(
         onOpenDrawer = onOpenDrawer,
         onSearch = onSearch,
         onToggleFolder = { folderOpen = !folderOpen },
+        largeIcons = settings.largeIcons,
     )
 
     Column(
-        modifier = modifier.fillMaxWidth(),
+        // Hardware keyboard: arrow keys move focus between the dock items.
+        modifier = modifier.fillMaxWidth().a11yDirectionalFocus(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (config.handle) {
@@ -275,7 +282,7 @@ private fun BottomDock(
 /** The notification add-on's callout; tapping it opens the quiet notification drawer when [onClick] is set. */
 @Composable
 private fun NotifyRow(wide: Boolean, palette: DockPalette, onClick: (() -> Unit)?) {
-    val callout = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    val callout = if (onClick != null) Modifier.clickable(onClickLabel = "Open notifications", role = Role.Button, onClick = onClick) else Modifier
     if (wide) {
         Box(Modifier.fillMaxWidth().padding(start = 30.dp)) {
             NotifyCallout(palette, callout)
@@ -526,6 +533,7 @@ private fun EntryView(entry: DockEntry, ctx: DockContext, mediaModifier: Modifie
                 palette = palette,
                 shadowLabel = ctx.shadowLabels,
                 onClick = { ctx.onLaunch(entry.app) },
+                contentLabel = entry.app.label,
             ) {
                 PinnedIcon(entry.app, ctx)
             }
@@ -541,6 +549,7 @@ private fun EntryView(entry: DockEntry, ctx: DockContext, mediaModifier: Modifie
             palette = palette,
             shadowLabel = ctx.shadowLabels,
             onClick = ctx.onToggleFolder,
+            contentLabel = "Dock folder, ${ctx.folderApps.size} apps",
         ) {
             FolderTile(ctx.folderApps, ctx.iconSize, palette)
         }
@@ -550,6 +559,7 @@ private fun EntryView(entry: DockEntry, ctx: DockContext, mediaModifier: Modifie
             palette = palette,
             shadowLabel = ctx.shadowLabels,
             onClick = { ctx.onLaunch(entry.app) },
+            contentLabel = "${entry.app.label}, suggested",
         ) {
             SuggestionIcon(entry.app, ctx.iconSize, palette)
         }
@@ -559,6 +569,7 @@ private fun EntryView(entry: DockEntry, ctx: DockContext, mediaModifier: Modifie
             palette = palette,
             shadowLabel = ctx.shadowLabels,
             onClick = { ctx.onLaunch(entry.app) },
+            contentLabel = "${entry.app.label}, recent",
         ) {
             AppIcon(entry.app, ctx.iconSize, palette)
         }
@@ -567,6 +578,7 @@ private fun EntryView(entry: DockEntry, ctx: DockContext, mediaModifier: Modifie
             palette = palette,
             shadowLabel = ctx.shadowLabels,
             onClick = ctx.onOpenDrawer,
+            contentLabel = "All apps",
         ) {
             AllAppsIcon(ctx.iconSize, palette)
         }
@@ -619,8 +631,10 @@ private fun RailDock(
     palette: DockPalette,
     onLaunch: (AppInfo) -> Unit,
     modifier: Modifier,
+    largeIcons: Boolean = false,
 ) {
     val apps = pinned.take(DockDefaults.pinnedCount(config, ScreenKind.COVER))
+    val railIconSize = if (largeIcons) DockDefaults.railIconSize * 1.2f else DockDefaults.railIconSize
     val bubble = config.bg == DockBackground.BUBBLE
     val surface = !bubble && config.bg != DockBackground.NONE
     Column(
@@ -636,11 +650,12 @@ private fun RailDock(
                 palette = palette,
                 shadowLabel = false,
                 onClick = { onLaunch(app) },
+                contentLabel = app.label,
             ) {
                 if (bubble) {
-                    BubbleSlot(palette) { AppIcon(app, DockDefaults.railIconSize, palette) }
+                    BubbleSlot(palette) { AppIcon(app, railIconSize, palette) }
                 } else {
-                    AppIcon(app, DockDefaults.railIconSize, palette)
+                    AppIcon(app, railIconSize, palette)
                 }
             }
         }

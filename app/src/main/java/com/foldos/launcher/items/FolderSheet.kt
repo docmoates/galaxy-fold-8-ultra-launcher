@@ -3,6 +3,9 @@ package com.foldos.launcher.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import com.foldos.launcher.a11y.a11yMinTouchTarget
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,7 +119,7 @@ fun FolderSheet(
     val tokens = LocalFoldOsTokens.current
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
-    val settings by graph.settings.settings.collectAsState(initial = null)
+    val settings by graph.settings.settings.collectAsStateWithLifecycle(initialValue = null)
     val globalStyle = settings?.folderStyle ?: LauncherSettings.FOLDER_GRID
     val style = folder.folderStyle?.takeIf { it in LauncherSettings.FOLDER_STYLES } ?: globalStyle
 
@@ -234,7 +237,7 @@ fun FolderSheet(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { editing = true }
+                            .clickable(onClickLabel = "Rename folder", role = Role.Button) { editing = true }
                             .padding(start = 4.dp, top = 4.dp, bottom = 4.dp),
                     )
                 }
@@ -526,7 +529,7 @@ private fun StyleSegment(value: String, icon: ImageVector, current: String, onSe
             .size(26.dp)
             .clip(CircleShape)
             .background(if (on) tokens.accent else Color.Transparent)
-            .clickable { onSelect(value) },
+            .selectable(selected = on, role = Role.RadioButton) { onSelect(value) },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -543,11 +546,12 @@ private fun SmallRoundButton(icon: ImageVector, contentDescription: String, onCl
     val tokens = LocalFoldOsTokens.current
     Box(
         modifier = Modifier
+            .a11yMinTouchTarget()
             .size(30.dp)
             .clip(CircleShape)
             .background(tokens.surface)
             .border(1.dp, tokens.surfaceBorder, CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -571,10 +575,11 @@ private fun FolderChip(label: String, accent: Boolean, onClick: () -> Unit) {
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         modifier = Modifier
+            .a11yMinTouchTarget()
             .clip(pill)
             .background(if (accent) tokens.accent else tokens.surface)
             .border(1.dp, if (accent) Color.Transparent else tokens.surfaceBorder, pill)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
 }

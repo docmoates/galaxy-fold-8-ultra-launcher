@@ -1,0 +1,96 @@
+# Hand-written baseline profile for FoldOS (HSPL / class-rule text format, wildcards as understood by AGP's
+# profgen; R8 rewrites the names after minification). Packaged by AGP as assets/dexopt/baseline.prof and
+# installed by androidx.profileinstaller on first launch, so the cold start path is AOT-compiled.
+#
+# Flags: H = hot (compile), S = startup (needed before the first frame), P = post startup,
+# L = the class descriptor / method signature that follows. A bare "L<class>;" line preloads the class.
+# Wildcards: "**" matches across package separators, "->**(**)**" means every method.
+#
+# Regenerate with a Macrobenchmark BaselineProfileRule once a benchmark module exists; until then this
+# list follows the startup path: Application -> graph -> MainActivity -> LauncherViewModel ->
+# LauncherRoot -> HomeScreen -> dock -> first widgets.
+
+# ---- Entry points ------------------------------------------------------------------------------------
+HSPLcom/foldos/launcher/MainActivity;->**(**)**
+Lcom/foldos/launcher/MainActivity;
+
+HSPLcom/foldos/launcher/LauncherViewModel;->**(**)**
+Lcom/foldos/launcher/LauncherViewModel;
+
+# LauncherRoot.kt top-level composables (LauncherRoot, LauncherHome, defaultDockApps).
+HSPLcom/foldos/launcher/LauncherRootKt;->**(**)**
+Lcom/foldos/launcher/LauncherRootKt;
+HSPLcom/foldos/launcher/ComposableSingletons$LauncherRootKt;->**(**)**
+Lcom/foldos/launcher/ComposableSingletons$LauncherRootKt;
+
+# ---- Application, graph, shared contracts, Room, DataStore ---------------------------------------------
+HSPLcom/foldos/launcher/core/**;->**(**)**
+Lcom/foldos/launcher/core/**;
+HSPLcom/foldos/launcher/data/**;->**(**)**
+Lcom/foldos/launcher/data/**;
+
+# ---- Theme tokens and the fold state producer -----------------------------------------------------------
+HSPLcom/foldos/launcher/theme/**;->**(**)**
+Lcom/foldos/launcher/theme/**;
+HSPLcom/foldos/launcher/fold/**;->**(**)**
+Lcom/foldos/launcher/fold/**;
+
+# ---- Home screen composables (grid, dashboard, list, hybrid, flex, folders / pairs, badges) --------------
+HSPLcom/foldos/launcher/home/**;->**(**)**
+Lcom/foldos/launcher/home/**;
+HSPLcom/foldos/launcher/dock/**;->**(**)**
+Lcom/foldos/launcher/dock/**;
+HSPLcom/foldos/launcher/items/**;->**(**)**
+Lcom/foldos/launcher/items/**;
+HSPLcom/foldos/launcher/widgets/**;->**(**)**
+Lcom/foldos/launcher/widgets/**;
+HSPLcom/foldos/launcher/gestures/**;->**(**)**
+Lcom/foldos/launcher/gestures/**;
+HSPLcom/foldos/launcher/icons/**;->**(**)**
+Lcom/foldos/launcher/icons/**;
+HSPLcom/foldos/launcher/perf/**;->**(**)**
+Lcom/foldos/launcher/perf/**;
+HSPLcom/foldos/launcher/a11y/**;->**(**)**
+Lcom/foldos/launcher/a11y/**;
+
+# ---- Built-in widgets on the default dashboard, notification badges, profiles ---------------------------
+HSPLcom/foldos/launcher/builtins/**;->**(**)**
+Lcom/foldos/launcher/builtins/**;
+HSPLcom/foldos/launcher/notifications/**;->**(**)**
+Lcom/foldos/launcher/notifications/**;
+HSPLcom/foldos/launcher/profiles/**;->**(**)**
+Lcom/foldos/launcher/profiles/**;
+
+# ---- Opened shortly after startup: drawer, search, edit mode, hub, pickers --------------------------------
+HPLcom/foldos/launcher/drawer/**;->**(**)**
+Lcom/foldos/launcher/drawer/**;
+HPLcom/foldos/launcher/search/**;->**(**)**
+Lcom/foldos/launcher/search/**;
+HPLcom/foldos/launcher/edit/**;->**(**)**
+Lcom/foldos/launcher/edit/**;
+HPLcom/foldos/launcher/picker/**;->**(**)**
+Lcom/foldos/launcher/picker/**;
+HPLcom/foldos/launcher/hub/**;->**(**)**
+Lcom/foldos/launcher/hub/**;
+HPLcom/foldos/launcher/ai/**;->**(**)**
+Lcom/foldos/launcher/ai/**;
+HPLcom/foldos/launcher/mail/**;->**(**)**
+Lcom/foldos/launcher/mail/**;
+
+# ---- Settings and first-run wizard: classes only (not worth AOT-compiling every method) -------------------
+Lcom/foldos/launcher/settings/**;
+Lcom/foldos/launcher/onboarding/**;
+Lcom/foldos/launcher/backup/**;
+Lcom/foldos/launcher/wallpaper/**;
+
+# ---- Libraries the startup path leans on that do not ship their own profile ---------------------------------
+HSPLkotlinx/coroutines/**;->**(**)**
+Lkotlinx/coroutines/**;
+HSPLkotlinx/serialization/**;->**(**)**
+Lkotlinx/serialization/**;
+HSPLandroidx/datastore/**;->**(**)**
+Landroidx/datastore/**;
+HSPLandroidx/room/**;->**(**)**
+Landroidx/room/**;
+HSPLandroidx/window/**;->**(**)**
+Landroidx/window/**;

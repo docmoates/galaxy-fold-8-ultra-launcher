@@ -1,7 +1,5 @@
 package com.foldos.launcher.home
 
-import android.graphics.Bitmap
-import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -26,26 +23,32 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
+import com.foldos.launcher.a11y.LocalLargeIcons
+import com.foldos.launcher.a11y.a11yAppLabel
+import com.foldos.launcher.a11y.a11yButton
+import com.foldos.launcher.a11y.a11yFocusTile
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.LauncherSettings
+import com.foldos.launcher.perf.IconBitmapCache
+import com.foldos.launcher.perf.rememberAppIconBitmap
 import com.foldos.launcher.theme.LocalFoldOsTokens
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
-/** Process-wide cache of rendered app icons keyed by "package/activity@sizePx". */
+/**
+ * Process-wide cache of rendered app icons keyed by "package/activity@sizePx#generation". A thin
+ * facade over [IconBitmapCache] (memory-bounded LRU, decoding off the main thread) that adds the
+ * Compose-observable [generation].
+ */
 object HomeIconCache {
-    private val cache = LruCache<String, ImageBitmap>(256)
 
     /**
      * Bumped by [clear]; [rememberHomeAppIconPainter] reads it in composition and includes it in
@@ -54,10 +57,10 @@ object HomeIconCache {
     var generation: Int by mutableIntStateOf(0)
         private set
 
-    fun get(key: String): ImageBitmap? = cache.get(key)
+    fun get(key: String): ImageBitmap? = IconBitmapCache.get(key)
 
     fun put(key: String, bitmap: ImageBitmap) {
-        cache.put(key, bitmap)
+        IconBitmapCache.put(key, bitmap)
     }
 
     /**
@@ -65,40 +68,20 @@ object HomeIconCache {
      * changes so the next composition re-rasterises through the (new) icon loader.
      */
     fun clear() {
-        cache.evictAll()
+        IconBitmapCache.clear()
         generation++
     }
 }
 
 /**
- * Loads an app icon off the main thread through [AppInfo.iconLoader], rasterises it with
- * core-ktx `Drawable.toBitmap` and returns it as a [Painter]. Null while loading or on failure.
+ * Loads an app icon off the main thread through [AppInfo.iconLoader] (via the shared
+ * [IconBitmapCache]) and returns it as a [Painter]. Null while loading or on failure; a cached icon
+ * is returned in the same composition.
  */
 @Composable
 fun rememberHomeAppIconPainter(app: AppInfo, sizePx: Int): Painter? {
-    val key = "${app.key}@$sizePx#${HomeIconCache.generation}"
-    // The producer restarts whenever [key] changes, so it always resolves the painter for the
-    // current app instead of trusting the value left over from the previous one.
-    val painter by produceState<Painter?>(null, key) {
-        val hit = HomeIconCache.get(key)
-        if (hit != null) {
-            value = BitmapPainter(hit)
-            return@produceState
-        }
-        value = null
-        val bitmap = withContext(Dispatchers.IO) {
-            runCatching {
-                val drawable = app.iconLoader()
-                val size = sizePx.coerceAtLeast(1)
-                drawable.toBitmap(size, size, Bitmap.Config.ARGB_8888).asImageBitmap()
-            }.getOrNull()
-        }
-        if (bitmap != null) {
-            HomeIconCache.put(key, bitmap)
-            value = BitmapPainter(bitmap)
-        }
-    }
-    return painter
+    val bitmap = rememberAppIconBitmap(app, sizePx, HomeIconCache.generation)
+    return remember(bitmap) { bitmap?.let { BitmapPainter(it) } }
 }
 
 /**
@@ -142,6 +125,10 @@ fun HomeAppIcon(
  * Icon plus optional label, centered in its cell. Tap launches; a long press calls [onLongPressAt]
  * with the tile's window bounds when given, else [onLongClick]. [badge] / [badgeStyle] draw the
  * notification badge, see [HomeAppIcon].
+ *
+ * Accessibility: the tile is one TalkBack element named "label" or "label, N notifications" with a
+ * click action, the long press as "Open menu" and [a11yActions] in the actions menu; it is also
+ * reachable by keyboard (Enter launches, the Menu key opens the long-press menu).
  */
 @Composable
 fun HomeAppTile(
@@ -155,12 +142,21 @@ fun HomeAppTile(
     badge: Int = 0,
     badgeStyle: String = LauncherSettings.BADGE_COUNT,
     onLongPressAt: ((anchor: Rect) -> Unit)? = null,
+    a11yActions: List<CustomAccessibilityAction> = emptyList(),
 ) {
     val holder = remember { HomeAnchorHolder() }
     val longPress: (() -> Unit)? = onLongPressAt?.let { report -> { report(holder.bounds() ?: Rect.Zero) } } ?: onLongClick
+    val large = LocalLargeIcons.current
     Column(
         modifier = modifier
             .fillMaxSize()
+            .a11yButton(
+                label = a11yAppLabel(app.label, badge),
+                onActivate = onClick,
+                onMenu = longPress,
+                customActions = a11yActions,
+            )
+            .a11yFocusTile(onActivate = onClick, onMenu = longPress)
             .homeAnchor(holder)
             .homeTapGestures(onTap = onClick, onLongPress = longPress)
             .padding(horizontal = 2.dp, vertical = 4.dp),
@@ -173,7 +169,7 @@ fun HomeAppTile(
                 text = app.label,
                 color = labelColor,
                 style = MaterialTheme.typography.labelMedium.copy(shadow = homeTextShadow()),
-                fontSize = 12.5.sp,
+                fontSize = if (large) 15.sp else 12.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,

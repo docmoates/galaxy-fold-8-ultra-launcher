@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.foldos.launcher.a11y.rememberA11yPagerScroll
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.theme.LocalFoldOsTokens
@@ -191,13 +192,14 @@ fun HomeStackSlot(
     if (ordered.isEmpty()) return
     val tokens = LocalFoldOsTokens.current
     val pagerState = rememberPagerState { ordered.size }
+    val scrollToPage = rememberA11yPagerScroll(pagerState)
     val hasRules = remember(ordered) { hasHomeSmartRules(ordered) }
     if (smartRules && hasRules) {
         val now = rememberHomeClock()
         val target = remember(ordered, now.hour, now.minute) { homeSmartStackIndex(ordered, now.toLocalTime()) }
         LaunchedEffect(target) {
             if (target != null && target in ordered.indices && target != pagerState.currentPage) {
-                pagerState.animateScrollToPage(target)
+                scrollToPage(target)
             }
         }
     }

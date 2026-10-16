@@ -1,26 +1,21 @@
 package com.foldos.launcher.drawer
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
-import androidx.core.graphics.drawable.toBitmap
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.home.HomeIconCache
+import com.foldos.launcher.perf.rememberAppIconBitmap
 import com.foldos.launcher.theme.LocalFoldOsTokens
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * Loads an app icon off the main thread and returns it as an [ImageBitmap], or null while loading
@@ -30,31 +25,10 @@ import kotlinx.coroutines.withContext
 fun rememberDrawerIconBitmap(app: AppInfo, sizePx: Int): ImageBitmap? {
     // HomeIconCache.generation is bumped after an icon pack / shape / override change, so the
     // drawer re-rasterises together with the home grid.
-    // Shares the home grid's cache (same key format), so a cell scrolling back into view reuses
-    // the already rasterised, pack-resolved and shape-masked bitmap instead of redoing the work.
-    val cacheKey = "${app.key}@$sizePx#${HomeIconCache.generation}"
-    val state = produceState<ImageBitmap?>(
-        initialValue = HomeIconCache.get(cacheKey),
-        key1 = cacheKey,
-    ) {
-        val hit = HomeIconCache.get(cacheKey)
-        if (hit != null) {
-            value = hit
-            return@produceState
-        }
-        val bitmap = withContext(Dispatchers.IO) {
-            runCatching { loadDrawerIconBitmap(app, sizePx) }.getOrNull()
-        }
-        if (bitmap != null) HomeIconCache.put(cacheKey, bitmap)
-        value = bitmap
-    }
-    return state.value
-}
-
-private fun loadDrawerIconBitmap(app: AppInfo, sizePx: Int): ImageBitmap {
-    val px = if (sizePx > 0) sizePx else 1
-    val drawable = app.iconLoader()
-    return drawable.toBitmap(width = px, height = px, config = Bitmap.Config.ARGB_8888).asImageBitmap()
+    // Shares the home grid's cache (same key format, one memory-bounded LRU in perf.IconBitmapCache),
+    // so a cell scrolling back into view reuses the already rasterised, pack-resolved and
+    // shape-masked bitmap instead of redoing the work. A hit is returned in the same composition.
+    return rememberAppIconBitmap(app, sizePx, HomeIconCache.generation)
 }
 
 /**

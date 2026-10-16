@@ -3,6 +3,10 @@ package com.foldos.launcher.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import com.foldos.launcher.a11y.a11yGreyscale
+import com.foldos.launcher.a11y.a11yMinTouchTarget
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,6 +103,7 @@ fun PairEditorSheet(
     }
 
     ModalBottomSheet(
+        modifier = Modifier.a11yGreyscale(),
         onDismissRequest = onDismiss,
         containerColor = tokens.drawerScrim,
         contentColor = tokens.onSurface,
@@ -146,11 +151,12 @@ fun PairEditorSheet(
                     PairIcon(pair = previewItem, a = a, b = b, sizeDp = 56)
                     Box(
                         modifier = Modifier
+                            .a11yMinTouchTarget()
                             .size(32.dp)
                             .clip(CircleShape)
                             .background(tokens.surface)
                             .border(1.dp, tokens.surfaceBorder, CircleShape)
-                            .clickable {
+                            .clickable(onClickLabel = "Swap app A and app B", role = Role.Button) {
                                 val swap = first
                                 first = second
                                 second = swap
@@ -280,7 +286,7 @@ private fun PairSlot(
                 color = if (active) tokens.accent else tokens.surfaceBorder,
                 shape = shape,
             )
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -295,7 +301,7 @@ private fun PairSlot(
                         .clip(CircleShape)
                         .background(tokens.drawerScrim)
                         .border(1.dp, tokens.surfaceBorder, CircleShape)
-                        .clickable(onClick = onClear),
+                        .clickable(role = Role.Button, onClick = onClear),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -351,7 +357,7 @@ private fun PairPickTile(app: AppInfo, selected: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(shape)
             .background(if (selected) tokens.highlight else Color.Transparent)
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 2.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

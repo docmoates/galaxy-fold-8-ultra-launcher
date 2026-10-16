@@ -43,7 +43,7 @@ class FoldOsAiCommandRouter(
     /** The provider that would answer right now for [settings], after availability checks. */
     suspend fun activeProvider(current: LauncherSettings): AiProvider? = when (current.aiMode) {
         LauncherSettings.AI_MODE_OFF -> null
-        LauncherSettings.AI_MODE_ONDEVICE -> if (runCatching { onDeviceProvider.available() }.getOrDefault(false)) onDeviceProvider else templateProvider
+        LauncherSettings.AI_MODE_ONDEVICE -> if (onDeviceProvider.usableUnder(current) && runCatching { onDeviceProvider.available() }.getOrDefault(false)) onDeviceProvider else templateProvider
         else -> templateProvider
     }
 
@@ -92,7 +92,8 @@ class FoldOsAiCommandRouter(
             )
         }
         val wantsOnDevice = current.aiMode == LauncherSettings.AI_MODE_ONDEVICE
-        val onDeviceReady = wantsOnDevice && runCatching { onDeviceProvider.available() }.getOrDefault(false)
+        val onDeviceReady = wantsOnDevice && onDeviceProvider.usableUnder(current) &&
+            runCatching { onDeviceProvider.available() }.getOrDefault(false)
         val provider = if (onDeviceReady) onDeviceProvider else templateProvider
         val snapshot = runCatching { contextBuilder.snapshot() }.getOrNull()
         val rendered = snapshot?.render().orEmpty()
@@ -137,3 +138,14 @@ class FoldOsAiCommandRouter(
         const val APPS_TIMEOUT_MS = 1_500L
     }
 }
+
+/**
+ * Marker for an [AiProvider] that sends data off the phone (a cloud model, a web lookup). The router
+ * never selects one while `LauncherSettings.noNetwork` is on. [AiCoreProvider] and the template
+ * engine run entirely on the device and do not implement it.
+ */
+interface NetworkAiProvider : AiProvider
+
+/** False for a [NetworkAiProvider] while No-network mode is on; on-device providers are always usable. */
+internal fun AiProvider.usableUnder(settings: LauncherSettings): Boolean =
+    !(settings.noNetwork && this is NetworkAiProvider)

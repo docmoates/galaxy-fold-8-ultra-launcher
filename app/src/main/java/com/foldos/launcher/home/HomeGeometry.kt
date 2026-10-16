@@ -94,7 +94,7 @@ fun estimateGridGeometry(screen: ScreenKind, settings: LauncherSettings, fold: F
     val style = settings.styleFor(screen)
     val inner = screen != ScreenKind.COVER
     val cols = when (style) {
-        HomeStyle.GRID -> settings.colsFor(screen).coerceAtLeast(1)
+        HomeStyle.GRID -> settings.effectiveColsFor(screen).coerceAtLeast(1)
         HomeStyle.DASHBOARD -> dashboardColumns(screen)
         HomeStyle.LIST -> 1
         HomeStyle.HYBRID -> 4
@@ -103,17 +103,17 @@ fun estimateGridGeometry(screen: ScreenKind, settings: LauncherSettings, fold: F
     val searchOn = settings.feature(LauncherSettings.FEATURE_SEARCH)
     val bottomDock = settings.feature(LauncherSettings.FEATURE_DOCK) && dock.pos == DockPosition.BOTTOM
     val topDp = EST_STATUS_BAR_DP + 10 + (if (searchOn) 64 else 0)
-    val dockDp = if (bottomDock) settings.iconSizeDp + (if (dock.labels || dock.two) 56 else 34) else 0
+    val dockDp = if (bottomDock) settings.effectiveIconSizeDp + (if (dock.labels || dock.two) 56 else 34) else 0
     val bottomDp = 10 + 27 + dockDp + EST_NAV_BAR_DP
     val gutterDp = if (inner && fold.hingeBounds != null && cols % 2 == 0) HingeGutterWidth.value.toInt() else 0
     val widthDp = (fold.widthDp - 2 * HomeSidePadding.value.toInt() - gutterDp).coerceAtLeast(cols)
     val heightDp = (fold.heightDp - topDp - bottomDp).coerceAtLeast(1)
-    val labelDp = if (settings.labels) 24 else 0
+    val labelDp = if (settings.effectiveLabels) (if (settings.largeIcons) 32 else 24) else 0
     val rows = when (style) {
-        HomeStyle.GRID -> max(1, heightDp / (settings.iconSizeDp + labelDp + 20))
+        HomeStyle.GRID -> max(1, heightDp / (settings.effectiveIconSizeDp + labelDp + 20))
         HomeStyle.DASHBOARD -> dashboardRows(defaultDashboardItems(screen, 0L))
         HomeStyle.LIST -> max(1, heightDp / 46)
-        HomeStyle.HYBRID -> max(1, heightDp / (settings.iconSizeDp + labelDp + 20))
+        HomeStyle.HYBRID -> max(1, heightDp / (settings.effectiveIconSizeDp + labelDp + 20))
     }
     return GridGeometry(
         cols = cols,

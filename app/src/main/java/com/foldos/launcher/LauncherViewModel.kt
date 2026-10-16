@@ -7,6 +7,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.foldos.launcher.backup.StyleRestoreGate
 import com.foldos.launcher.core.AppGraph
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.AppInfo
@@ -148,7 +149,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     /** True while `search.UniversalSearch` is shown (search bar tap, SWIPE_UP_2F by default). */
     val searchOpen: StateFlow<Boolean> = _searchOpen.asStateFlow()
 
-    fun openSearch() {
+    private val _searchSeed = MutableStateFlow<String?>(null)
+
+    /**
+     * Text the open search starts with: the character typed on a hardware keyboard while the home
+     * screen had focus (`a11y.KeyboardShortcuts.onTypeToSearch`). Null for every other way in.
+     */
+    val searchSeed: StateFlow<String?> = _searchSeed.asStateFlow()
+
+    /** Opens universal search; [initialText] (type-to-search) becomes the first characters of the query. */
+    fun openSearch(initialText: String? = null) {
         if (!settings.value.feature(LauncherSettings.FEATURE_SEARCH)) {
             // Search switched off: the drawer's own search field is the fallback.
             openDrawer()
@@ -156,11 +166,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         _drawerOpen.value = false
         _widgetPickerOpen.value = false
+        _searchSeed.value = initialText?.takeIf { it.isNotEmpty() }
         _searchOpen.value = true
+    }
+
+    /**
+     * Type-to-search while search is already opening: the character is appended to the seed instead
+     * of being dropped before the search field has taken focus. Opens search when it is closed.
+     */
+    fun typeToSearch(text: String) {
+        if (_searchOpen.value) {
+            _searchSeed.value = _searchSeed.value.orEmpty() + text
+        } else {
+            openSearch(text)
+        }
     }
 
     fun closeSearch() {
         _searchOpen.value = false
+        _searchSeed.value = null
     }
 
     private val _hubRequests = MutableStateFlow(0)
@@ -589,6 +613,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     val before = previous
                     previous = next
                     if (before == null) return@collect
+                    // A backup restore / settings reset already settled the per-page styles.
+                    if (StyleRestoreGate.consume(next)) return@collect
                     if (next.first != before.first) applyStyleToScreen(ScreenKind.COVER, next.first)
                     if (next.second != before.second) applyStyleToScreen(ScreenKind.INNER, next.second)
                 }

@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.foldos.launcher.a11y.a11yGreyscale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.foldos.launcher.core.model.LauncherSettings
@@ -54,7 +55,7 @@ fun ProfileSwitcherSheet(onDismiss: () -> Unit) {
     val activeId = settings?.activeProfile
     val featureOn = settings?.feature(LauncherSettings.FEATURE_PROFILES) ?: true
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.a11yGreyscale()) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
             Text(text = "Profiles", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(4.dp))

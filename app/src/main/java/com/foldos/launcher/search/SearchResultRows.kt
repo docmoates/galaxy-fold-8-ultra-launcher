@@ -275,8 +275,15 @@ private fun GlyphIcon(icon: ImageVector, accent: Boolean = false) {
 private fun DrawableIcon(drawable: Drawable?, fallback: ImageVector) {
     val tokens = LocalFoldOsTokens.current
     val sizePx = with(LocalDensity.current) { 40.dp.roundToPx() }
-    val bitmap: ImageBitmap? = remember(drawable, sizePx) {
-        drawable?.let { d -> runCatching { d.toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).asImageBitmap() }.getOrNull() }
+    // Rasterised on Dispatchers.IO (shortcut icons can be adaptive / vector drawables), never in composition.
+    val bitmap: ImageBitmap? by produceState<ImageBitmap?>(initialValue = null, drawable, sizePx) {
+        value = if (drawable == null) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { drawable.toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).asImageBitmap() }.getOrNull()
+            }
+        }
     }
     if (bitmap == null) {
         GlyphIcon(fallback)

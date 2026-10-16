@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,8 +30,6 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,9 +46,9 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -67,12 +66,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
-import androidx.core.graphics.drawable.toBitmap
+import com.foldos.launcher.a11y.LocalLargeIcons
+import com.foldos.launcher.a11y.a11yButton
+import com.foldos.launcher.a11y.a11yMinTouchTarget
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.home.HomeIconCache
+import com.foldos.launcher.perf.rememberAppIconBitmap
 import com.foldos.launcher.theme.LocalFoldOsTokens
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * The subset of theme tokens the dock needs, copied out of [LocalFoldOsTokens] once per
@@ -133,19 +133,7 @@ internal fun AppIcon(
     // HomeIconCache.generation is bumped after an icon pack / shape / override change, so the
     // always-visible dock re-rasterises together with the home grid.
     // It shares the home grid's icon cache (same key format) so the pack / shape work is done once.
-    val cacheKey = "${app.key}@$sizePx#${HomeIconCache.generation}"
-    val bitmap by produceState<ImageBitmap?>(HomeIconCache.get(cacheKey), cacheKey) {
-        val hit = HomeIconCache.get(cacheKey)
-        if (hit != null) {
-            value = hit
-            return@produceState
-        }
-        val rendered = withContext(Dispatchers.Default) {
-            runCatching { app.iconLoader().toBitmap(sizePx, sizePx).asImageBitmap() }.getOrNull()
-        }
-        if (rendered != null) HomeIconCache.put(cacheKey, rendered)
-        value = rendered
-    }
+    val bitmap: ImageBitmap? = rememberAppIconBitmap(app, sizePx, HomeIconCache.generation)
     val shape = RoundedCornerShape(size * cornerFraction.coerceIn(0f, 0.5f))
     Box(modifier = modifier.size(size).clip(shape), contentAlignment = Alignment.Center) {
         val painted = bitmap
@@ -165,15 +153,16 @@ internal fun DockLabel(
     shadow: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val large = LocalLargeIcons.current
     Text(
         text = text,
-        modifier = modifier.widthIn(max = 76.dp),
+        modifier = modifier.widthIn(max = if (large) 96.dp else 76.dp),
         color = palette.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,
         style = TextStyle(
-            fontSize = 12.5.sp,
+            fontSize = if (large) 15.sp else 12.5.sp,
             fontWeight = FontWeight.Medium,
             shadow = if (shadow) textShadow() else null,
         ),
@@ -188,11 +177,17 @@ internal fun DockItem(
     shadowLabel: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    contentLabel: String? = null,
     icon: @Composable () -> Unit,
 ) {
+    // TalkBack: one element named by [contentLabel] (else the visible label); the icon's own
+    // description and the label text are not read a second time.
+    val spoken = contentLabel ?: label
     Column(
         modifier = modifier
+            .a11yMinTouchTarget()
             .clip(RoundedCornerShape(12.dp))
+            .then(if (spoken != null) Modifier.a11yButton(label = spoken, onActivate = onClick) else Modifier)
             .clickable(onClick = onClick)
             .padding(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -215,8 +210,9 @@ internal fun DockTextItem(
     Text(
         text = app.label,
         modifier = modifier
+            .a11yMinTouchTarget()
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 8.dp),
         color = palette.onSurface,
         maxLines = 1,
@@ -384,9 +380,10 @@ internal fun DockSearchBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(46.dp)
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(23.dp))
             .background(Color.Gray.copy(alpha = 0.14f))
+            .a11yButton(label = "Search", onActivate = onSearch)
             .clickable(onClick = onSearch)
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -486,7 +483,7 @@ internal fun CenterActionButton(
             }
             .shadow(10.dp, CircleShape)
             .background(palette.accent, CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -507,8 +504,9 @@ internal fun DockHandle(
 ) {
     Column(
         modifier = modifier
+            .a11yMinTouchTarget()
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .clickable(onClickLabel = "Open app drawer", role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

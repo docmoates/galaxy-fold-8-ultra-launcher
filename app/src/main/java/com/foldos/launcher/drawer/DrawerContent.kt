@@ -49,6 +49,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
+import com.foldos.launcher.a11y.LocalLargeIcons
+import com.foldos.launcher.a11y.a11yAppLabel
+import com.foldos.launcher.a11y.a11yButton
+import com.foldos.launcher.a11y.a11yDirectionalFocus
+import com.foldos.launcher.a11y.a11yLiveRegion
+import com.foldos.launcher.a11y.a11yMinTouchTarget
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.theme.LocalFoldOsTokens
 
@@ -120,6 +131,7 @@ internal fun DrawerCategoryChips(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .selectableGroup()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -146,10 +158,12 @@ private fun DrawerChip(
     val borderColor = if (selected) Color.Transparent else tokens.surfaceBorder
     Row(
         modifier = Modifier
+            .a11yMinTouchTarget()
             .clip(shape)
             .background(background)
             .border(1.dp, borderColor, shape)
-            .clickable(onClick = onClick)
+            // A tab of the category strip: read as "Media, tab, selected".
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -181,6 +195,7 @@ internal fun DrawerAppGrid(
     onLaunch: (AppInfo) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(bottom = 24.dp),
+    badgeCounts: Map<String, Int> = emptyMap(),
 ) {
     if (apps.isEmpty()) {
         DrawerEmptyState(modifier = modifier)
@@ -190,6 +205,8 @@ internal fun DrawerAppGrid(
         columns = GridCells.Fixed(columns.coerceAtLeast(1)),
         modifier = modifier
             .fillMaxSize()
+            // Hardware keyboard: arrow keys move focus between the app tiles.
+            .a11yDirectionalFocus()
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
@@ -206,7 +223,12 @@ internal fun DrawerAppGrid(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         items(items = apps, key = { it.key }) { app ->
-            DrawerAppTile(app = app, iconSize = iconSize, onClick = { onLaunch(app) })
+            DrawerAppTile(
+                app = app,
+                iconSize = iconSize,
+                badge = badgeCounts[app.packageName] ?: 0,
+                onClick = { onLaunch(app) },
+            )
         }
     }
 }
@@ -216,12 +238,15 @@ private fun DrawerAppTile(
     app: AppInfo,
     iconSize: Dp,
     onClick: () -> Unit,
+    badge: Int = 0,
 ) {
     val tokens = LocalFoldOsTokens.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
+            // One TalkBack element: "Gmail, 3 notifications" (icon description and label merged).
+            .a11yButton(label = a11yAppLabel(app.label, badge), onActivate = onClick)
             .clickable(onClick = onClick)
             .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -232,6 +257,8 @@ private fun DrawerAppTile(
             text = app.label,
             color = tokens.onSurface,
             style = MaterialTheme.typography.labelMedium,
+            // Easy mode: larger labels.
+            fontSize = if (LocalLargeIcons.current) 15.sp else TextUnit.Unspecified,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -247,6 +274,8 @@ private fun DrawerEmptyState(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = "No apps match",
+            // Announced when a search leaves no results.
+            modifier = Modifier.a11yLiveRegion(),
             color = tokens.onSurface.copy(alpha = 0.7f),
             style = MaterialTheme.typography.bodyLarge,
         )

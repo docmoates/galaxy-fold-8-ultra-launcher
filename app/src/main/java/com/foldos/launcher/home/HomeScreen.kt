@@ -32,6 +32,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foldos.launcher.a11y.a11yDirectionalFocus
+import com.foldos.launcher.a11y.a11yTypeToSearch
+import com.foldos.launcher.a11y.rememberA11yPagerScroll
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.fold.FoldState
 import com.foldos.launcher.core.model.AppInfo
@@ -78,6 +81,8 @@ import kotlin.math.max
  *   swipe up does not open the drawer twice.
  * @param hubSelectRequest a counter; every increment scrolls the pager to the hub page (gesture
  *   action `TYPE_HUB`). Ignored while the hub is off or in Flex Mode.
+ * @param keyboardRefocusKey any value that changes when an overlay (drawer, search, picker) closes; the home
+ *   then takes keyboard focus back so type-to-search and arrow keys keep working.
  *
  * Edit-mode hooks are read from [LocalHomeCallbacks], folder / pair / context-menu slots from
  * [LocalHomeItemHooks]; provide both around this composable. Badges come from
@@ -108,6 +113,7 @@ fun HomeScreen(
     pageModifier: Modifier = Modifier,
     swipeUpOpensDrawer: Boolean = true,
     hubSelectRequest: Int = 0,
+    keyboardRefocusKey: Any? = null,
 ) {
     val appsByKey = remember(apps) { apps.associateBy { it.key } }
     val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
@@ -163,6 +169,10 @@ fun HomeScreen(
     Box(
         modifier
             .fillMaxSize()
+            // Hardware keyboard: arrow keys move focus between tiles; a printable key opens search
+            // (LocalKeyboardShortcuts.onTypeToSearch, provided by the launcher root).
+            .a11yDirectionalFocus()
+            .a11yTypeToSearch(refocusKey = keyboardRefocusKey to editMode)
             .windowInsetsPadding(WindowInsets.systemBars)
             .onGloballyPositioned { origin = it.positionInWindow() },
     ) {
@@ -229,6 +239,8 @@ private fun HomePagedLayout(
     val firstHome = if (hubOn && hubLeft) 1 else 0
 
     val pagerState = rememberPagerState(initialPage = firstHome) { total }
+    // Animated scroll to a page, instant while Settings > Accessibility > Reduce motion is on.
+    val scrollToPage = rememberA11yPagerScroll(pagerState)
     LaunchedEffect(hubOn, hubLeft, total) {
         if (pagerState.currentPage >= total) pagerState.scrollToPage(firstHome)
     }
@@ -239,14 +251,14 @@ private fun HomePagedLayout(
     LaunchedEffect(homeRequest) {
         if (homeRequest == handledHome || homeRequest <= 0) return@LaunchedEffect
         handledHome = homeRequest
-        if (pagerState.currentPage != firstHome) pagerState.animateScrollToPage(firstHome)
+        if (pagerState.currentPage != firstHome) scrollToPage(firstHome)
     }
     // Gesture action "Open the Hub": scroll to the hub page (a no-op while the hub is off).
     var handledHub by rememberSaveable { mutableIntStateOf(hubSelectRequest) }
     LaunchedEffect(hubSelectRequest) {
         if (hubSelectRequest == handledHub || hubSelectRequest <= 0 || hubIndex < 0) return@LaunchedEffect
         handledHub = hubSelectRequest
-        if (pagerState.currentPage != hubIndex) pagerState.animateScrollToPage(hubIndex)
+        if (pagerState.currentPage != hubIndex) scrollToPage(hubIndex)
     }
     // Report the settled page (null for the hub) whenever it, or the page list, changes.
     val reportPage = rememberUpdatedState(onCurrentPageChanged)
@@ -266,7 +278,7 @@ private fun HomePagedLayout(
         if (index < 0) return@LaunchedEffect
         handledSerial = request.serial
         if (index + firstHome != pagerState.currentPage) {
-            pagerState.animateScrollToPage(index + firstHome)
+            scrollToPage(index + firstHome)
         }
     }
 

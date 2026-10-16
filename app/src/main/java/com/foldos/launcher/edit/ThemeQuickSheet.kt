@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.foldos.launcher.a11y.a11yGreyscale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -83,7 +84,7 @@ fun ThemeQuickSheet(
         graph.appScope.launch { graph.settings.update(transform) }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.a11yGreyscale()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

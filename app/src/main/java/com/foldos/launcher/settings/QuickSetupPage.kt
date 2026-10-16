@@ -18,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.foldos.launcher.backup.StyleRestoreGate
+import com.foldos.launcher.backup.rememberBackupActions
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.onboarding.OnboardingActivity
 
@@ -26,14 +28,17 @@ object QuickSetupRows {
     val wizard = SettingsRowInfo("Run setup wizard", "Screens, home style, look, colors, dock; every step picked from a live preview")
     val gallery = SettingsRowInfo("Preset gallery", "Minimal, Dashboard, Productivity, Media, Power user, One UI Classic")
     val importLayout = SettingsRowInfo("Import from current launcher", "Reads Samsung or Pixel layout where permitted")
+    val exportBackup = SettingsRowInfo("Export setup to file", "Save layout, settings, profiles and icon choices as foldos-backup.json")
+    val importBackup = SettingsRowInfo("Import setup from file", "Restore a FoldOS backup file; replaces this phone's setup")
+    val moreBackup = SettingsRowInfo("More backup options", "Google backup status, import from Nova or Lawnchair, reset layout")
     val reset = SettingsRowInfo("Reset all settings", "Back to the FoldOS defaults", advanced = true)
 
     val page = SettingsPageInfo(
         route = SettingsRoutes.QUICK_SETUP,
         title = "Quick setup",
-        subtitle = "Re-run the wizard, preset gallery, reset",
+        subtitle = "Re-run the wizard, preset gallery, export / import, reset",
         icon = Icons.Outlined.Bolt,
-        rows = listOf(defaultHome, wizard, gallery, importLayout, reset),
+        rows = listOf(defaultHome, wizard, gallery, importLayout, exportBackup, importBackup, moreBackup, reset),
     )
 }
 
@@ -41,8 +46,10 @@ object QuickSetupRows {
 fun QuickSetupPage(
     update: SettingsUpdater,
     onBack: () -> Unit,
+    onOpenBackup: (() -> Unit)? = null,
 ) {
     var confirmReset by rememberSaveable { mutableStateOf(false) }
+    val backup = rememberBackupActions()
     val context = LocalContext.current
     val roleManager = remember(context) { context.getSystemService(RoleManager::class.java) }
     // Bumped after the role request returns so the row re-reads whether FoldOS holds the role.
@@ -80,6 +87,9 @@ fun QuickSetupPage(
             onClick = { runCatching { context.startActivity(OnboardingActivity.galleryIntent(context)) } },
         )
         StaticRow(info = QuickSetupRows.importLayout)
+        StaticRow(info = QuickSetupRows.exportBackup, onClick = backup.exportToFile)
+        StaticRow(info = QuickSetupRows.importBackup, onClick = backup.restoreFromFile)
+        StaticRow(info = QuickSetupRows.moreBackup, onClick = onOpenBackup)
         StaticRow(info = QuickSetupRows.reset, onClick = { confirmReset = true })
     }
 
@@ -92,7 +102,12 @@ fun QuickSetupPage(
                 TextButton(
                     onClick = {
                         confirmReset = false
-                        update { LauncherSettings() }
+                        update { current ->
+                            val defaults = LauncherSettings(wizardDone = current.wizardDone)
+                            // Layouts are kept, so the style watcher must not restyle their pages.
+                            StyleRestoreGate.arm(current, defaults)
+                            defaults
+                        }
                     },
                 ) {
                     Text(text = "Reset")

@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -19,9 +20,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.foldos.launcher.a11y.A11yRoot
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.model.Appearance
+import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.repo.SettingsRepository
 
 /**
@@ -84,9 +88,13 @@ private fun SettingsAppTheme(
     repo: SettingsRepository,
     content: @Composable () -> Unit,
 ) {
-    val appearance by produceState(initialValue = Appearance.AUTO, key1 = repo) {
-        repo.settings.collect { value = it.appearance }
+    // The whole settings object, not just the appearance: the accessibility switches (text size,
+    // reduce motion, greyscale, high contrast) apply to this window too.
+    val stored by produceState<LauncherSettings?>(initialValue = null, key1 = repo) {
+        repo.settings.collect { value = it }
     }
+    val a11ySettings = stored ?: LauncherSettings()
+    val appearance = stored?.appearance ?: Appearance.AUTO
     val systemDark = isSystemInDarkTheme()
     val dark = when (appearance) {
         Appearance.DARK -> true
@@ -94,12 +102,30 @@ private fun SettingsAppTheme(
         Appearance.AUTO -> systemDark
     }
     val context = LocalContext.current
-    val colorScheme = remember(context, dark) {
+    val dynamicScheme = remember(context, dark) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }
-    MaterialTheme(colorScheme = colorScheme) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            content()
+    val colorScheme = if (a11ySettings.highContrast) highContrastScheme(dynamicScheme, dark) else dynamicScheme
+    A11yRoot(settings = a11ySettings) {
+        MaterialTheme(colorScheme = colorScheme) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                content()
+            }
         }
     }
+}
+
+/** Settings > Accessibility > High contrast for the Material 3 settings window: black / white text and outlines. */
+private fun highContrastScheme(base: ColorScheme, dark: Boolean): ColorScheme {
+    val paper = if (dark) Color.Black else Color.White
+    val ink = if (dark) Color.White else Color.Black
+    return base.copy(
+        background = paper,
+        surface = paper,
+        onBackground = ink,
+        onSurface = ink,
+        onSurfaceVariant = ink,
+        outline = ink,
+        outlineVariant = ink.copy(alpha = 0.6f),
+    )
 }

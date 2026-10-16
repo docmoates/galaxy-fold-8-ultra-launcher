@@ -1,5 +1,10 @@
 package com.foldos.launcher.settings
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -17,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.foldos.launcher.a11y.LocalReduceMotion
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.repo.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -62,15 +68,26 @@ fun SettingsRoot(
             startRouteHandled = true
             val known = SettingsPages.byRoute(startRoute ?: "") != null ||
                 startRoute == SearchRows.ROUTE ||
-                startRoute == MailSettingsRows.ROUTE
+                startRoute == MailSettingsRows.ROUTE ||
+                startRoute == BackupRows.ROUTE ||
+                startRoute == AccessibilityRows.ROUTE
             if (startRoute != null && startRoute != SettingsRoutes.ROOT && known) {
                 navController.navigate(startRoute) { launchSingleTop = true }
             }
         }
     }
 
+    // Reduce motion: page changes are instant (these are NavHost's defaults otherwise: 700ms fades).
+    val reduceMotion = LocalReduceMotion.current
     CompositionLocalProvider(LocalSettingsRowFilter provides SettingsRowFilter(query = query, advanced = advanced)) {
-        NavHost(navController = navController, startDestination = SettingsRoutes.ROOT) {
+        NavHost(
+            navController = navController,
+            startDestination = SettingsRoutes.ROOT,
+            enterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(animationSpec = tween(700)) },
+            exitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(animationSpec = tween(700)) },
+            popEnterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(animationSpec = tween(700)) },
+            popExitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(animationSpec = tween(700)) },
+        ) {
             composable(SettingsRoutes.ROOT) {
                 SettingsRootPage(
                     query = query,
@@ -81,7 +98,13 @@ fun SettingsRoot(
                     onClose = onClose,
                 )
             }
-            composable(SettingsRoutes.QUICK_SETUP) { QuickSetupPage(update = update, onBack = onBack) }
+            composable(SettingsRoutes.QUICK_SETUP) {
+                QuickSetupPage(
+                    update = update,
+                    onBack = onBack,
+                    onOpenBackup = { navController.navigate(BackupRows.ROUTE) { launchSingleTop = true } },
+                )
+            }
             composable(SettingsRoutes.SCREENS) { ScreensPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.HOME) { HomeSettingsPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.DOCK) { DockPage(settings = current, update = update, onBack = onBack) }
@@ -94,6 +117,8 @@ fun SettingsRoot(
             composable(SettingsRoutes.FEATURES) { FeaturesPage(settings = current, update = update, onBack = onBack) }
             composable(SearchRows.ROUTE) { SearchSettingsPage(settings = current, update = update, onBack = onBack) }
             composable(MailSettingsRows.ROUTE) { MailSettingsPage(settings = current, update = update, onBack = onBack) }
+            composable(BackupRows.ROUTE) { BackupPage(settings = current, update = update, onBack = onBack) }
+            composable(AccessibilityRows.ROUTE) { AccessibilityPage(settings = current, update = update, onBack = onBack) }
             composable(SettingsRoutes.ABOUT) { AboutPage(onBack = onBack) }
         }
     }

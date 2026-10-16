@@ -11,12 +11,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.foldos.launcher.a11y.HomeItemGridInfo
+import com.foldos.launcher.a11y.homeItemAccessActions
+import com.foldos.launcher.a11y.rememberA11yAnnouncer
+import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomePage
@@ -103,6 +117,7 @@ internal fun HomeItemsGrid(
     cellPadding: Dp = 6.dp,
     heroHighlight: Boolean = false,
     publishGeometry: Boolean = false,
+    a11yMovable: Boolean = false,
 ) {
     val slots = remember(items) { groupHomeSlots(items) }
     val free = ctx.freeMode
@@ -110,6 +125,12 @@ internal fun HomeItemsGrid(
     val keys = remember(slots) { slots.map { slot -> slot.anchor.stackId ?: slot.anchor.id } }
     val heroId = remember(slots) {
         slots.firstOrNull { HomeBuiltInIds.isHero(it.anchor.builtinId) }?.anchor?.id
+    }
+    // Accessibility: Move / Resize actions need the grid size; only grids whose item coordinates
+    // are the stored ones (classic grid, dashboard) offer them, see homeItemAccessActions.
+    val a11yRows = fixedRows ?: if (publishGeometry) HomeGeometryStore.measured[ctx.screen]?.rows else null
+    val a11yGrid = remember(items, cols, a11yRows, a11yMovable) {
+        if (a11yMovable) HomeItemGridInfo(items, cols, a11yRows) else null
     }
     HomeCellGrid(
         cols = cols,
@@ -125,10 +146,10 @@ internal fun HomeItemsGrid(
         val slot = slots[index]
         if (slot.isStack && ctx.stacksOn) {
             HomeStackSlot(slot.items, Modifier.fillMaxSize(), smartRules = ctx.smartOn) { item ->
-                HomeItemTile(ctx, item, cellPadding, highlight = heroHighlight && item.id == heroId)
+                HomeItemTile(ctx, item, cellPadding, highlight = heroHighlight && item.id == heroId, access = a11yGrid)
             }
         } else {
-            HomeItemTile(ctx, slot.anchor, cellPadding, highlight = heroHighlight && slot.anchor.id == heroId)
+            HomeItemTile(ctx, slot.anchor, cellPadding, highlight = heroHighlight && slot.anchor.id == heroId, access = a11yGrid)
         }
     }
 }
@@ -154,7 +175,8 @@ internal fun HomeGridPage(
         val source = if (items.isEmpty() && placeholder) ctx.autoGridItems(pageId, cols, maxRows = 8) else items
         reflowGridItems(source, cols, skipFree = free)
     }
-    val labelHeight = if (ctx.labels) 24.dp else 0.dp
+    // Easy mode shows bigger labels, so each row needs a little more room.
+    val labelHeight = if (ctx.labels) (if (ctx.settings.largeIcons) 32.dp else 24.dp) else 0.dp
     HomeItemsGrid(
         ctx = ctx,
         pageId = pageId,
@@ -164,6 +186,7 @@ internal fun HomeGridPage(
         minCellHeight = ctx.iconSize + labelHeight + 20.dp,
         gutter = ctx.hingeGutter,
         publishGeometry = publishGeometry,
+        a11yMovable = true,
     )
 }
 
@@ -242,6 +265,7 @@ internal fun HomeItemTile(
     item: HomeItem,
     widgetPadding: Dp = 6.dp,
     highlight: Boolean = false,
+    access: HomeItemGridInfo? = null,
 ) {
     when (item.kind) {
         ItemKind.APP -> {
@@ -256,6 +280,7 @@ internal fun HomeItemTile(
                         badge = ctx.badgeFor(app.packageName),
                         badgeStyle = ctx.badgeStyle,
                         onLongPressAt = { anchor -> ctx.longPress(item, anchor) },
+                        a11yActions = rememberHomeItemActions(ctx, item, access),
                     )
                     HomeItemPressOverlay(ctx, item)
                 }
@@ -263,13 +288,21 @@ internal fun HomeItemTile(
                 else -> HomeMissingTile(ctx.iconSize)
             }
         }
-        ItemKind.FOLDER -> HomeFolderTile(ctx, item)
+        ItemKind.FOLDER -> HomeFolderTile(ctx, item, access)
         ItemKind.WIDGET -> {
             val holder = remember { HomeAnchorHolder() }
+            val actions = rememberHomeItemActions(ctx, item, access)
+            val widgetName = item.title ?: item.builtinId?.let { HomeBuiltInIds.title(it) } ?: "Widget"
             Box(
                 Modifier
                     .fillMaxSize()
                     .padding(widgetPadding)
+                    // TalkBack: the widget gets a name and the Move / Resize / Remove actions; its
+                    // own content stays individually reachable inside it.
+                    .semantics {
+                        contentDescription = "$widgetName widget"
+                        if (actions.isNotEmpty()) customActions = actions
+                    }
                     .homeAnchor(holder)
                     .pointerInput(item.id) {
                         detectTapGestures(onLongPress = { ctx.longPress(item, holder.bounds()) })
@@ -279,8 +312,55 @@ internal fun HomeItemTile(
                 HomeItemPressOverlay(ctx, item)
             }
         }
-        ItemKind.PAIR -> HomePairTile(ctx, item)
+        ItemKind.PAIR -> HomePairTile(ctx, item, access)
     }
+}
+
+/**
+ * The TalkBack actions of [item] (Open menu, Move, Resize, Remove, see [homeItemAccessActions]).
+ * Unsaved items (`id <= 0`: auto-filled previews) get the menu action only.
+ */
+@Composable
+internal fun rememberHomeItemActions(
+    ctx: HomeContext,
+    item: HomeItem,
+    access: HomeItemGridInfo?,
+): List<CustomAccessibilityAction> {
+    val graph = LocalAppGraph.current
+    val context = LocalContext.current
+    val announce = rememberA11yAnnouncer()
+    // Building the Move / Resize actions walks every sibling, so only do it while an accessibility
+    // service (TalkBack, Switch Access, Voice Access) is running.
+    val accessibilityOn = rememberAccessibilityServicesEnabled()
+    return remember(item, access, accessibilityOn) {
+        if (!accessibilityOn) {
+            emptyList()
+        } else {
+            homeItemAccessActions(
+                item = item,
+                grid = access,
+                graph = graph,
+                announce = announce,
+                onOpenMenu = { ctx.longPress(item, null) },
+                onDelete = if (item.id > 0L) ({ removeHomeItem(context, graph, item) }) else null,
+            )
+        }
+    }
+}
+
+/** True while any accessibility service is enabled; follows changes through the system listener. */
+@Composable
+private fun rememberAccessibilityServicesEnabled(): Boolean {
+    val context = LocalContext.current
+    val manager = remember(context) { context.getSystemService(AccessibilityManager::class.java) }
+    var enabled by remember(manager) { mutableStateOf(manager?.isEnabled == true) }
+    DisposableEffect(manager) {
+        val listener = AccessibilityManager.AccessibilityStateChangeListener { on -> enabled = on }
+        manager?.addAccessibilityStateChangeListener(listener)
+        enabled = manager?.isEnabled == true
+        onDispose { manager?.removeAccessibilityStateChangeListener(listener) }
+    }
+    return enabled
 }
 
 /* ---------------- Hybrid panels ---------------- */

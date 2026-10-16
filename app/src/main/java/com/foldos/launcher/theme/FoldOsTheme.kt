@@ -42,7 +42,8 @@ fun isDarkAppearance(appearance: Appearance): Boolean = when (appearance) {
  * reads Material You dynamic color (API 31+; the app's minSdk is 34) and provides:
  *
  * - [LocalFoldOsTokens] with the [FoldOsTokens] for `settings.theme` + `settings.colors`, with
- *   the corner radius taken from `settings.radiusDp` (Settings > Look > Corner radius),
+ *   the corner radius taken from `settings.radiusDp` (Settings > Look > Corner radius) and, with
+ *   `settings.highContrast`, the [withHighContrast] boost,
  * - a [MaterialTheme] whose color scheme is derived from those tokens (primary = accent, surface =
  *   surface, ...), [FoldOsTypography], and shapes based on the theme radius,
  * - [LocalContentColor] = `tokens.onSurface` so plain `Text` is readable on the wallpaper.
@@ -61,8 +62,10 @@ fun FoldOsTheme(settings: LauncherSettings, content: @Composable () -> Unit) {
             dynamicLightColorScheme(context)
         }
     }
-    val tokens = remember(settings.theme, dark, settings.colors, dynamic, settings.radiusDp) {
-        tokensFor(settings.theme, dark, settings.colors, dynamic).copy(radius = settings.radiusDp.dp)
+    val tokens = remember(settings.theme, dark, settings.colors, dynamic, settings.radiusDp, settings.highContrast) {
+        val themed = tokensFor(settings.theme, dark, settings.colors, dynamic).copy(radius = settings.radiusDp.dp)
+        // Settings > Accessibility > High contrast: opaque panels, strong outlines, black / white text.
+        if (settings.highContrast) themed.withHighContrast() else themed
     }
     val colorScheme = remember(tokens) { tokens.toMaterialColorScheme() }
     val shapes = remember(tokens.radius) { shapesFor(tokens.radius) }

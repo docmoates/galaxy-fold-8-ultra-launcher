@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import com.foldos.launcher.a11y.a11yButton
 import com.foldos.launcher.core.model.WidgetEntry
 import com.foldos.launcher.core.repo.BuiltInWidget
 import com.foldos.launcher.theme.LocalFoldOsTokens
@@ -82,6 +83,12 @@ internal fun WidgetPreviewTile(
         modifier = modifier
             .width(widgetTileWidth(cellSize))
             .clip(RoundedCornerShape(14.dp))
+            // One TalkBack element; the live preview inside is not read out.
+            .a11yButton(
+                label = "${entry.name}, $sourceLabel, ${entry.defaultSpanX} by ${entry.defaultSpanY} cells",
+                onActivate = onClick,
+                activateLabel = "Add widget",
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

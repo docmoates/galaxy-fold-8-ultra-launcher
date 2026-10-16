@@ -61,6 +61,14 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
+import com.foldos.launcher.a11y.a11yMinTouchTarget
 import com.foldos.launcher.builtins.FakeWeatherProvider
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.LauncherSettings
@@ -470,7 +478,7 @@ private fun HubTasksCard(
                 Icon(
                     imageVector = Icons.Rounded.Add,
                     contentDescription = "Add task",
-                    modifier = Modifier.size(22.dp).clip(CircleShape).clickable(onClick = submit),
+                    modifier = Modifier.a11yMinTouchTarget().size(22.dp).clip(CircleShape).clickable(role = Role.Button, onClick = submit),
                     tint = tokens.accent,
                 )
                 Box(Modifier.weight(1f)) {
@@ -502,6 +510,14 @@ private fun HubTaskRow(task: HubTask, today: LocalDate, onToggle: () -> Unit, on
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .a11yMinTouchTarget()
+            // One checkbox-style element ("Buy milk, checkbox, checked") with a Delete action;
+            // the long press that deletes is otherwise invisible to a screen reader.
+            .semantics(mergeDescendants = true) {
+                role = Role.Checkbox
+                toggleableState = if (task.done) ToggleableState.On else ToggleableState.Off
+                customActions = listOf(CustomAccessibilityAction("Delete task") { onDelete(); true })
+            }
             .combinedClickable(onClick = onToggle, onLongClick = onDelete)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -509,7 +525,7 @@ private fun HubTaskRow(task: HubTask, today: LocalDate, onToggle: () -> Unit, on
     ) {
         Icon(
             imageVector = if (task.done) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-            contentDescription = if (task.done) "Mark not done" else "Mark done",
+            contentDescription = null,
             modifier = Modifier.size(22.dp),
             tint = if (task.done) tokens.accent else tokens.onSurface.copy(alpha = 0.65f),
         )

@@ -136,5 +136,6 @@ internal fun HomeDashboardPage(
         cellPadding = if (ctx.isInner) 8.dp else 6.dp,
         heroHighlight = true,
         publishGeometry = publishGeometry,
+        a11yMovable = true,
     )
 }

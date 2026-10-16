@@ -13,6 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.unit.dp
 import com.foldos.launcher.theme.LocalFoldOsTokens
 
@@ -31,8 +35,18 @@ fun HomePageIndicator(
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalFoldOsTokens.current
+    val total = pageCount.coerceAtLeast(1)
+    val spoken = when {
+        hubSelected -> "Hub page"
+        else -> "Home page ${currentPage.coerceAtLeast(0) + 1} of $total"
+    }
     Row(
-        modifier = modifier,
+        // One announced element ("Home page 2 of 3"); page changes are read out politely.
+        modifier = modifier
+            .clearAndSetSemantics {
+                contentDescription = spoken
+                liveRegion = LiveRegionMode.Polite
+            },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

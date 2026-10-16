@@ -15,10 +15,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.foldos.launcher.a11y.A11yRoot
 import com.foldos.launcher.builtins.LocalPermissionRequester
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.hub.FoldOsHubRepository
+import com.foldos.launcher.perf.ReportFullyDrawnOnFirstFrame
+import com.foldos.launcher.perf.StartupTracker
 import com.foldos.launcher.theme.FoldOsTheme
 import com.foldos.launcher.widgets.WidgetHostController
 
@@ -42,11 +45,13 @@ class MainActivity : ComponentActivity() {
     private val homeRoleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        StartupTracker.onActivityCreate()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val graph = FoldOsApplication.from(this).graph
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
+            val loadedSettings by viewModel.loadedSettings.collectAsStateWithLifecycle()
             // Built-in widgets (calendar, photos, Bluetooth battery) ask for one permission at a
             // time through this; the widget re-checks the grant when the activity resumes, and the
             // Hub's provider flows re-check on this bump (they never poll).
@@ -66,8 +71,16 @@ class MainActivity : ComponentActivity() {
                 LocalPermissionRequester provides requestPermission,
             ) {
                 FoldOsTheme(settings = settings) {
-                    LauncherRoot(viewModel = viewModel)
+                    // Accessibility (Settings > Accessibility): LocalReduceMotion / LocalHighContrast /
+                    // LocalGreyscale / LocalLargeIcons, the text-size density and the greyscale effect.
+                    // High contrast itself is applied by FoldOsTheme. Composed once for the window.
+                    A11yRoot(settings = settings) {
+                        LauncherRoot(viewModel = viewModel)
+                    }
                 }
+                // Logs the cold-start time and calls reportFullyDrawn() once the first frame with the
+                // loaded settings (the real home or the wizard, not the bare wallpaper) is up.
+                if (loadedSettings != null) ReportFullyDrawnOnFirstFrame(this@MainActivity)
             }
         }
         if (savedInstanceState == null) maybeRequestHomeRole()

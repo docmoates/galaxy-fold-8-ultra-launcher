@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +35,7 @@ import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -148,8 +150,8 @@ fun ItemContextMenu(
     val context = LocalContext.current
     val tokens = LocalFoldOsTokens.current
     val density = LocalDensity.current
-    val allApps by graph.apps.allApps.collectAsState(initial = emptyList())
-    val visibleApps by graph.apps.apps.collectAsState(initial = emptyList())
+    val allApps by graph.apps.allApps.collectAsStateWithLifecycle(initialValue = emptyList())
+    val visibleApps by graph.apps.apps.collectAsStateWithLifecycle(initialValue = emptyList())
     val appsByKey = remember(allApps) { allApps.associateBy { it.key } }
     val packageName = item.packageName
 
@@ -330,8 +332,9 @@ private fun MenuRow(action: ContextAction, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .height(44.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            // 48dp minimum touch target.
+            .heightIn(min = 48.dp)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),

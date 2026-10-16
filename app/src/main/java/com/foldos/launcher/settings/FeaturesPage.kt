@@ -24,6 +24,10 @@ object FeaturesRows {
         FeatureRowInfo(LauncherSettings.FEATURE_SMART, SettingsRowInfo("Smart widgets", "Rules by time, place, fold state, device")),
         FeatureRowInfo(LauncherSettings.FEATURE_PROFILES, SettingsRowInfo("Profiles", "Switch by time, place, Wi-Fi or Routines")),
     )
+    val noNetwork = SettingsRowInfo(
+        "No-network mode",
+        "Gmail, web search results and any online AI stay off; the launcher makes no network requests of its own",
+    )
     val backup = SettingsRowInfo("Backup", "Included in Google device backup; export to file", advanced = true)
     val locks = SettingsRowInfo("Lock layout, app lock, private space", advanced = true)
 
@@ -33,7 +37,7 @@ object FeaturesRows {
         subtitle = "Every launcher feature has an on/off switch",
         icon = Icons.Outlined.ToggleOn,
         // Notification rows (badge style, previews, quiet drawer) live on this page too.
-        rows = features.map { it.info } + NotificationSettingsRowInfos.all + listOf(backup, locks),
+        rows = features.map { it.info } + NotificationSettingsRowInfos.all + listOf(noNetwork, backup, locks),
     )
 }
 
@@ -59,6 +63,12 @@ fun FeaturesPage(
         SectionHeader(text = "Notifications")
         NotificationBadgeSettingsRows(settings = settings, update = update)
         QuietDrawerSettingsRows()
+        SectionHeader(text = "Privacy")
+        ToggleRow(
+            info = FeaturesRows.noNetwork,
+            checked = settings.noNetwork,
+            onCheckedChange = { on -> update { it.copy(noNetwork = on) } },
+        )
         StaticRow(info = FeaturesRows.backup)
         StaticRow(info = FeaturesRows.locks)
     }

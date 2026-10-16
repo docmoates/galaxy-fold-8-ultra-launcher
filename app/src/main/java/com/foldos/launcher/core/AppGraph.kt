@@ -5,6 +5,7 @@ import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.foldos.launcher.core.repo.AiCommandRouter
 import com.foldos.launcher.core.repo.AppsRepository
+import com.foldos.launcher.core.repo.BackupRepository
 import com.foldos.launcher.core.repo.BadgeRepository
 import com.foldos.launcher.core.repo.BuiltInWidgetRegistry
 import com.foldos.launcher.core.repo.HubRepository
@@ -48,6 +49,9 @@ interface AppGraph {
 
     /** The Hub's AI tab and natural-language settings commands. */
     val ai: AiCommandRouter
+
+    /** Settings / layout / profile export and import as JSON. */
+    val backup: BackupRepository
 
     /**
      * The process-wide host for third-party app widgets, host id [APP_WIDGET_HOST_ID]. Created and

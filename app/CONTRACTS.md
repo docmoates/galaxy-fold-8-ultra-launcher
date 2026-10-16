@@ -102,6 +102,66 @@ Settings pages other than the ones named above stay with the Settings owner; new
   `appAuthRedirectScheme` placeholder was already in `app/build.gradle.kts` (AppAuth 0.11.1, security-crypto in
   `libs.versions.toml`). Backup rules exclude the `foldos_mail_auth*` prefs (Keystore-bound tokens).
 
+### Phase 6 (backup, performance, accessibility, release)
+
+| Package / path | Owner | Public API it must expose |
+|---|---|---|
+| `core/model/LauncherSettings.kt`, `core/repo/BackupRepository.kt`, `core/repo/LayoutRepository.kt`, `core/AppGraph.kt`, `data/` (incl. `data/NotImplementedBackupRepository.kt`, `LayoutRepositoryImpl`, `LayoutDao`), this file | Contracts | The backup / accessibility / privacy contracts below. `AppGraphImpl.backup` is a placeholder (`NotImplementedBackupRepository`) |
+| `backup/` | Backup | `class FoldOsBackupRepository(...) : BackupRepository` (replaces the placeholder on the `backup` line of `AppGraphImpl`), export / import UI (scheduled auto export was not built; `backupAuto` is a reserved, unused setting). **May also edit `settings/BackupPage.kt`, `res/xml/backup_rules.xml`, `res/xml/data_extraction_rules.xml`** |
+| `perf/` | Performance | Startup work (lazy init, `Application.onCreate` slimming), baseline profile and benchmarks. **May also edit `app/build.gradle.kts`, add `app/src/main/baseline-prof.txt` and edit `app/proguard-rules.pro`** |
+| `a11y/` | Accessibility | Helpers and settings for `highContrast`, `reduceMotion`, `textScale`, `largeIcons`, `greyscale`. **May edit `home/`, `drawer/`, `dock/`, `settings/` for semantics (content descriptions, roles, touch targets, focus order, animation gating) only** |
+| `release/` | Release | Release build type, signing config (release keystore from env/secrets with the debug keystore as fallback), `versionName = "1.0.0"`, final `README.md`, `CHANGELOG.md`, GitHub Actions release job. Edits `app/build.gradle.kts` signing / buildTypes / versioning and `.github/workflows/` |
+
+Backup, perf and release all touch `app/build.gradle.kts`: perf owns dependencies / plugins / baseline-profile wiring, release owns `signingConfigs`, `buildTypes` and `versionName` / `versionCode`; neither rewrites the other's blocks.
+
+#### Phase 6 contracts
+
+- `core/repo/BackupRepository.kt`: `interface BackupRepository { suspend fun exportJson(): String; suspend fun importJson(json: String): ImportResult }`; `data class ImportResult(ok: Boolean, message: String, itemsImported: Int)` with `ImportResult.failure(message)`.
+  - Backup document (all `@Serializable`, same file): `BackupFile(version: Int = 1, createdAt: Long, settings: LauncherSettings, pages: List<BackupPage>, profiles: List<Profile> = emptyList(), iconOverrides: Map<String, String> = emptyMap())`; `BackupPage(screen: String /* ScreenKind.name */, index: Int, style: String /* HomeStyle.name */, items: List<BackupItem> = emptyList())`; `BackupItem(kind: String /* ItemKind.name */, col, row, spanX = 1, spanY = 1, packageName?, activityName?, title?, builtinId?, stackAnchorIndex: Int? = null, stackIndex = 0, free = false, xDp?, yDp?, wDp?, hDp?, parentIndex: Int? = null, packageName2?, activityName2?, folderStyle?)`.
+  - `BackupItem` is `HomeItem` minus `id`, `pageId`, `appWidgetId`, `stackId`, `parentId`. `parentIndex` / `stackAnchorIndex` are positions in the same `BackupPage.items` list (folder children and stack mates always live on their folder's / anchor's page). Hosted app widgets (`isAppWidget`) are not exported; indexes are computed after filtering them out. Search ranking / recents are not part of the backup. `iconOverrides` maps `AppInfo.key` to the stored override value.
+  - Encode / decode with `Json { ignoreUnknownKeys = true; encodeDefaults = true }` (otherwise `version` is omitted). `importJson` must reject a `version` greater than 1 and malformed JSON with `ImportResult.failure(...)` and never touch current data in that case. It applies settings through `SettingsRepository.update`, layouts through `LayoutRepository.replaceAll`, then profiles / icon overrides, and should keep this device's `wizardDone = true`.
+- `AppGraph.backup: BackupRepository` (new member). `AppGraphImpl.backup` = `NotImplementedBackupRepository()` (`exportJson()` returns `"{}"`, `importJson` returns `ImportResult(false, "Backup is not implemented yet", 0)`); the Backup agent replaces that one `by lazy` line.
+- `LayoutRepository` gained two methods (implemented in `LayoutRepositoryImpl`, backed by new `LayoutDao` queries `allPagesOnce`, `allItemsByPageOnce`, `deleteAllItems`, `deleteAllPages`; no schema change, Room version stays 3):
+  - `suspend fun allPagesWithItems(): List<Pair<HomePage, List<HomeItem>>>`: every page of every screen (ordered by `ScreenKind` ordinal then `index`) with ALL its items, including folder children (`parentId` set), stack mates and app widgets, items in id order (a folder child can precede its folder).
+  - `suspend fun replaceAll(pages: List<Pair<HomePage, List<HomeItem>>>)`: one transaction; deletes every page and item, then inserts. Input ids are local keys: pages and id-0 items get fresh row ids, `item.pageId` is overwritten with the new page id, non-zero `item.id`s are remapped so `parentId` and `stackId` follow (a reference to an unknown id is cleared and `stackIndex` reset to 0). App widget ids are not released. Callers pass any unique local number (e.g. a running counter) as `HomeItem.id` for items that are referenced by others, else 0.
+- `LauncherSettings` new fields (all defaulted, stored with the rest of the JSON, no migration): `highContrast: Boolean = false`, `reduceMotion: Boolean = false`, `textScale: Float = 1.0f` (multiplier on the system font scale, expected range 0.85..1.6), `largeIcons: Boolean = false` (Easy / large mode), `greyscale: Boolean = false`, `noNetwork: Boolean = false` (hard switch: Gmail API, web search previews and AI network use all off; every network-touching feature must check `!settings.noNetwork` first), `dailyWallpaper: Boolean = false`, `backupAuto: Boolean = true` (reserved: no scheduled exporter exists and no UI reads it).
+
+#### Phase 6 integration (done)
+
+- `data/AppGraphImpl.kt`: `backup = backup.FoldOsBackupRepository(appContext, settings, layouts, profiles, icons)`
+  (`NotImplementedBackupRepository` stays as an unused fallback). `core/FoldOsApplication.onCreate` builds the graph inside
+  `perf.StartupTracker.section("graphInit")` and then calls `wallpaper.DailyWallpaper.start(this, graph)`.
+- Settings navigation: `SettingsRoot` routes `BackupRows.ROUTE` ("backup") and `AccessibilityRows.ROUTE` ("accessibility") and
+  accepts both as `startRoute`; `SettingsPages.all` lists `BackupRows.page` and `AccessibilityRows.page` (after AI, before
+  Features), so their rows are searchable. Neither route is in `SettingsRoutes`. Quick setup keeps its Export / Import rows (they
+  call `backup.rememberBackupActions()` directly) and has a "More backup options" row, `QuickSetupPage(onOpenBackup = ...)`,
+  that opens the Backup page. "Reset all settings" now keeps `wizardDone`.
+- Window roots: `MainActivity` composes `FoldOsTheme { A11yRoot(settings) { LauncherRoot } }` and `ReportFullyDrawnOnFirstFrame`;
+  `SettingsActivity` and `OnboardingActivity` also wrap in `A11yRoot`. `A11yRoot` provides `LocalReduceMotion`,
+  `LocalHighContrast`, `LocalGreyscale`, `LocalLargeIcons`, multiplies the font scale by `settings.textScale` and renders the content
+  in greyscale; `FoldOsTheme` applies `highContrast` to the tokens. The `ModalBottomSheet`s pass `Modifier.a11yGreyscale()`; other
+  separate windows (`Popup` menus, `Dialog`, `AlertDialog`) are not covered by the greyscale effect yet.
+- Hardware keyboard: `LauncherHome` provides `a11y.LocalKeyboardShortcuts` around `HomeScreen`; `onTypeToSearch` is set while the
+  Search feature is on and no overlay / edit mode is up and calls `LauncherViewModel.openSearch(initialText)`. The typed character
+  arrives in `search.UniversalSearch(initialQuery = viewModel.searchSeed)`, which puts the caret after it. `HomeScreen` gets
+  `keyboardRefocusKey = Triple(drawerOpen, pickerOpen, searchOpen)`.
+- No-network mode (`LauncherSettings.noNetwork`, Settings > Features > Privacy): `mail.GmailMailRepository` reports
+  `MailState.Error("No-network mode is on...")`, skips `connect` and `loadInbox`, and refreshes again when the switch goes off;
+  `search.webSearchOn()` (Web provider on AND not offline) replaces every `searchProvider(SEARCH_WEB)` check in `search/`
+  (web / URL / bang rows, the Lens button, the "web" placeholder); `ai.FoldOsAiCommandRouter` never selects an
+  `ai.NetworkAiProvider` while offline (the template engine and `AiCoreProvider` run on the device and are unaffected). Any new
+  code that talks to the network must check `!settings.noNetwork` first. Web results still open the browser on tap.
+- Daily wallpaper (`LauncherSettings.dailyWallpaper`, off by default, Settings > Look): `wallpaper.DailyWallpaperGenerator`
+  (gradient seeded by `LocalDate.toEpochDay()`, no assets), `wallpaper.DailyWallpaper` (`start`, `applyIfDue`, `schedule`, `cancel`;
+  `AlarmManager.setAndAllowWhileIdle` shortly after local midnight, `WallpaperManager.setBitmap(.., FLAG_SYSTEM)`, last day kept in
+  the `foldos_daily_wallpaper` prefs, not backed up) and `wallpaper.DailyWallpaperReceiver` (the alarm plus BOOT_COMPLETED,
+  MY_PACKAGE_REPLACED, TIME_SET, TIMEZONE_CHANGED). No WorkManager.
+- Manifest: `SET_WALLPAPER`; receiver `wallpaper.DailyWallpaperReceiver` (not exported). No other component changes.
+- Build: `androidx.profileinstaller` 1.4.1 is a dependency and `app/src/main/baseline-prof.txt` is picked up by AGP (rules cover the
+  startup packages including `a11y/`; `settings/`, `onboarding/`, `backup/`, `wallpaper/` are class-only). Release uses R8
+  (`-Pfoldos.minify=false` bisects), debug-keystore fallback signing, versionName 1.0.0 / versionCode 100.
+- Docs: `README.md`, `CHANGELOG.md` (1.0.0) and `docs/TESTING.md` describe all of the above.
+
 #### Phase 2+3 integration (done)
 
 - `data/AppGraphImpl.kt`: `builtIns = FoldOsBuiltInWidgets(appContext)`, `widgets = FoldOsWidgetCatalog(...)`,
@@ -161,7 +221,7 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 - `object ColorSchemes { val presets: List<ColorSchemePreset> /* ocean, forest, sunset, rose, gold, mono */; fun byId(id): ColorSchemePreset?; fun resolve(config): List<Long>? }`
 
 ### model/LauncherSettings.kt
-- `@Serializable data class LauncherSettings(screenMode = DIFFERENT, appearance = DARK, styleCover = GRID, styleInner = DASHBOARD, theme = GLASS, gridMode = GRID, colsCover = 4, colsInner = 6, iconSizeDp = 58, radiusDp = 22, labels = true, profile = "Work", dockCover: DockConfig = pill, dockInner: DockConfig = taskbar, drawerStyle = POPUP, popBlur = true, hubOn = true, hubPos = "left", hubBar = "bottom", hubTabs: Set<String> = {ai, mail, cal, people}, colors: ColorSchemeConfig = ColorSchemeConfig(), wpGroup = "category", features: Map<String, Boolean> = {search, dock, badges, gestures, pairs, ai, stacks, smart, drawerTabs, profiles -> true}, iconPack: String? = null, iconShape: IconShape = IconShape.SYSTEM, wizardDone: Boolean = false, preset: String? = null, hiddenApps: Set<String> = emptySet(), gestures: Map<String, GestureAction> = DEFAULT_GESTURES, searchEngine: String = "google", searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(), badgeStyle: String = "count", activeProfile: String? = null, mailClientId: String? = null, aiMode: String = "template", folderStyle: String = "grid", notificationPreview: Boolean = true)`
+- `@Serializable data class LauncherSettings(screenMode = DIFFERENT, appearance = DARK, styleCover = GRID, styleInner = DASHBOARD, theme = GLASS, gridMode = GRID, colsCover = 4, colsInner = 6, iconSizeDp = 58, radiusDp = 22, labels = true, profile = "Work", dockCover: DockConfig = pill, dockInner: DockConfig = taskbar, drawerStyle = POPUP, popBlur = true, hubOn = true, hubPos = "left", hubBar = "bottom", hubTabs: Set<String> = {ai, mail, cal, people}, colors: ColorSchemeConfig = ColorSchemeConfig(), wpGroup = "category", features: Map<String, Boolean> = {search, dock, badges, gestures, pairs, ai, stacks, smart, drawerTabs, profiles -> true}, iconPack: String? = null, iconShape: IconShape = IconShape.SYSTEM, wizardDone: Boolean = false, preset: String? = null, hiddenApps: Set<String> = emptySet(), gestures: Map<String, GestureAction> = DEFAULT_GESTURES, searchEngine: String = "google", searchProviders: Set<String> = ALL_SEARCH_PROVIDERS.toSet(), badgeStyle: String = "count", activeProfile: String? = null, mailClientId: String? = null, aiMode: String = "template", folderStyle: String = "grid", notificationPreview: Boolean = true, highContrast: Boolean = false, reduceMotion: Boolean = false, textScale: Float = 1.0f, largeIcons: Boolean = false, greyscale: Boolean = false, noNetwork: Boolean = false, dailyWallpaper: Boolean = false, backupAuto: Boolean = true)`
   - `hiddenApps`: package names (an `AppInfo.key` "package/activity" is accepted too); `AppsRepository.apps` already excludes them.
   - `gestures`: keyed by `GestureKind.name`; missing key = `GestureAction.NONE`. `DEFAULT_GESTURES` = SWIPE_UP→drawer, SWIPE_DOWN→notifications, DOUBLE_TAP→none, PINCH_IN→edit, SWIPE_UP_2F→search, UNFOLD→none.
   - `searchEngine` ∈ `SEARCH_ENGINES` = `SEARCH_ENGINE_GOOGLE/BING/DUCKDUCKGO/KAGI/BRAVE/ECOSIA` ("google", "bing", "duckduckgo", "kagi", "brave", "ecosia").
@@ -211,6 +271,8 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
   - `suspend fun createFolder(pageId: Long, col: Int, row: Int, title: String, itemIds: List<Long>): Long` (inserts the FOLDER item, moves `itemIds` into it in list order, clearing their stack / free placement; returns the folder id)
   - `suspend fun createPair(pageId: Long, col: Int, row: Int, a: AppInfo, b: AppInfo): Long` (inserts a PAIR item; returns its id)
   - `suspend fun removeFromFolder(itemId: Long, toPageId: Long, col: Int, row: Int)` (back onto the grid; deletes the folder when it ends up empty; no-op for an item not in a folder)
+  - `suspend fun allPagesWithItems(): List<Pair<HomePage, List<HomeItem>>>` (Phase 6: all pages with all items incl. folder children and app widgets)
+  - `suspend fun replaceAll(pages: List<Pair<HomePage, List<HomeItem>>>)` (Phase 6: transactional full replace; ids are local keys, see Phase 6 contracts)
   - `}`
 
 ### repo/AppsRepository.kt
@@ -240,6 +302,9 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 - `data class AiReply(text: String, appliedSettings: Boolean)`
 - `interface AiCommandRouter { suspend fun handle(text: String): AiReply }` (settings commands are parsed and applied, everything else goes to the provider for `LauncherSettings.aiMode`)
 
+### repo/BackupRepository.kt
+- See "Phase 6 contracts" above: `BackupRepository`, `ImportResult`, `BackupFile`, `BackupPage`, `BackupItem`.
+
 ### repo/WidgetCatalog.kt
 - `interface WidgetCatalog { val entries: Flow<List<WidgetEntry>>; fun grouped(by: String): Flow<List<Pair<String, List<WidgetEntry>>>>; suspend fun markUsed(id: String) }`
 - `by` is `GROUP_CATEGORY` ("category": one group per `WidgetCategory` in enum order, title = `displayName`), `GROUP_APP` ("app": one group per `source`, A-Z) or `GROUP_RECENT` ("recent": a `RECENT_GROUP_TITLE` = "Recently used" group first, then the category groups). Empty groups are omitted.
@@ -258,7 +323,7 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 - `data class FoldState(kind: ScreenKind, isHalfOpened: Boolean, hingeBounds: android.graphics.Rect?, widthDp: Int, heightDp: Int)`
 
 ### AppGraph.kt
-- `interface AppGraph { val settings: SettingsRepository; val layouts: LayoutRepository; val apps: AppsRepository; val widgets: WidgetCatalog; val builtIns: BuiltInWidgetRegistry; val icons: IconResolver; val badges: BadgeRepository; val profiles: ProfileRepository; val hub: HubRepository; val mail: MailRepository; val ai: AiCommandRouter; val appWidgetHost: android.appwidget.AppWidgetHost; val appScope: CoroutineScope; companion object { const val APP_WIDGET_HOST_ID: Int = 1024 } }`
+- `interface AppGraph { val settings: SettingsRepository; val layouts: LayoutRepository; val apps: AppsRepository; val widgets: WidgetCatalog; val builtIns: BuiltInWidgetRegistry; val icons: IconResolver; val badges: BadgeRepository; val profiles: ProfileRepository; val hub: HubRepository; val mail: MailRepository; val ai: AiCommandRouter; val backup: BackupRepository; val appWidgetHost: android.appwidget.AppWidgetHost; val appScope: CoroutineScope; companion object { const val APP_WIDGET_HOST_ID: Int = 1024 } }`
   - `appScope` = never-cancelled `SupervisorJob() + Dispatchers.IO` scope for writes that must outlive the UI that started them
   - `appWidgetHost` = `AppWidgetHost(context, 1024)`, created and `startListening()`-ed when `AppGraphImpl` is constructed in `Application.onCreate`; never stopped. Activities use `createView(context, appWidgetId, providerInfo)`, `allocateAppWidgetId()`, `deleteAppWidgetId(id)` on it. Binding a provider to an id needs user consent (`AppWidgetManager.ACTION_APPWIDGET_BIND`) unless `bindAppWidgetIdIfAllowed` succeeds; that flow belongs to `widgets/`.
 - `val LocalAppGraph: ProvidableCompositionLocal<AppGraph>` (static; throws if unprovided)
@@ -272,8 +337,8 @@ All under `app/src/main/java/com/foldos/launcher/data/`.
 
 - `db/LayoutDatabase.kt`: Room **version 3**, entities `PageEntity`, `ItemEntity`, converters `LayoutConverters` (enums by name). `LayoutDatabase.MIGRATION_1_2` adds to `items`: `app_widget_id INTEGER`, `builtin_id TEXT`, `stack_id INTEGER`, `stack_index INTEGER NOT NULL DEFAULT 0`, `free INTEGER NOT NULL DEFAULT 0`, `x_dp REAL`, `y_dp REAL`, `w_dp REAL`, `h_dp REAL`. `MIGRATION_2_3` adds `parent_id INTEGER` (+ `index_items_parent_id`), `package_name_2 TEXT`, `activity_name_2 TEXT`, `folder_style TEXT`. `create(context)` adds both migrations and keeps `fallbackToDestructiveMigration(dropAllTables = true)` as the last resort. Every future schema change bumps the version and adds a `Migration`.
 - `db/LayoutEntities.kt`: `PageEntity(id, screen, page_index, style)`; `ItemEntity(id, page_id, kind, grid_col, grid_row, span_x, span_y, package_name, activity_name, title, app_widget_id, builtin_id, stack_id, stack_index, free, x_dp, y_dp, w_dp, h_dp, parent_id, package_name_2, activity_name_2, folder_style)` with `toModel()` / `fromModel()`.
-- `db/LayoutDao.kt`: `pagesByScreen`, `pagesByScreenOnce`, `pageById`, `firstPage`, `countPages`, `maxPageIndex`, `upsertPage`, `setPageStyle(pageId, style: String)`, `setPageIndex`, `deletePage`, `itemsByPage` / `itemsByPageOnce` (both `parent_id IS NULL`), `childrenOf(parentId): Flow`, `childrenOfOnce`, `countChildren`, `placeInFolder(id, parentId, pageId, col, row)`, `removeFromFolder(id, pageId, col, row)`, `moveChildren(parentId, pageId)`, `setFolderStyle(id, style: String?)`, `deleteChildren(parentId)`, `itemById`, `itemsByIds`, `countItemsForScreen`, `countItemsForPage`, `upsertItem`, `upsertItems`, `moveItem`, `moveStack`, `resizeItem`, `resizeStack`, `placeInStack`, `deleteItem`.
+- `db/LayoutDao.kt`: `pagesByScreen`, `pagesByScreenOnce`, `pageById`, `firstPage`, `countPages`, `maxPageIndex`, `upsertPage`, `setPageStyle(pageId, style: String)`, `setPageIndex`, `deletePage`, `itemsByPage` / `itemsByPageOnce` (both `parent_id IS NULL`), `childrenOf(parentId): Flow`, `childrenOfOnce`, `countChildren`, `placeInFolder(id, parentId, pageId, col, row)`, `removeFromFolder(id, pageId, col, row)`, `moveChildren(parentId, pageId)`, `setFolderStyle(id, style: String?)`, `deleteChildren(parentId)`, `itemById`, `itemsByIds`, `countItemsForScreen`, `countItemsForPage`, `upsertItem`, `upsertItems`, `moveItem`, `moveStack`, `resizeItem`, `resizeStack`, `placeInStack`, `deleteItem`, `allPagesOnce`, `allItemsByPageOnce`, `deleteAllItems`, `deleteAllPages` (Phase 6).
 - `LayoutRepositoryImpl(db: LayoutDatabase) : LayoutRepository` implements every method above (including `children`, `createFolder`, `createPair`, `removeFromFolder`); extra public `suspend fun upsertPage(page: HomePage): Long` and `suspend fun setFolderStyle(folderId: Long, style: String?)`.
 - `SettingsRepositoryImpl(context)`; `AppsRepositoryImpl(context, settings: SettingsRepository? = null, iconResolver: () -> IconResolver? = { null })` — `apps` = `allApps` minus `settings.hiddenApps` (package name or `AppInfo.key`), re-emitting when the set changes; `allApps` = every launchable activity.
 - Placeholders replaced in later phases: `PlaceholderWidgetCatalog(context)`, `EmptyBuiltInWidgetRegistry()`, `PassthroughIconResolver(settings)` (Phase 2+3, now unused fallbacks); Phase 4+5: `EmptyBadgeRepository()` (empty flows), `InMemoryProfileRepository(settings)` (profiles kept in memory; `activate` / `captureCurrent` really go through `SettingsRepository`, `activate` keeps the device's `wizardDone`), `EmptyHubRepository()` (empty flows, no-op writes), `NotConfiguredMailRepository()` (`MailState.NotConfigured`, no-op calls), `TemplateAiCommandRouter(provider: AiProvider = TemplateAiProvider())` (echo reply, `appliedSettings = false`).
-- `AppGraphImpl(context) : AppGraph` wires all of the above (`badges`, `profiles`, `hub`, `mail`, `ai` are the placeholders, one `by lazy` line each); `appWidgetHost` is created eagerly and started in `init`.
+- `AppGraphImpl(context) : AppGraph` wires all of the above (`badges`, `profiles`, `hub`, `mail`, `ai` are the placeholders, one `by lazy` line each); Phase 6 adds `backup` = `NotImplementedBackupRepository()` (`data/NotImplementedBackupRepository.kt`); `appWidgetHost` is created eagerly and started in `init`.

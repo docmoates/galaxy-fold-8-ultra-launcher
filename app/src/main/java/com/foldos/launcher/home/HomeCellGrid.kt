@@ -4,7 +4,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -114,11 +116,14 @@ internal fun HomeCellGrid(
     } else {
         Modifier
     }
+    // The callback is usually a fresh lambda per recomposition; read the latest one inside a
+    // detector that is keyed only on whether a callback exists.
+    val latestEmptyLongPress by rememberUpdatedState(onEmptyLongPress)
     val press = if (onEmptyLongPress != null) {
-        Modifier.pointerInput(onEmptyLongPress, metrics) {
+        Modifier.pointerInput(metrics) {
             detectTapGestures(
                 onLongPress = { offset ->
-                    onEmptyLongPress(metrics.colAt(offset.x.roundToInt()), metrics.rowAt(offset.y.roundToInt()))
+                    latestEmptyLongPress?.invoke(metrics.colAt(offset.x.roundToInt()), metrics.rowAt(offset.y.roundToInt()))
                 },
             )
         }
