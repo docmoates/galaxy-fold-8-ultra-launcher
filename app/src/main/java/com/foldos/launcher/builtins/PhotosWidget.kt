@@ -113,6 +113,8 @@ fun PhotosWidget(spanX: Int, spanY: Int, modifier: Modifier) {
     // Full-bleed card: no inner padding so the photo reaches the rounded edge.
     FoldOsSurface(modifier = modifier, contentPadding = PaddingValues(0.dp)) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
+            // Read the scope here: @LayoutScopeMarker hides it inside the nested Row/Column lambdas.
+            val tall = maxHeight > 220.dp
             if (latest?.thumbnail != null) {
                 Image(
                     bitmap = latest.thumbnail,
@@ -159,7 +161,7 @@ fun PhotosWidget(spanX: Int, spanY: Int, modifier: Modifier) {
                                     val t = photo.thumbnail
                                     Box(
                                         Modifier
-                                            .size(if (maxHeight > 220.dp) 48.dp else 36.dp)
+                                            .size(if (tall) 48.dp else 36.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(Color.White.copy(alpha = 0.2f))
                                             .clickable { openPhoto(context, photo.uri) },
