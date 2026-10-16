@@ -45,6 +45,7 @@ import com.foldos.launcher.drawer.rememberDrawerBackdropModifier
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** Width of the list pane on the inner / flex card. */
@@ -94,9 +95,8 @@ fun WidgetPicker(
     // The catalog loads eagerly in the background and replays its last list, so subscribing while the
     // picker is hidden costs nothing and the first open already has the widgets. null until the first
     // list arrives: the UI shows a spinner then, not "no widgets".
-    val loadedEntries: List<WidgetEntry>? by catalog.entries.collectAsStateWithLifecycle<List<WidgetEntry>, List<WidgetEntry>?>(
-        initialValue = null,
-    )
+    val entriesFlow = remember(catalog) { catalog.entries.map<List<WidgetEntry>, List<WidgetEntry>?> { it } }
+    val loadedEntries: List<WidgetEntry>? by entriesFlow.collectAsStateWithLifecycle(initialValue = null)
 
     // Recents are only subscribed to while the picker is up (the composable stays in the tree, hidden):
     // a completed empty flow keeps the last values in the state, so the exit animation still has content.
