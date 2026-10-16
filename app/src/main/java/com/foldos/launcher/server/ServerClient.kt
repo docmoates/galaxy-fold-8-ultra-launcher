@@ -40,7 +40,7 @@ data class ServerInboxMessage(
 data class ServerInbox(val account: String?, val unread: Int, val messages: List<ServerInboxMessage>)
 
 /**
- * Small client for the Crosspoint server's `/api/v1/foldos/*` endpoints (HttpURLConnection + org.json, 10 s
+ * Small client for the Crosspoint server's `/api/v1/foldos` endpoints (HttpURLConnection + org.json, 10 s
  * timeouts, always on Dispatchers.IO). Every call throws [ServerException] for a non-2xx answer and
  * `java.io.IOException` when the server cannot be reached. Never logs tokens, passwords or bodies. More
  * server-backed features can add their calls here.
