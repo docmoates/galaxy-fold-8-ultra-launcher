@@ -1,0 +1,4790 @@
+﻿[
+    {
+        "name":  "Digital Clock",
+        "source":  "Google Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x1",
+        "api":  "AppWidget (TextClock)",
+        "desc":  "Large digital time with date and next alarm",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Analog Clock",
+        "source":  "Google Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AppWidget (AnalogClock)",
+        "desc":  "Classic analog face with themed hands",
+        "kind":  "clock"
+    },
+    {
+        "name":  "World Clock",
+        "source":  "Google Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x2",
+        "api":  "AppWidget (TextClock + ZoneId)",
+        "desc":  "Local times for several chosen cities",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Timer",
+        "source":  "Google Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Running timers with pause and add-minute",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Stopwatch",
+        "source":  "Google Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live stopwatch with lap and reset buttons",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Dual Clock",
+        "source":  "Samsung Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x1",
+        "api":  "AppWidget (TextClock + ZoneId)",
+        "desc":  "Home and roaming city times side by side",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Alarm",
+        "source":  "Samsung Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AlarmManager",
+        "desc":  "Next alarm with on/off toggle",
+        "kind":  "clock"
+    },
+    {
+        "name":  "At a Glance",
+        "source":  "Google (Pixel Launcher)",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x1",
+        "api":  "Glance",
+        "desc":  "Date, weather and contextual smart cards",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Chronus Clock",
+        "source":  "Chronus Information Widgets",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Clock with weather, calendar and news feeds",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Alarmy Next Alarm",
+        "source":  "Alarmy",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Upcoming alarm and its wake-up mission",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Sleep as Android",
+        "source":  "Sleep as Android",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AlarmManager",
+        "desc":  "Next alarm with start sleep tracking",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Hinge Split Clock",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x2",
+        "api":  "Jetpack WindowManager",
+        "desc":  "Hours and minutes split either side of the hinge",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Tent Mode Clock",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x4",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Becomes a large bedside clock in tent posture",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Pomodoro Timer",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AlarmManager",
+        "desc":  "Focus and break cycles with a progress ring",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Time Zone Planner",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x2",
+        "api":  "java.time ZoneId",
+        "desc":  "Overlapping working hours across time zones",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Pixel Weather",
+        "source":  "Google Weather",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Current conditions with hourly forecast strip",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Weather Forecast",
+        "source":  "Samsung Weather",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Current temperature and multi-day forecast",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Weather and Clock",
+        "source":  "Samsung Weather",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Large time with current weather beneath",
+        "kind":  "weather"
+    },
+    {
+        "name":  "AccuWeather",
+        "source":  "AccuWeather",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "RealFeel temperature and hourly outlook",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Weather Channel",
+        "source":  "The Weather Channel",
+        "category":  "Weather",
+        "size":  "4x1",
+        "api":  "Fused Location + weather API",
+        "desc":  "Current conditions and today\u0027s high/low",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Today Weather",
+        "source":  "Today Weather",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Forecast with air quality and UV index",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Carrot Weather",
+        "source":  "Carrot Weather",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Snarky forecast with current conditions",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Rain Radar",
+        "source":  "RainViewer",
+        "category":  "Weather",
+        "size":  "4x4",
+        "api":  "Fused Location + radar tiles",
+        "desc":  "Animated precipitation radar around you",
+        "kind":  "map"
+    },
+    {
+        "name":  "MyRadar",
+        "source":  "MyRadar",
+        "category":  "Weather",
+        "size":  "4x4",
+        "api":  "Fused Location + radar tiles",
+        "desc":  "Live weather radar loop for your area",
+        "kind":  "map"
+    },
+    {
+        "name":  "Wind Forecast",
+        "source":  "Windy.com",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Wind speed, gusts and direction forecast",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Overdrop",
+        "source":  "Overdrop",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Stylized weather card with daily forecast",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Breezy Weather",
+        "source":  "Breezy Weather",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Open-source forecast with alerts and pollen",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Weather Underground",
+        "source":  "Weather Underground",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Hyperlocal conditions from nearby stations",
+        "kind":  "weather"
+    },
+    {
+        "name":  "1Weather",
+        "source":  "1Weather",
+        "category":  "Weather",
+        "size":  "4x1",
+        "api":  "Fused Location + weather API",
+        "desc":  "Current temperature with precipitation chance",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Air Quality",
+        "source":  "IQAir AirVisual",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + AQI API",
+        "desc":  "Live AQI with pollutant breakdown",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Hinge Panorama Forecast",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "4x3",
+        "api":  "WindowManager + weather API",
+        "desc":  "Hourly chart on one panel, radar on the other",
+        "kind":  "chart"
+    },
+    {
+        "name":  "UV Index",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Current UV level with safe exposure time",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Rain Alert",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "4x1",
+        "api":  "Fused Location + weather API",
+        "desc":  "Minutes until rain starts or stops nearby",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Schedule",
+        "source":  "Google Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "CalendarContract",
+        "desc":  "Scrollable agenda of upcoming events",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Month",
+        "source":  "Google Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x4",
+        "api":  "CalendarContract",
+        "desc":  "Month grid with event dots and today marker",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Calendar Month",
+        "source":  "Samsung Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x4",
+        "api":  "CalendarContract",
+        "desc":  "Full month view with event titles",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Reminder",
+        "source":  "Samsung Reminder",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Upcoming reminders with check-off",
+        "kind":  "list"
+    },
+    {
+        "name":  "Tasks",
+        "source":  "Google Tasks",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Task list with checkboxes and add button",
+        "kind":  "list"
+    },
+    {
+        "name":  "Todoist List",
+        "source":  "Todoist",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tasks for Today or any filter or project",
+        "kind":  "list"
+    },
+    {
+        "name":  "Todoist Quick Add",
+        "source":  "Todoist",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "One-tap new task with natural language",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "TickTick Tasks",
+        "source":  "TickTick",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Task list with priorities and due dates",
+        "kind":  "list"
+    },
+    {
+        "name":  "TickTick Habits",
+        "source":  "TickTick",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily habit check-ins with streaks",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Microsoft To Do",
+        "source":  "Microsoft To Do",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "My Day tasks with quick completion",
+        "kind":  "list"
+    },
+    {
+        "name":  "Any.do",
+        "source":  "Any.do",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tasks and calendar events in one list",
+        "kind":  "list"
+    },
+    {
+        "name":  "Business Calendar",
+        "source":  "Business Calendar 2",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x4",
+        "api":  "CalendarContract",
+        "desc":  "Customizable week or month calendar view",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Outlook Calendar",
+        "source":  "Microsoft Outlook",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Agenda of upcoming work and personal events",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Calendar Agenda",
+        "source":  "Samsung Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "CalendarContract",
+        "desc":  "Upcoming events and tasks as a list",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Proton Calendar",
+        "source":  "Proton Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Encrypted calendar agenda for the week",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Agenda Spread",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x4",
+        "api":  "CalendarContract + WindowManager",
+        "desc":  "Week grid left of hinge, today\u0027s agenda right",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Next Meeting",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x1",
+        "api":  "CalendarContract",
+        "desc":  "Next event with countdown and join link",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Day Progress",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "2x2",
+        "api":  "CalendarContract",
+        "desc":  "Ring of how much of the workday has elapsed",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Gmail Inbox",
+        "source":  "Gmail",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "Gmail API",
+        "desc":  "Recent inbox threads with unread count",
+        "kind":  "list"
+    },
+    {
+        "name":  "Samsung Email",
+        "source":  "Samsung Email",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Latest messages from a chosen mailbox",
+        "kind":  "list"
+    },
+    {
+        "name":  "Outlook Mail",
+        "source":  "Microsoft Outlook",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Focused inbox preview with compose button",
+        "kind":  "list"
+    },
+    {
+        "name":  "Spark Inbox",
+        "source":  "Spark Mail",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Smart inbox of new and priority email",
+        "kind":  "list"
+    },
+    {
+        "name":  "WhatsApp Chats",
+        "source":  "WhatsApp",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent unread chats and message previews",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Telegram Chats",
+        "source":  "Telegram",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Pinned and recent chats with previews",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Conversation",
+        "source":  "Android System",
+        "category":  "Communication",
+        "size":  "2x2",
+        "api":  "People API (Conversation widget)",
+        "desc":  "One contact\u0027s latest message and status",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Direct Dial",
+        "source":  "Samsung Phone",
+        "category":  "Communication",
+        "size":  "1x1",
+        "api":  "ContactsContract",
+        "desc":  "Call a favorite contact in one tap",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "Direct Message",
+        "source":  "Samsung Messages",
+        "category":  "Communication",
+        "size":  "1x1",
+        "api":  "ContactsContract",
+        "desc":  "Open a text thread with one contact",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "Contact",
+        "source":  "Google Contacts",
+        "category":  "Communication",
+        "size":  "1x1",
+        "api":  "ContactsContract",
+        "desc":  "Shortcut to a single contact card",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "Unified Inbox",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "NotificationListenerService",
+        "desc":  "Unread messages across all chat apps",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Favorite Contacts",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "ContactsContract",
+        "desc":  "Starred contacts with call and text buttons",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "Missed Calls",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "CallLog.Calls",
+        "desc":  "Recent missed calls with call-back action",
+        "kind":  "list"
+    },
+    {
+        "name":  "Dual-Pane Chat",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x4",
+        "api":  "NotificationListener + WindowManager",
+        "desc":  "Thread list left of hinge, open chat right",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Spotify Player",
+        "source":  "Spotify",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Now playing art with playback controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "YouTube Music",
+        "source":  "YouTube Music",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Current track and quick access to mixes",
+        "kind":  "media"
+    },
+    {
+        "name":  "YouTube Search",
+        "source":  "YouTube",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search bar with Shorts and Subscriptions",
+        "kind":  "search"
+    },
+    {
+        "name":  "Pocket Casts",
+        "source":  "Pocket Casts",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Up Next queue with skip controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "Audible",
+        "source":  "Audible",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Current audiobook with progress and play",
+        "kind":  "media"
+    },
+    {
+        "name":  "Samsung Music",
+        "source":  "Samsung Music",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Now playing with album art and controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "SoundCloud",
+        "source":  "SoundCloud",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "MediaSession",
+        "desc":  "Compact player for the current track",
+        "kind":  "media"
+    },
+    {
+        "name":  "Shazam",
+        "source":  "Shazam",
+        "category":  "Media \u0026 Audio",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tap to identify the song playing nearby",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Amazon Music",
+        "source":  "Amazon Music",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Now playing and recently played stations",
+        "kind":  "media"
+    },
+    {
+        "name":  "Pandora",
+        "source":  "Pandora",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "MediaSession",
+        "desc":  "Station player with thumbs up and skip",
+        "kind":  "media"
+    },
+    {
+        "name":  "Poweramp",
+        "source":  "Poweramp",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Local music player with seek and shuffle",
+        "kind":  "media"
+    },
+    {
+        "name":  "Deezer",
+        "source":  "Deezer",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Flow and current track with controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "VLC Mini Player",
+        "source":  "VLC for Android",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "MediaSession",
+        "desc":  "Compact controls for local audio and video",
+        "kind":  "media"
+    },
+    {
+        "name":  "Voice Recorder",
+        "source":  "Samsung Voice Recorder",
+        "category":  "Media \u0026 Audio",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Start or stop a recording instantly",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Now Playing",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Controls for whichever app is playing audio",
+        "kind":  "media"
+    },
+    {
+        "name":  "Volume Mixer",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "AudioManager",
+        "desc":  "Sliders for media, ring and alarm volume",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Audio Output",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "2x2",
+        "api":  "MediaRouter2",
+        "desc":  "Switch between speaker, buds and cast",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Flex Mode Player",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x4",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Art above the fold, controls below in Flex Mode",
+        "kind":  "media"
+    },
+    {
+        "name":  "Memories",
+        "source":  "Google Photos",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Rotating photos from this day in past years",
+        "kind":  "photo"
+    },
+    {
+        "name":  "People and Pets",
+        "source":  "Google Photos",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Photos of chosen faces on rotation",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Gallery Story",
+        "source":  "Samsung Gallery",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "MediaStore",
+        "desc":  "Auto-created story highlights slideshow",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Gallery Album",
+        "source":  "Samsung Gallery",
+        "category":  "Photos",
+        "size":  "4x4",
+        "api":  "MediaStore",
+        "desc":  "Slideshow from a selected album",
+        "kind":  "photo"
+    },
+    {
+        "name":  "OneDrive Photos",
+        "source":  "Microsoft OneDrive",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "On-this-day photos from your cloud",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Photo Widget",
+        "source":  "Photo Widget",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "MediaStore",
+        "desc":  "Single photo or slideshow with custom shapes",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Pinterest Feed",
+        "source":  "Pinterest",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Pins from your home feed for inspiration",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Photo Frame",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x4",
+        "api":  "MediaStore",
+        "desc":  "Full-bleed rotating photo frame",
+        "kind":  "photo"
+    },
+    {
+        "name":  "On This Day",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "MediaStore",
+        "desc":  "Local photos taken on this date",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Recent Screenshots",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x2",
+        "api":  "MediaStore",
+        "desc":  "Latest screenshots ready to share",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Hinge Panorama",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x2",
+        "api":  "MediaStore + WindowManager",
+        "desc":  "Wide photo that spans across the hinge",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Keep Note",
+        "source":  "Google Keep",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Pinned note or checklist on home screen",
+        "kind":  "note"
+    },
+    {
+        "name":  "Keep Quick Capture",
+        "source":  "Google Keep",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "New text, list, voice or photo note",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Samsung Notes",
+        "source":  "Samsung Notes",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Preview of a selected note",
+        "kind":  "note"
+    },
+    {
+        "name":  "OneNote Quick Note",
+        "source":  "Microsoft OneNote",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Capture a note, photo or voice clip",
+        "kind":  "note"
+    },
+    {
+        "name":  "Notion",
+        "source":  "Notion",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Favorite pages and database views",
+        "kind":  "list"
+    },
+    {
+        "name":  "Evernote",
+        "source":  "Evernote",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Quick actions to create notes and tasks",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Google Drive",
+        "source":  "Google Drive",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search, scan and suggested files",
+        "kind":  "list"
+    },
+    {
+        "name":  "Dropbox",
+        "source":  "Dropbox",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent files and quick upload",
+        "kind":  "list"
+    },
+    {
+        "name":  "ColorNote",
+        "source":  "ColorNote",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Colored sticky note on the home screen",
+        "kind":  "note"
+    },
+    {
+        "name":  "Forest Focus",
+        "source":  "Forest",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Grow a tree while you stay focused",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Sticky Note",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "Jetpack Glance + DataStore",
+        "desc":  "Editable sticky note on the home screen",
+        "kind":  "note"
+    },
+    {
+        "name":  "Clipboard History",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x2",
+        "api":  "ClipboardManager",
+        "desc":  "Recent clips to copy again with one tap",
+        "kind":  "list"
+    },
+    {
+        "name":  "Focus Session",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "UsageStatsManager",
+        "desc":  "Time in focus apps versus distractions",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Split Notes",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x4",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Two notes side by side across the hinge",
+        "kind":  "note"
+    },
+    {
+        "name":  "Steps",
+        "source":  "Samsung Health",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "Health Connect",
+        "desc":  "Daily step count toward your goal",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Sleep",
+        "source":  "Samsung Health",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "Health Connect",
+        "desc":  "Last night\u0027s sleep stages and score",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Daily Activity",
+        "source":  "Samsung Health",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "Health Connect",
+        "desc":  "Steps, active time and calories burned",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Fitbit Today",
+        "source":  "Fitbit",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "Health Connect",
+        "desc":  "Steps, Active Zone Minutes and heart rate",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Strava Stats",
+        "source":  "Strava",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Weekly distance and recent activities",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Calories Remaining",
+        "source":  "MyFitnessPal",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Calories left today with macros",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Garmin Connect",
+        "source":  "Garmin Connect",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Body Battery, steps and stress level",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Oura Readiness",
+        "source":  "Oura",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Readiness, sleep and activity scores",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Medisafe Meds",
+        "source":  "Medisafe",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Upcoming medication doses to take",
+        "kind":  "list"
+    },
+    {
+        "name":  "Loop Habit Tracker",
+        "source":  "Loop Habit Tracker",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Habit checkmark with strength score",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Activity Rings",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "Health Connect",
+        "desc":  "Move, exercise and stand goals as rings",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Heart Rate Trend",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "Health Connect",
+        "desc":  "Resting heart rate chart for the week",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Sleep Summary",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "Health Connect",
+        "desc":  "Sleep duration trend and bedtime consistency",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Hydration",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x1",
+        "api":  "Health Connect",
+        "desc":  "Glasses of water logged with plus button",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Step Counter",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x1",
+        "api":  "Sensor TYPE_STEP_COUNTER",
+        "desc":  "On-device step count since midnight",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Batteries",
+        "source":  "Samsung Device Care",
+        "category":  "Device \u0026 System",
+        "size":  "4x1",
+        "api":  "BatteryManager + Bluetooth",
+        "desc":  "Battery for phone, watch, buds and pen",
+        "kind":  "battery"
+    },
+    {
+        "name":  "Battery",
+        "source":  "Google Settings Services",
+        "category":  "Device \u0026 System",
+        "size":  "4x1",
+        "api":  "BatteryManager + Bluetooth",
+        "desc":  "Phone and connected accessory battery levels",
+        "kind":  "battery"
+    },
+    {
+        "name":  "Screen Time",
+        "source":  "Samsung Digital Wellbeing",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "UsageStatsManager",
+        "desc":  "Today\u0027s screen time and top apps",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Galaxy Wearable",
+        "source":  "Galaxy Wearable",
+        "category":  "Device \u0026 System",
+        "size":  "4x1",
+        "api":  "Bluetooth + Wearable API",
+        "desc":  "Watch and buds battery and connection",
+        "kind":  "battery"
+    },
+    {
+        "name":  "AccuBattery",
+        "source":  "AccuBattery",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "BatteryManager",
+        "desc":  "Charge level, health and discharge rate",
+        "kind":  "battery"
+    },
+    {
+        "name":  "Speedtest",
+        "source":  "Speedtest by Ookla",
+        "category":  "Device \u0026 System",
+        "size":  "2x1",
+        "api":  "ConnectivityManager",
+        "desc":  "Last result with one-tap new test",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Modes and Routines",
+        "source":  "Samsung Modes and Routines",
+        "category":  "Device \u0026 System",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Switch modes like Sleep, Work or Driving",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Battery Widget Reborn",
+        "source":  "Battery Widget Reborn",
+        "category":  "Device \u0026 System",
+        "size":  "1x1",
+        "api":  "BatteryManager",
+        "desc":  "Compact battery percent with charge state",
+        "kind":  "battery"
+    },
+    {
+        "name":  "Data Manager",
+        "source":  "My Data Manager",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "NetworkStatsManager",
+        "desc":  "Mobile data used against your plan",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Settings Shortcut",
+        "source":  "Android Settings",
+        "category":  "Device \u0026 System",
+        "size":  "1x1",
+        "api":  "Settings intents",
+        "desc":  "Jump straight to a chosen settings page",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Battery Ring",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "BatteryManager",
+        "desc":  "Charge ring with time to full or empty",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Storage",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "StorageStatsManager",
+        "desc":  "Used and free storage by category",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Quick Toggles",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "4x1",
+        "api":  "Settings panels + CameraManager",
+        "desc":  "Wi-Fi, Bluetooth, torch and DND toggles",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Hinge Angle",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "WindowManager + hinge angle sensor",
+        "desc":  "Live hinge angle and current fold posture",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Posture Profiles",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "4x2",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Layouts per posture: flat, tent and flex",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Connected Devices",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "4x2",
+        "api":  "BluetoothManager",
+        "desc":  "Paired devices with battery and connect",
+        "kind":  "battery"
+    },
+    {
+        "name":  "Favorites",
+        "source":  "Google Home",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Quick controls for favorite devices",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "SmartThings Scenes",
+        "source":  "SmartThings",
+        "category":  "Smart Home",
+        "size":  "4x1",
+        "api":  "SmartThings API",
+        "desc":  "Run scenes like Good Night or Away",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "SmartThings Devices",
+        "source":  "SmartThings",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "SmartThings API",
+        "desc":  "Toggle lights, plugs and appliances",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Hue Scenes",
+        "source":  "Philips Hue",
+        "category":  "Smart Home",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Switch rooms and scenes on your Hue lights",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Alexa",
+        "source":  "Amazon Alexa",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Device controls and Alexa quick actions",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Home Assistant Entity",
+        "source":  "Home Assistant",
+        "category":  "Smart Home",
+        "size":  "2x1",
+        "api":  "Home Assistant API",
+        "desc":  "State and toggle for any HA entity",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Smart Life Scenes",
+        "source":  "Smart Life (Tuya)",
+        "category":  "Smart Home",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tap-to-run scenes and automations",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Govee Lights",
+        "source":  "Govee Home",
+        "category":  "Smart Home",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Power and color presets for Govee lights",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "LIFX",
+        "source":  "LIFX",
+        "category":  "Smart Home",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Toggle LIFX lights and favorite scenes",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Tapo",
+        "source":  "TP-Link Tapo",
+        "category":  "Smart Home",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Smart plug and camera quick controls",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Matter Devices",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "Device Controls API + Matter",
+        "desc":  "Control Matter devices without opening apps",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Camera Wall",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "4x3",
+        "api":  "SmartThings API + WindowManager",
+        "desc":  "Camera grid that expands across both panels",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Energy Usage",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "SmartThings API",
+        "desc":  "Home energy consumption chart by day",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Thermostat",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "2x2",
+        "api":  "Device Controls API",
+        "desc":  "Dial to view and set target temperature",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Traffic Nearby",
+        "source":  "Google Maps",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live traffic map around your location",
+        "kind":  "map"
+    },
+    {
+        "name":  "Directions",
+        "source":  "Google Maps",
+        "category":  "Travel \u0026 Maps",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Saved route shortcut to start navigation",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "TripIt",
+        "source":  "TripIt",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Upcoming trip plans and flight details",
+        "kind":  "list"
+    },
+    {
+        "name":  "Flightradar24",
+        "source":  "Flightradar24",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live flights overhead and tracked flights",
+        "kind":  "map"
+    },
+    {
+        "name":  "Citymapper",
+        "source":  "Citymapper",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Get Me Home and nearby departures",
+        "kind":  "list"
+    },
+    {
+        "name":  "Transit Departures",
+        "source":  "Transit",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Real-time departures for nearby lines",
+        "kind":  "list"
+    },
+    {
+        "name":  "Translate",
+        "source":  "Google Translate",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Quick text, camera and conversation modes",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Moovit",
+        "source":  "Moovit",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Saved lines with live arrival times",
+        "kind":  "list"
+    },
+    {
+        "name":  "Commute",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "Fused Location + Routes API",
+        "desc":  "Drive time to work or home with traffic",
+        "kind":  "map"
+    },
+    {
+        "name":  "Map Glance",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x4",
+        "api":  "Fused Location + Maps SDK lite",
+        "desc":  "Mini map of where you are right now",
+        "kind":  "map"
+    },
+    {
+        "name":  "Parking Spot",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x2",
+        "api":  "Fused Location",
+        "desc":  "Remembers where you parked with a pin",
+        "kind":  "map"
+    },
+    {
+        "name":  "Trip Countdown",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x1",
+        "api":  "CalendarContract",
+        "desc":  "Days until your next trip departs",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Yahoo Finance",
+        "source":  "Yahoo Finance",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Watchlist quotes with daily change",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Investing.com",
+        "source":  "Investing.com",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Market indices, quotes and portfolio",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Coinbase Prices",
+        "source":  "Coinbase",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Crypto prices with sparkline charts",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Robinhood",
+        "source":  "Robinhood",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Portfolio value and watchlist movers",
+        "kind":  "chart"
+    },
+    {
+        "name":  "YNAB Budget",
+        "source":  "YNAB",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Category balances left to spend",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Wallet Budget",
+        "source":  "Wallet by BudgetBakers",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Balance trend and spending by category",
+        "kind":  "chart"
+    },
+    {
+        "name":  "CoinMarketCap",
+        "source":  "CoinMarketCap",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Prices for your crypto watchlist",
+        "kind":  "chart"
+    },
+    {
+        "name":  "TradingView",
+        "source":  "TradingView",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Symbol watchlist with mini charts",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Bluecoins",
+        "source":  "Bluecoins",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Account balances and quick add expense",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Samsung Wallet",
+        "source":  "Samsung Wallet",
+        "category":  "Finance",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Quick access to pay cards and passes",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Currency Converter",
+        "source":  "FoldOS built-in",
+        "category":  "Finance",
+        "size":  "2x1",
+        "api":  "Exchange-rate API + Locale",
+        "desc":  "Live rate between two currencies",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Spending Pulse",
+        "source":  "FoldOS built-in",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "NotificationListenerService",
+        "desc":  "Spending this week parsed from bank alerts",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Headlines",
+        "source":  "Google News",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Top stories tailored to your interests",
+        "kind":  "news"
+    },
+    {
+        "name":  "Microsoft Start",
+        "source":  "Microsoft Start",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "News headlines with weather and markets",
+        "kind":  "news"
+    },
+    {
+        "name":  "Flipboard",
+        "source":  "Flipboard",
+        "category":  "News \u0026 Reading",
+        "size":  "4x4",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Magazine-style rotating top stories",
+        "kind":  "news"
+    },
+    {
+        "name":  "BBC News",
+        "source":  "BBC News",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Latest headlines from the BBC",
+        "kind":  "news"
+    },
+    {
+        "name":  "NYT Headlines",
+        "source":  "The New York Times",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Top stories from The New York Times",
+        "kind":  "news"
+    },
+    {
+        "name":  "Guardian Headlines",
+        "source":  "The Guardian",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Latest Guardian stories by section",
+        "kind":  "news"
+    },
+    {
+        "name":  "Inoreader",
+        "source":  "Inoreader",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Unread articles from your RSS feeds",
+        "kind":  "list"
+    },
+    {
+        "name":  "Wikipedia Featured",
+        "source":  "Wikipedia",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Featured article of the day",
+        "kind":  "news"
+    },
+    {
+        "name":  "Ground News",
+        "source":  "Ground News",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Top stories with bias coverage bars",
+        "kind":  "news"
+    },
+    {
+        "name":  "SmartNews",
+        "source":  "SmartNews",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Trending headlines and local news",
+        "kind":  "news"
+    },
+    {
+        "name":  "RSS Reader",
+        "source":  "FoldOS built-in",
+        "category":  "News \u0026 Reading",
+        "size":  "4x4",
+        "api":  "WorkManager + RSS feeds",
+        "desc":  "Feed list left of hinge, article preview right",
+        "kind":  "news"
+    },
+    {
+        "name":  "Reading Progress",
+        "source":  "FoldOS built-in",
+        "category":  "News \u0026 Reading",
+        "size":  "2x2",
+        "api":  "Jetpack Glance + DataStore",
+        "desc":  "Pages read toward your daily goal",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Google Search",
+        "source":  "Google",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search bar with voice and Lens buttons",
+        "kind":  "search"
+    },
+    {
+        "name":  "Gemini",
+        "source":  "Google Gemini",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Ask Gemini by text, voice or camera",
+        "kind":  "search"
+    },
+    {
+        "name":  "ChatGPT",
+        "source":  "ChatGPT",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Start a chat, voice mode or photo prompt",
+        "kind":  "search"
+    },
+    {
+        "name":  "Copilot",
+        "source":  "Microsoft Copilot",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Ask Copilot with text, voice or image",
+        "kind":  "search"
+    },
+    {
+        "name":  "Perplexity",
+        "source":  "Perplexity",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Answer-engine search bar with voice",
+        "kind":  "search"
+    },
+    {
+        "name":  "DuckDuckGo",
+        "source":  "DuckDuckGo",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Private search bar with Fire button",
+        "kind":  "search"
+    },
+    {
+        "name":  "Firefox Search",
+        "source":  "Mozilla Firefox",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search bar that opens in Firefox",
+        "kind":  "search"
+    },
+    {
+        "name":  "Edge Search",
+        "source":  "Microsoft Edge",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Bing search bar with voice and camera",
+        "kind":  "search"
+    },
+    {
+        "name":  "Brave Search",
+        "source":  "Brave Browser",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Private search bar for Brave",
+        "kind":  "search"
+    },
+    {
+        "name":  "Chrome Bookmarks",
+        "source":  "Google Chrome",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Browse and open your Chrome bookmarks",
+        "kind":  "list"
+    },
+    {
+        "name":  "Universal Search",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppSearch + LauncherApps",
+        "desc":  "Search apps, contacts, files and settings",
+        "kind":  "search"
+    },
+    {
+        "name":  "App Pairs",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "WindowManager activity embedding",
+        "desc":  "Launch two apps split across the hinge",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Suggested Apps",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "UsageStatsManager",
+        "desc":  "Apps you are likely to open next",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Folder Widget",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "2x2",
+        "api":  "LauncherApps",
+        "desc":  "Expandable folder of app shortcuts",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Shortcut Grid",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x2",
+        "api":  "ShortcutManager",
+        "desc":  "Deep-link app shortcuts in a grid",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Locket",
+        "source":  "Locket Widget",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live photos from close friends",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Widgetable",
+        "source":  "Widgetable",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Shared doodles, pets and photos with friends",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Friends",
+        "source":  "Snapchat",
+        "category":  "Social",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Bitmoji shortcut to chat with a best friend",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "BeReal",
+        "source":  "BeReal",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Friends\u0027 latest BeReal photos",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Birthdays",
+        "source":  "FoldOS built-in",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "ContactsContract",
+        "desc":  "Upcoming birthdays with message button",
+        "kind":  "list"
+    },
+    {
+        "name":  "Social Digest",
+        "source":  "FoldOS built-in",
+        "category":  "Social",
+        "size":  "4x3",
+        "api":  "NotificationListenerService",
+        "desc":  "Likes, mentions and replies across apps",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Share Shelf",
+        "source":  "FoldOS built-in",
+        "category":  "Social",
+        "size":  "4x1",
+        "api":  "ShortcutManager (sharing shortcuts)",
+        "desc":  "Recent direct-share targets for quick sending",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "KWGT Custom",
+        "source":  "KWGT Kustom Widget Maker",
+        "category":  "Utilities",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Fully custom widget built in an editor",
+        "kind":  "clock"
+    },
+    {
+        "name":  "UCCW Skin",
+        "source":  "UCCW",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "User-designed skins for clocks and stats",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Tasker Task",
+        "source":  "Tasker",
+        "category":  "Utilities",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Run a Tasker task with one tap",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "MacroDroid Macro",
+        "source":  "MacroDroid",
+        "category":  "Utilities",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Trigger an automation macro",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Calculator",
+        "source":  "Fossify Calculator",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Working calculator on the home screen",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Flashlight",
+        "source":  "Fossify Flashlight",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "CameraManager torch",
+        "desc":  "Toggle the flashlight",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Lens",
+        "source":  "Google Lens",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Open Lens to search what you see",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Compass",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "SensorManager",
+        "desc":  "Heading from the magnetometer",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Hinge Protractor",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "WindowManager + hinge angle sensor",
+        "desc":  "Use the fold as a protractor to measure angles",
+        "kind":  "ring"
+    },
+    {
+        "name":  "QR Scanner",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "CameraX + ML Kit",
+        "desc":  "Scan QR and barcodes instantly",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Duolingo Streak",
+        "source":  "Duolingo",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily streak with a lesson reminder",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Finch",
+        "source":  "Finch",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Your self-care pet and daily goals",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Daylio Mood",
+        "source":  "Daylio",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Log today\u0027s mood with one tap",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Daily Quote",
+        "source":  "Motivation - Daily quotes",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Inspirational quote that changes daily",
+        "kind":  "note"
+    },
+    {
+        "name":  "Verse of the Day",
+        "source":  "YouVersion Bible App",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily Bible verse with image",
+        "kind":  "note"
+    },
+    {
+        "name":  "Prayer Times",
+        "source":  "Muslim Pro",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Next prayer time with countdown",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Habitica",
+        "source":  "Habitica",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "RPG stats plus dailies and to-dos",
+        "kind":  "list"
+    },
+    {
+        "name":  "Word of the Day",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x1",
+        "api":  "WorkManager + local dictionary",
+        "desc":  "A new word with definition each morning",
+        "kind":  "note"
+    },
+    {
+        "name":  "Moon Phase",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "Local astronomy calculation",
+        "desc":  "Tonight\u0027s moon phase and illumination",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Fold Pet",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Virtual pet that reacts as you fold the phone",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Days Together",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x1",
+        "api":  "java.time",
+        "desc":  "Days since an anniversary or milestone",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Samsung Digital Clock",
+        "source":  "Samsung Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x1",
+        "api":  "AppWidget (TextClock)",
+        "desc":  "One UI time and date with next alarm shortcut",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Samsung Timer",
+        "source":  "Samsung Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Preset timers you can start with one tap",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Samsung Stopwatch",
+        "source":  "Samsung Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Stopwatch with lap list on the home screen",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Big Days Countdown",
+        "source":  "Big Days",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Days until a chosen event with a photo",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Zen Flip Clock",
+        "source":  "Zen Flip Clock",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Retro flip-card digits with soft tick",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Minimal Clock",
+        "source":  "Minimal Clock Widget",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x1",
+        "api":  "AppWidget (TextClock)",
+        "desc":  "Thin typographic time with a date line",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Time Buddy",
+        "source":  "Time Buddy",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x2",
+        "api":  "AppWidget (TextClock + ZoneId)",
+        "desc":  "Color-coded daylight bars for many zones",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Interval Timer",
+        "source":  "Seconds Interval Timer",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Start a saved interval workout timer",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Alarm Clock Xtreme",
+        "source":  "Alarm Clock Xtreme",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AlarmManager",
+        "desc":  "Next alarm with skip and snooze settings",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Sleep Cycle Alarm",
+        "source":  "Sleep Cycle",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Smart alarm window and last sleep quality",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Sectograph",
+        "source":  "Sectograph",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x4",
+        "api":  "CalendarContract",
+        "desc":  "Day plan drawn as a 12-hour clock dial",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Sunrise Sunset",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "Local astronomy calculation",
+        "desc":  "Sunrise, sunset and golden hour today",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Hourly Chime",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AlarmManager",
+        "desc":  "Soft chime on the hour with mute toggle",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Next Alarm",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AlarmManager.getNextAlarmClock",
+        "desc":  "Next alarm from any app and time until it",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Cover Screen Clock",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "WindowManager + cover display",
+        "desc":  "Compact companion clock for the cover display",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Year Progress",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "4x1",
+        "api":  "java.time",
+        "desc":  "Percent of the year elapsed as a bar",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Sleep Timer",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x1",
+        "api":  "AudioManager + AlarmManager",
+        "desc":  "Stops media playback after set minutes",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Hinge Hourglass",
+        "source":  "FoldOS built-in",
+        "category":  "Clock \u0026 Time",
+        "size":  "2x2",
+        "api":  "Hinge angle sensor",
+        "desc":  "Flip the fold to restart a sand timer",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Weawow",
+        "source":  "Weawow",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Forecast over user-shot weather photos",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Weather Channel 10-Day",
+        "source":  "The Weather Channel",
+        "category":  "Weather",
+        "size":  "4x3",
+        "api":  "Fused Location + weather API",
+        "desc":  "Ten-day forecast with rain chance",
+        "kind":  "weather"
+    },
+    {
+        "name":  "AccuWeather MinuteCast",
+        "source":  "AccuWeather",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Minute-by-minute rain for the next two hours",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Windy Map",
+        "source":  "Windy.com",
+        "category":  "Weather",
+        "size":  "4x4",
+        "api":  "Fused Location + weather tiles",
+        "desc":  "Animated wind and rain layers on a map",
+        "kind":  "map"
+    },
+    {
+        "name":  "Clime Radar",
+        "source":  "Clime: NOAA Weather Radar",
+        "category":  "Weather",
+        "size":  "4x4",
+        "api":  "Fused Location + radar tiles",
+        "desc":  "Radar loop with storm alerts",
+        "kind":  "map"
+    },
+    {
+        "name":  "Weather Live",
+        "source":  "Weather Live",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Animated backgrounds with current conditions",
+        "kind":  "weather"
+    },
+    {
+        "name":  "YoWindow",
+        "source":  "YoWindow",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Living landscape that matches the weather",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Ventusky",
+        "source":  "Ventusky",
+        "category":  "Weather",
+        "size":  "4x4",
+        "api":  "Fused Location + weather tiles",
+        "desc":  "Temperature and wind flow map",
+        "kind":  "map"
+    },
+    {
+        "name":  "Appy Weather",
+        "source":  "Appy Weather",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Plain-language forecast cards",
+        "kind":  "weather"
+    },
+    {
+        "name":  "NOAA Weather",
+        "source":  "NOAA Weather Unofficial",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + NWS API",
+        "desc":  "Official NWS point forecast and alerts",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Aurora Forecast",
+        "source":  "My Aurora Forecast",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + space weather API",
+        "desc":  "KP index and aurora visibility tonight",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Tides Near Me",
+        "source":  "Tides Near Me",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + tide API",
+        "desc":  "Next high and low tide at a nearby station",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Weather \u0026 Radar",
+        "source":  "Weather \u0026 Radar (WetterOnline)",
+        "category":  "Weather",
+        "size":  "4x2",
+        "api":  "Fused Location + weather API",
+        "desc":  "Forecast with a rain radar thumbnail",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Weather Alerts",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "4x1",
+        "api":  "Fused Location + alerts API",
+        "desc":  "Active severe weather warnings nearby",
+        "kind":  "news"
+    },
+    {
+        "name":  "What to Wear",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "2x1",
+        "api":  "Fused Location + weather API",
+        "desc":  "Outfit hint based on today\u0027s forecast",
+        "kind":  "note"
+    },
+    {
+        "name":  "Cover Screen Weather",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "2x1",
+        "api":  "WindowManager + cover display",
+        "desc":  "Compact conditions companion for the cover",
+        "kind":  "weather"
+    },
+    {
+        "name":  "Barometer",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Sensor TYPE_PRESSURE",
+        "desc":  "Pressure trend from the on-board sensor",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Pollen Levels",
+        "source":  "FoldOS built-in",
+        "category":  "Weather",
+        "size":  "2x2",
+        "api":  "Fused Location + pollen API",
+        "desc":  "Tree, grass and weed pollen counts",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Calendar Week",
+        "source":  "Samsung Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x2",
+        "api":  "CalendarContract",
+        "desc":  "Seven-day strip with event bars",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Reminder Quick Add",
+        "source":  "Samsung Reminder",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Create a reminder in one tap",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Teams Meetings",
+        "source":  "Microsoft Teams",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Upcoming Teams meetings with join button",
+        "kind":  "list"
+    },
+    {
+        "name":  "Notion Calendar",
+        "source":  "Notion Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Today\u0027s events across connected calendars",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "aCalendar",
+        "source":  "aCalendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x4",
+        "api":  "CalendarContract",
+        "desc":  "Month, week or agenda with color themes",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "DigiCal",
+        "source":  "DigiCal",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x4",
+        "api":  "CalendarContract",
+        "desc":  "Agenda or month view with a weather row",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Fossify Calendar",
+        "source":  "Fossify Calendar",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "CalendarContract",
+        "desc":  "Open-source event list with birthdays",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Asana My Tasks",
+        "source":  "Asana",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tasks assigned to you by due date",
+        "kind":  "list"
+    },
+    {
+        "name":  "Trello Board",
+        "source":  "Trello",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Cards from a chosen list with quick add",
+        "kind":  "list"
+    },
+    {
+        "name":  "HabitNow",
+        "source":  "HabitNow",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Today\u0027s habits and tasks to check off",
+        "kind":  "progress"
+    },
+    {
+        "name":  "ClickUp Tasks",
+        "source":  "ClickUp",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tasks from a saved view with status",
+        "kind":  "list"
+    },
+    {
+        "name":  "Tasks.org",
+        "source":  "Tasks.org",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Open-source task list with subtasks",
+        "kind":  "list"
+    },
+    {
+        "name":  "Structured Timeline",
+        "source":  "Structured",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Visual day timeline of tasks and events",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Event Countdown",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "2x2",
+        "api":  "CalendarContract",
+        "desc":  "Days and hours until a starred event",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Free Slots",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x1",
+        "api":  "CalendarContract",
+        "desc":  "Open time blocks left in today\u0027s schedule",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Today Timeline",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x1",
+        "api":  "CalendarContract",
+        "desc":  "Horizontal timeline of today with a now marker",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Deadlines",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x2",
+        "api":  "CalendarContract",
+        "desc":  "Tasks due this week sorted by urgency",
+        "kind":  "list"
+    },
+    {
+        "name":  "Flex Planner",
+        "source":  "FoldOS built-in",
+        "category":  "Calendar \u0026 Tasks",
+        "size":  "4x4",
+        "api":  "CalendarContract + FoldingFeature",
+        "desc":  "Calendar above the hinge, task entry below",
+        "kind":  "calendar"
+    },
+    {
+        "name":  "Slack Status",
+        "source":  "Slack",
+        "category":  "Communication",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Set your status and pause notifications",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Discord Friends",
+        "source":  "Discord",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Online friends and active voice channels",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "Zoom Meetings",
+        "source":  "Zoom",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Next meetings with one-tap join",
+        "kind":  "list"
+    },
+    {
+        "name":  "Meet Shortcut",
+        "source":  "Google Meet",
+        "category":  "Communication",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "New meeting or join with a code",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Proton Mail",
+        "source":  "Proton Mail",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Unread count and latest encrypted mail",
+        "kind":  "list"
+    },
+    {
+        "name":  "Thunderbird Inbox",
+        "source":  "Thunderbird for Android",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Unified inbox message list",
+        "kind":  "list"
+    },
+    {
+        "name":  "Aqua Mail",
+        "source":  "Aqua Mail",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Message list for a chosen account",
+        "kind":  "list"
+    },
+    {
+        "name":  "Telegram Contacts",
+        "source":  "Telegram",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Favorite contacts with online status",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "Pulse SMS",
+        "source":  "Pulse SMS",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent SMS conversations with previews",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Teams Chats",
+        "source":  "Microsoft Teams",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent chats and channel mentions",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Yahoo Mail",
+        "source":  "Yahoo Mail",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Inbox preview with unread badge",
+        "kind":  "list"
+    },
+    {
+        "name":  "Textra Conversations",
+        "source":  "Textra SMS",
+        "category":  "Communication",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Themed SMS thread list",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Voicemail",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "VoicemailContract",
+        "desc":  "New voicemails with transcripts and play",
+        "kind":  "list"
+    },
+    {
+        "name":  "Notification Digest",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x2",
+        "api":  "NotificationListenerService",
+        "desc":  "Unread notifications grouped by app",
+        "kind":  "list"
+    },
+    {
+        "name":  "Emergency Contacts",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "2x2",
+        "api":  "ContactsContract",
+        "desc":  "ICE contacts with one-tap call",
+        "kind":  "contacts"
+    },
+    {
+        "name":  "Quick Reply",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x1",
+        "api":  "NotificationListener + RemoteInput",
+        "desc":  "Reply to the latest message inline",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Flex Video Call",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "4x4",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Video feed above the hinge, chat below",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Quick Share",
+        "source":  "FoldOS built-in",
+        "category":  "Communication",
+        "size":  "1x1",
+        "api":  "Quick Share intent",
+        "desc":  "Send files to nearby Galaxy devices",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Apple Music",
+        "source":  "Apple Music",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Now playing with recently played albums",
+        "kind":  "media"
+    },
+    {
+        "name":  "Tidal",
+        "source":  "Tidal",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Hi-fi now playing and playback controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "Plex",
+        "source":  "Plex",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Continue watching and recently added",
+        "kind":  "media"
+    },
+    {
+        "name":  "Castbox",
+        "source":  "Castbox",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Podcast player with episode queue",
+        "kind":  "media"
+    },
+    {
+        "name":  "AntennaPod",
+        "source":  "AntennaPod",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Open-source podcast player controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "Libby",
+        "source":  "Libby",
+        "category":  "Media \u0026 Audio",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Current audiobook and loans due soon",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Twitch Live",
+        "source":  "Twitch",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Followed channels that are live now",
+        "kind":  "list"
+    },
+    {
+        "name":  "Plexamp",
+        "source":  "Plexamp",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Music player with sonic adventure mixes",
+        "kind":  "media"
+    },
+    {
+        "name":  "iHeartRadio",
+        "source":  "iHeartRadio",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "MediaSession",
+        "desc":  "Live radio station with play and skip",
+        "kind":  "media"
+    },
+    {
+        "name":  "TuneIn Radio",
+        "source":  "TuneIn",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "MediaSession",
+        "desc":  "Favorite stations and current show",
+        "kind":  "media"
+    },
+    {
+        "name":  "Musicolet",
+        "source":  "Musicolet",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x1",
+        "api":  "MediaSession",
+        "desc":  "Offline player with multiple queues",
+        "kind":  "media"
+    },
+    {
+        "name":  "Retro Music",
+        "source":  "Retro Music Player",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaSession",
+        "desc":  "Material local music player controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "Sound Meter",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "2x2",
+        "api":  "AudioRecord",
+        "desc":  "Ambient noise level in decibels",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Recent Recordings",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaStore (audio)",
+        "desc":  "Latest voice recordings with play",
+        "kind":  "list"
+    },
+    {
+        "name":  "Podcast Queue",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x3",
+        "api":  "MediaSession queue",
+        "desc":  "Up next from the active podcast app",
+        "kind":  "list"
+    },
+    {
+        "name":  "Tabletop Visualizer",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x4",
+        "api":  "Visualizer API + FoldingFeature",
+        "desc":  "Audio visualizer that stands up in Flex Mode",
+        "kind":  "media"
+    },
+    {
+        "name":  "Hinge Volume",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "2x2",
+        "api":  "Hinge angle sensor + AudioManager",
+        "desc":  "Open the fold wider to raise media volume",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Lyrics",
+        "source":  "FoldOS built-in",
+        "category":  "Media \u0026 Audio",
+        "size":  "4x2",
+        "api":  "MediaMetadata + lyrics provider",
+        "desc":  "Synced lyrics for the song playing",
+        "kind":  "note"
+    },
+    {
+        "name":  "Gallery Favorites",
+        "source":  "Samsung Gallery",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "MediaStore (IS_FAVORITE)",
+        "desc":  "Slideshow of hearted photos",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Amazon Photos",
+        "source":  "Amazon Photos",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "This day in past years from your cloud",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Fotoo Frame",
+        "source":  "Fotoo",
+        "category":  "Photos",
+        "size":  "4x4",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Digital frame slideshow from any cloud",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Fossify Gallery Folder",
+        "source":  "Fossify Gallery",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "MediaStore",
+        "desc":  "Folder shortcut with its cover image",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Widgetsmith Photo",
+        "source":  "Widgetsmith",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Styled photo widget with borders",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Memories Widget",
+        "source":  "Memories: Photo Widget",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Shuffled photos from chosen albums",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Camera Shortcut",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "1x1",
+        "api":  "MediaStore.ACTION_IMAGE_CAPTURE",
+        "desc":  "Open the camera straight to photo mode",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Cover Selfie Preview",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x4",
+        "api":  "CameraX + cover display",
+        "desc":  "Rear camera preview on the cover screen",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Photo Collage",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x2",
+        "api":  "MediaStore",
+        "desc":  "Grid of recent favorites that refreshes",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Recent Photos",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x2",
+        "api":  "MediaStore (DATE_ADDED)",
+        "desc":  "Latest camera shots in a strip",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Flex Slideshow",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x4",
+        "api":  "MediaStore + FoldingFeature",
+        "desc":  "Slideshow above the hinge, thumbnails below",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Motion Photo",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "2x2",
+        "api":  "MediaStore",
+        "desc":  "Plays a motion photo clip on tap",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Photo Map",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "4x4",
+        "api":  "MediaStore EXIF + Maps SDK lite",
+        "desc":  "Map pins where recent photos were taken",
+        "kind":  "map"
+    },
+    {
+        "name":  "Photo Stats",
+        "source":  "FoldOS built-in",
+        "category":  "Photos",
+        "size":  "2x1",
+        "api":  "MediaStore",
+        "desc":  "Photos and videos captured this month",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Samsung Notes Create",
+        "source":  "Samsung Notes",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Start a new note or drawing",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "OneNote Recent Notes",
+        "source":  "Microsoft OneNote",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recently edited pages",
+        "kind":  "list"
+    },
+    {
+        "name":  "Docs New Document",
+        "source":  "Google Docs",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Create a blank document instantly",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "OneDrive Files",
+        "source":  "Microsoft OneDrive",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent files with scan and upload",
+        "kind":  "list"
+    },
+    {
+        "name":  "Notion Quick Note",
+        "source":  "Notion",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Capture a note into your inbox page",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Simplenote",
+        "source":  "Simplenote",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Pinned plain-text note",
+        "kind":  "note"
+    },
+    {
+        "name":  "Zoho Notebook",
+        "source":  "Zoho Notebook",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Note card with quick capture",
+        "kind":  "note"
+    },
+    {
+        "name":  "Evernote Pinned Note",
+        "source":  "Evernote",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "A chosen note shown in full",
+        "kind":  "note"
+    },
+    {
+        "name":  "Focus To-Do",
+        "source":  "Focus To-Do",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Pomodoro timer tied to a task",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Toggl Track",
+        "source":  "Toggl Track",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Running time entry with start and stop",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Clockify",
+        "source":  "Clockify",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Current timer and today\u0027s total",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Nextcloud Files",
+        "source":  "Nextcloud",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent and favorite files from your server",
+        "kind":  "list"
+    },
+    {
+        "name":  "Voice Memo Note",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x1",
+        "api":  "SpeechRecognizer",
+        "desc":  "Dictate a note that is saved as text",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Recent Files",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x2",
+        "api":  "MediaStore Files + DocumentsProvider",
+        "desc":  "Documents you opened or downloaded lately",
+        "kind":  "list"
+    },
+    {
+        "name":  "Scan to PDF",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "1x1",
+        "api":  "ML Kit Document Scanner",
+        "desc":  "Scan pages into a PDF in one tap",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Checklist",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x2",
+        "api":  "Jetpack Glance + DataStore",
+        "desc":  "Tappable checklist with daily reset",
+        "kind":  "list"
+    },
+    {
+        "name":  "Tabletop Scratchpad",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "4x4",
+        "api":  "Ink API + FoldingFeature",
+        "desc":  "Draw below the hinge, preview above",
+        "kind":  "note"
+    },
+    {
+        "name":  "Today Focus",
+        "source":  "FoldOS built-in",
+        "category":  "Productivity \u0026 Notes",
+        "size":  "2x1",
+        "api":  "Jetpack Glance + DataStore",
+        "desc":  "One big goal for today",
+        "kind":  "note"
+    },
+    {
+        "name":  "Food Log",
+        "source":  "Samsung Health",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "Health Connect",
+        "desc":  "Calories eaten against the daily target",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Heart Rate",
+        "source":  "Samsung Health",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x1",
+        "api":  "Health Connect",
+        "desc":  "Latest heart rate from your watch",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Google Fit Goals",
+        "source":  "Google Fit",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "Health Connect",
+        "desc":  "Heart Points and steps as twin rings",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Headspace",
+        "source":  "Headspace",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Mindful minutes and start a meditation",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Calm",
+        "source":  "Calm",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily Calm and a breathing exercise",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "WaterMinder",
+        "source":  "WaterMinder",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Hydration progress with quick add",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Adidas Running",
+        "source":  "Adidas Running",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Weekly distance and start a run",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Zepp",
+        "source":  "Zepp",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Steps, sleep and PAI from Amazfit",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Whoop",
+        "source":  "Whoop",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recovery, strain and sleep scores",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Clue Cycle",
+        "source":  "Clue",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Cycle day and predicted period",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Hevy Workouts",
+        "source":  "Hevy",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Workout streak and next routine",
+        "kind":  "list"
+    },
+    {
+        "name":  "Lose It!",
+        "source":  "Lose It!",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Calorie budget left with macros",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Flo",
+        "source":  "Flo",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Cycle phase and daily insights",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Weight Trend",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "Health Connect",
+        "desc":  "Weight chart for the last 90 days",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Stand Reminder",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x1",
+        "api":  "Health Connect + AlarmManager",
+        "desc":  "Hours you stood today out of twelve",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Breathing",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "2x2",
+        "api":  "Jetpack Glance",
+        "desc":  "Guided box-breathing exercise",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Flex Workout Timer",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x4",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Floor-visible timer and rep counter in Flex",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Exercise Log",
+        "source":  "FoldOS built-in",
+        "category":  "Health \u0026 Fitness",
+        "size":  "4x2",
+        "api":  "Health Connect",
+        "desc":  "Recent workouts with duration and distance",
+        "kind":  "list"
+    },
+    {
+        "name":  "Device Care Optimize",
+        "source":  "Samsung Device Care",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Memory and storage status with optimize",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Find My Device",
+        "source":  "Google Find My Device",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Last known location of devices and tags",
+        "kind":  "map"
+    },
+    {
+        "name":  "SmartThings Find",
+        "source":  "SmartThings Find",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "SmartThings API",
+        "desc":  "Locate Galaxy devices and SmartTags",
+        "kind":  "map"
+    },
+    {
+        "name":  "Members Diagnostics",
+        "source":  "Samsung Members",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Run device diagnostics and get support",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Routine Shortcut",
+        "source":  "Samsung Modes and Routines",
+        "category":  "Device \u0026 System",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Run a single routine with one tap",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Data Monitor",
+        "source":  "Data Monitor",
+        "category":  "Device \u0026 System",
+        "size":  "4x1",
+        "api":  "NetworkStatsManager",
+        "desc":  "Live upload and download speed graph",
+        "kind":  "chart"
+    },
+    {
+        "name":  "GlassWire",
+        "source":  "GlassWire",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "NetworkStatsManager",
+        "desc":  "Data usage by app this billing cycle",
+        "kind":  "chart"
+    },
+    {
+        "name":  "WiFi Analyzer",
+        "source":  "WiFi Analyzer",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "WifiManager",
+        "desc":  "Channel and signal strength of networks",
+        "kind":  "stat"
+    },
+    {
+        "name":  "DevCheck",
+        "source":  "DevCheck",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "CPU load, RAM and temperature",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Battery Guru",
+        "source":  "Battery Guru",
+        "category":  "Device \u0026 System",
+        "size":  "2x1",
+        "api":  "BatteryManager",
+        "desc":  "Battery health and charging speed",
+        "kind":  "battery"
+    },
+    {
+        "name":  "Network Cell Info",
+        "source":  "Network Cell Info",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "TelephonyManager",
+        "desc":  "Cell signal, band and tower details",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Downloads",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "4x1",
+        "api":  "DownloadManager",
+        "desc":  "Active downloads with progress bars",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Data Counter",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "2x1",
+        "api":  "ConnectivityManager + NetworkStats",
+        "desc":  "Mobile data used this billing cycle",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Companion Battery",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "2x1",
+        "api":  "CompanionDeviceManager",
+        "desc":  "Battery of a paired watch or buds",
+        "kind":  "battery"
+    },
+    {
+        "name":  "Weekly Screen Time",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "4x2",
+        "api":  "UsageStatsManager",
+        "desc":  "Screen time per day for the last week",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Fold Count",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "2x1",
+        "api":  "Hinge angle sensor + DataStore",
+        "desc":  "Times you opened the phone today",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Flex Mode Panel",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "4x1",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Brightness and touchpad panel when half folded",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Privacy Access",
+        "source":  "FoldOS built-in",
+        "category":  "Device \u0026 System",
+        "size":  "2x2",
+        "api":  "AppOpsManager",
+        "desc":  "Recent camera, mic and location use by app",
+        "kind":  "list"
+    },
+    {
+        "name":  "Nest Cameras",
+        "source":  "Google Home",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live snapshots from Nest cameras",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Ring Dashboard",
+        "source":  "Ring",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Doorbell events and camera snapshots",
+        "kind":  "list"
+    },
+    {
+        "name":  "Ecobee",
+        "source":  "Ecobee",
+        "category":  "Smart Home",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Set temperature and comfort mode",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Tesla",
+        "source":  "Tesla",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Charge level, range and climate control",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Home Assistant Camera",
+        "source":  "Home Assistant",
+        "category":  "Smart Home",
+        "size":  "2x2",
+        "api":  "Home Assistant API",
+        "desc":  "Live still from an HA camera entity",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Hue Light Toggle",
+        "source":  "Philips Hue",
+        "category":  "Smart Home",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Single room or light on and off",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Wyze",
+        "source":  "Wyze",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Shortcuts for cameras, plugs and bulbs",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Eufy Security",
+        "source":  "Eufy Security",
+        "category":  "Smart Home",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Camera snapshot and arm or disarm",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Sonos",
+        "source":  "Sonos",
+        "category":  "Smart Home",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Now playing and volume per Sonos room",
+        "kind":  "media"
+    },
+    {
+        "name":  "TV Remote",
+        "source":  "SmartThings",
+        "category":  "Smart Home",
+        "size":  "2x2",
+        "api":  "SmartThings API",
+        "desc":  "Power, volume and input for your TV",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "myQ Garage",
+        "source":  "myQ",
+        "category":  "Smart Home",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Garage door state with open and close",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Yale Lock",
+        "source":  "Yale Access",
+        "category":  "Smart Home",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Lock state with one-tap lock",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Nanoleaf",
+        "source":  "Nanoleaf",
+        "category":  "Smart Home",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Scenes for light panels",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Robot Vacuum",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "2x2",
+        "api":  "Device Controls API",
+        "desc":  "Start, dock and battery for a vacuum",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Doors and Locks",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "4x1",
+        "api":  "Device Controls API",
+        "desc":  "Doors open or unlocked right now",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Room Climate",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "2x2",
+        "api":  "SmartThings API",
+        "desc":  "Temperature and humidity trend per room",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Flex Home Dashboard",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "4x4",
+        "api":  "Device Controls + FoldingFeature",
+        "desc":  "Floor plan above the hinge, controls below",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "Doorbell Alert",
+        "source":  "FoldOS built-in",
+        "category":  "Smart Home",
+        "size":  "4x1",
+        "api":  "NotificationListenerService",
+        "desc":  "Latest doorbell snapshot from alerts",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Uber",
+        "source":  "Uber",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Request a ride to a saved place",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Lyft",
+        "source":  "Lyft",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "One-tap ride home or to work",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Waze",
+        "source":  "Waze",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Drive home or work with live ETA",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Flighty",
+        "source":  "Flighty",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live flight status, gate and delays",
+        "kind":  "progress"
+    },
+    {
+        "name":  "FlightAware",
+        "source":  "FlightAware",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tracked flights with arrival times",
+        "kind":  "list"
+    },
+    {
+        "name":  "Airbnb Trips",
+        "source":  "Airbnb",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Upcoming stay with check-in details",
+        "kind":  "list"
+    },
+    {
+        "name":  "Komoot",
+        "source":  "Komoot",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Planned tour and recent activities",
+        "kind":  "map"
+    },
+    {
+        "name":  "AllTrails",
+        "source":  "AllTrails",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Nearby trails and saved hikes",
+        "kind":  "list"
+    },
+    {
+        "name":  "DB Navigator",
+        "source":  "DB Navigator",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live departures for saved connections",
+        "kind":  "list"
+    },
+    {
+        "name":  "GasBuddy",
+        "source":  "GasBuddy",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Cheapest fuel prices nearby",
+        "kind":  "list"
+    },
+    {
+        "name":  "PlugShare",
+        "source":  "PlugShare",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Nearby EV chargers and availability",
+        "kind":  "map"
+    },
+    {
+        "name":  "ParkMobile",
+        "source":  "ParkMobile",
+        "category":  "Travel \u0026 Maps",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Active parking session time remaining",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Trainline",
+        "source":  "Trainline",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Next trains and saved tickets",
+        "kind":  "list"
+    },
+    {
+        "name":  "Geofence Reminders",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "LocationManager geofences",
+        "desc":  "Reminders that fire when you arrive somewhere",
+        "kind":  "list"
+    },
+    {
+        "name":  "Boarding Pass",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "Wallet passes + NotificationListener",
+        "desc":  "Next boarding pass QR code",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Next Flight",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x1",
+        "api":  "CalendarContract + flight API",
+        "desc":  "Gate, delay and countdown to departure",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Flex Navigator",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x4",
+        "api":  "Maps SDK + FoldingFeature",
+        "desc":  "Map above the hinge, turn list below",
+        "kind":  "map"
+    },
+    {
+        "name":  "Nearby Places",
+        "source":  "FoldOS built-in",
+        "category":  "Travel \u0026 Maps",
+        "size":  "4x2",
+        "api":  "Fused Location + Places API",
+        "desc":  "Coffee, fuel and ATMs around you",
+        "kind":  "list"
+    },
+    {
+        "name":  "Google Wallet",
+        "source":  "Google Wallet",
+        "category":  "Finance",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Default card and recent passes",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "PayPal",
+        "source":  "PayPal",
+        "category":  "Finance",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Balance with send and request shortcuts",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Venmo",
+        "source":  "Venmo",
+        "category":  "Finance",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Pay or request a frequent contact",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Revolut",
+        "source":  "Revolut",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Account balance and recent transactions",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Wise",
+        "source":  "Wise",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Balances by currency and live rate",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Monarch Money",
+        "source":  "Monarch Money",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Net worth and budget progress",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Rocket Money",
+        "source":  "Rocket Money",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Upcoming bills and subscriptions",
+        "kind":  "list"
+    },
+    {
+        "name":  "Splitwise",
+        "source":  "Splitwise",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Who owes whom across your groups",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Binance",
+        "source":  "Binance",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Crypto watchlist with 24h change",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Delta Portfolio",
+        "source":  "Delta Investment Tracker",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Portfolio value with asset breakdown",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Webull",
+        "source":  "Webull",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Watchlist quotes and market indices",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Crypto.com",
+        "source":  "Crypto.com",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Token prices with sparklines",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Money Manager",
+        "source":  "Money Manager Expense \u0026 Budget",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Monthly spending by category",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Bank Balance",
+        "source":  "FoldOS built-in",
+        "category":  "Finance",
+        "size":  "2x1",
+        "api":  "NotificationListenerService",
+        "desc":  "Latest balance parsed from bank alerts",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Bill Reminders",
+        "source":  "FoldOS built-in",
+        "category":  "Finance",
+        "size":  "4x2",
+        "api":  "CalendarContract",
+        "desc":  "Bills due this month with amounts",
+        "kind":  "list"
+    },
+    {
+        "name":  "Savings Goal",
+        "source":  "FoldOS built-in",
+        "category":  "Finance",
+        "size":  "2x2",
+        "api":  "Jetpack Glance + DataStore",
+        "desc":  "Progress toward a savings target",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Ticker Tape",
+        "source":  "FoldOS built-in",
+        "category":  "Finance",
+        "size":  "4x1",
+        "api":  "Market data API",
+        "desc":  "Scrolling quotes for your symbols",
+        "kind":  "chart"
+    },
+    {
+        "name":  "Expense Quick Add",
+        "source":  "FoldOS built-in",
+        "category":  "Finance",
+        "size":  "2x1",
+        "api":  "Jetpack Glance + DataStore",
+        "desc":  "Log an expense with amount and tag",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Samsung News Briefing",
+        "source":  "Samsung News",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Curated headlines and local stories",
+        "kind":  "news"
+    },
+    {
+        "name":  "Feedly",
+        "source":  "Feedly",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Unread articles from your feeds",
+        "kind":  "list"
+    },
+    {
+        "name":  "Instapaper",
+        "source":  "Instapaper",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Saved articles to read later",
+        "kind":  "list"
+    },
+    {
+        "name":  "Kindle",
+        "source":  "Amazon Kindle",
+        "category":  "News \u0026 Reading",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Current book cover and progress",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Medium",
+        "source":  "Medium",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily digest stories for you",
+        "kind":  "news"
+    },
+    {
+        "name":  "Reddit Trending",
+        "source":  "Reddit",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Trending posts from chosen communities",
+        "kind":  "list"
+    },
+    {
+        "name":  "AP News",
+        "source":  "AP News",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Top stories from the Associated Press",
+        "kind":  "news"
+    },
+    {
+        "name":  "NPR",
+        "source":  "NPR",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Latest stories and live station stream",
+        "kind":  "news"
+    },
+    {
+        "name":  "Substack",
+        "source":  "Substack",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "New posts from your subscriptions",
+        "kind":  "list"
+    },
+    {
+        "name":  "Goodreads",
+        "source":  "Goodreads",
+        "category":  "News \u0026 Reading",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Reading challenge progress",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Moon+ Reader",
+        "source":  "Moon+ Reader",
+        "category":  "News \u0026 Reading",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Bookshelf with recent books",
+        "kind":  "progress"
+    },
+    {
+        "name":  "WSJ",
+        "source":  "The Wall Street Journal",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Top headlines and market summary",
+        "kind":  "news"
+    },
+    {
+        "name":  "The Economist",
+        "source":  "The Economist",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Espresso briefing and latest articles",
+        "kind":  "news"
+    },
+    {
+        "name":  "Local News",
+        "source":  "FoldOS built-in",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "Fused Location + news API",
+        "desc":  "Headlines from your city and region",
+        "kind":  "news"
+    },
+    {
+        "name":  "Daily Briefing",
+        "source":  "FoldOS built-in",
+        "category":  "News \u0026 Reading",
+        "size":  "4x3",
+        "api":  "CalendarContract + weather + news",
+        "desc":  "Morning digest of weather, agenda and news",
+        "kind":  "news"
+    },
+    {
+        "name":  "Read Later",
+        "source":  "FoldOS built-in",
+        "category":  "News \u0026 Reading",
+        "size":  "4x2",
+        "api":  "Share target + DataStore",
+        "desc":  "Links you shared to read later",
+        "kind":  "list"
+    },
+    {
+        "name":  "Dual-Page Reader",
+        "source":  "FoldOS built-in",
+        "category":  "News \u0026 Reading",
+        "size":  "4x4",
+        "api":  "FoldingFeature + EPUB renderer",
+        "desc":  "Two book pages side by side when open",
+        "kind":  "news"
+    },
+    {
+        "name":  "Listen to Articles",
+        "source":  "FoldOS built-in",
+        "category":  "News \u0026 Reading",
+        "size":  "4x1",
+        "api":  "TextToSpeech",
+        "desc":  "Read saved articles aloud with controls",
+        "kind":  "media"
+    },
+    {
+        "name":  "Chrome Search",
+        "source":  "Google Chrome",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search bar with voice, Lens and incognito",
+        "kind":  "search"
+    },
+    {
+        "name":  "Samsung Internet Search",
+        "source":  "Samsung Internet",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search bar that opens Samsung Internet",
+        "kind":  "search"
+    },
+    {
+        "name":  "Internet Quick Access",
+        "source":  "Samsung Internet",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Favorite site shortcuts grid",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Bixby Voice",
+        "source":  "Samsung Bixby",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tap to talk to Bixby",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Claude",
+        "source":  "Claude",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Ask Claude by text, voice or camera",
+        "kind":  "search"
+    },
+    {
+        "name":  "Opera Search",
+        "source":  "Opera",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search bar with private tab shortcut",
+        "kind":  "search"
+    },
+    {
+        "name":  "Vivaldi Search",
+        "source":  "Vivaldi",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search and speed dial shortcuts",
+        "kind":  "search"
+    },
+    {
+        "name":  "Ecosia",
+        "source":  "Ecosia",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Tree-planting search bar",
+        "kind":  "search"
+    },
+    {
+        "name":  "Wolfram Alpha",
+        "source":  "Wolfram Alpha",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Computational query bar",
+        "kind":  "search"
+    },
+    {
+        "name":  "Amazon Search",
+        "source":  "Amazon Shopping",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search Amazon or scan a barcode",
+        "kind":  "search"
+    },
+    {
+        "name":  "Bing Search",
+        "source":  "Microsoft Bing",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Bing search with visual and voice input",
+        "kind":  "search"
+    },
+    {
+        "name":  "Yandex Search",
+        "source":  "Yandex",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search bar with weather and traffic",
+        "kind":  "search"
+    },
+    {
+        "name":  "Recent Apps",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "UsageStatsManager",
+        "desc":  "Last six apps you used",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Cover Continuity Dock",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "LauncherApps + cover display",
+        "desc":  "Cover screen apps that continue when opened",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Flex Dock",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "4x1",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "App dock that drops below the hinge in Flex",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Web Shortcut",
+        "source":  "FoldOS built-in",
+        "category":  "Search \u0026 Shortcuts",
+        "size":  "1x1",
+        "api":  "Custom Tabs + ShortcutManager",
+        "desc":  "Pin any website with its favicon",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Instagram Quick Post",
+        "source":  "Instagram",
+        "category":  "Social",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Jump to camera, post or story",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Threads",
+        "source":  "Threads",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Latest posts from people you follow",
+        "kind":  "list"
+    },
+    {
+        "name":  "X Timeline",
+        "source":  "X",
+        "category":  "Social",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent posts from your timeline",
+        "kind":  "list"
+    },
+    {
+        "name":  "Facebook Quick Share",
+        "source":  "Facebook",
+        "category":  "Social",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Post a status or photo in one tap",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "TikTok Trending",
+        "source":  "TikTok",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Trending video previews",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Bluesky",
+        "source":  "Bluesky",
+        "category":  "Social",
+        "size":  "4x3",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Home feed posts and notifications",
+        "kind":  "list"
+    },
+    {
+        "name":  "LinkedIn",
+        "source":  "LinkedIn",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Notifications and connection requests",
+        "kind":  "list"
+    },
+    {
+        "name":  "Letterboxd",
+        "source":  "Letterboxd",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Recent diary entries and watchlist",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Life360",
+        "source":  "Life360",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Family member locations on a map",
+        "kind":  "map"
+    },
+    {
+        "name":  "Noteit",
+        "source":  "Noteit Widget",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Doodles and notes shared with a partner",
+        "kind":  "note"
+    },
+    {
+        "name":  "Pinterest Boards",
+        "source":  "Pinterest",
+        "category":  "Social",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Shortcut tiles for your boards",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Nextdoor",
+        "source":  "Nextdoor",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Neighborhood posts and alerts",
+        "kind":  "list"
+    },
+    {
+        "name":  "Family Map",
+        "source":  "FoldOS built-in",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "Fused Location + shared location",
+        "desc":  "Where family members are right now",
+        "kind":  "map"
+    },
+    {
+        "name":  "Anniversaries",
+        "source":  "FoldOS built-in",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "ContactsContract (Event)",
+        "desc":  "Upcoming anniversaries from contacts",
+        "kind":  "list"
+    },
+    {
+        "name":  "Reply Later",
+        "source":  "FoldOS built-in",
+        "category":  "Social",
+        "size":  "4x2",
+        "api":  "NotificationListenerService",
+        "desc":  "Messages you flagged to answer later",
+        "kind":  "chat"
+    },
+    {
+        "name":  "Friends\u0027 Local Time",
+        "source":  "FoldOS built-in",
+        "category":  "Social",
+        "size":  "4x1",
+        "api":  "ContactsContract + ZoneId",
+        "desc":  "Current time where close contacts live",
+        "kind":  "clock"
+    },
+    {
+        "name":  "Bitwarden Vault",
+        "source":  "Bitwarden",
+        "category":  "Utilities",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Search vault and generate a password",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Fing Network",
+        "source":  "Fing",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Devices on your Wi-Fi network",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Automate Flow",
+        "source":  "Automate",
+        "category":  "Utilities",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Start an Automate flow",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "IFTTT Button",
+        "source":  "IFTTT",
+        "category":  "Utilities",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Run a button applet",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Shortcut Maker",
+        "source":  "Shortcut Maker",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Custom shortcut to any activity",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Catima Card",
+        "source":  "Catima",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Loyalty card barcode ready to scan",
+        "kind":  "photo"
+    },
+    {
+        "name":  "AfterShip Packages",
+        "source":  "AfterShip",
+        "category":  "Utilities",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Package delivery status list",
+        "kind":  "list"
+    },
+    {
+        "name":  "Notisave",
+        "source":  "Notisave",
+        "category":  "Utilities",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Saved notification history",
+        "kind":  "list"
+    },
+    {
+        "name":  "Caffeine",
+        "source":  "Caffeine - Keep Screen On",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Keep the screen awake toggle",
+        "kind":  "toggles"
+    },
+    {
+        "name":  "WiFiman",
+        "source":  "WiFiman",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Wi-Fi signal and speed test shortcut",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Authenticator Codes",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "Local TOTP (RFC 6238)",
+        "desc":  "Rolling 2FA codes with copy",
+        "kind":  "list"
+    },
+    {
+        "name":  "Unit Converter",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "Jetpack Glance",
+        "desc":  "Convert length, weight and temperature",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Bubble Level",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "Sensor TYPE_ACCELEROMETER",
+        "desc":  "Spirit level using the accelerometer",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Fold Ruler",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "4x1",
+        "api":  "DisplayMetrics + FoldingFeature",
+        "desc":  "Ruler calibrated across the open display",
+        "kind":  "stat"
+    },
+    {
+        "name":  "Magnifier",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "CameraX",
+        "desc":  "Zoomed camera view with torch",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Wi-Fi QR Share",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "2x2",
+        "api":  "WifiManager + ZXing",
+        "desc":  "QR code for guests to join your Wi-Fi",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Screen Recorder",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "MediaProjection",
+        "desc":  "Start or stop a screen recording",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Copy Text from Camera",
+        "source":  "FoldOS built-in",
+        "category":  "Utilities",
+        "size":  "1x1",
+        "api":  "ML Kit text recognition",
+        "desc":  "Copy text seen through the camera",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Pokemon GO Buddy",
+        "source":  "Pokemon GO",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Buddy mood and adventure sync distance",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Wordle",
+        "source":  "NYT Games",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Today\u0027s Wordle streak and quick play",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Chrome Dino",
+        "source":  "Google Chrome",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Launch the offline dinosaur game",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Hurry Countdown",
+        "source":  "Hurry",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Countdown to a date with a themed card",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Stoic",
+        "source":  "Stoic",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily stoic quote and journal prompt",
+        "kind":  "note"
+    },
+    {
+        "name":  "I am Affirmations",
+        "source":  "I am",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Positive affirmation that refreshes",
+        "kind":  "note"
+    },
+    {
+        "name":  "Star Walk",
+        "source":  "Star Walk 2",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Planets visible tonight",
+        "kind":  "ring"
+    },
+    {
+        "name":  "ISS Detector",
+        "source":  "ISS Detector",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x1",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Next ISS pass over your location",
+        "kind":  "timer"
+    },
+    {
+        "name":  "Chess.com",
+        "source":  "Chess.com",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily puzzle and games awaiting a move",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Co-Star",
+        "source":  "Co-Star",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily horoscope and compatibility",
+        "kind":  "note"
+    },
+    {
+        "name":  "ESPN Scores",
+        "source":  "ESPN",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live scores for favorite teams",
+        "kind":  "list"
+    },
+    {
+        "name":  "Journey Diary",
+        "source":  "Journey",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Today\u0027s entry prompt and streak",
+        "kind":  "note"
+    },
+    {
+        "name":  "Sudoku Daily",
+        "source":  "Sudoku.com",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Daily challenge with completion streak",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Yahoo Fantasy",
+        "source":  "Yahoo Fantasy",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Matchup score and lineup alerts",
+        "kind":  "list"
+    },
+    {
+        "name":  "Sofascore",
+        "source":  "Sofascore",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "AppWidget (RemoteViews)",
+        "desc":  "Live match scores for followed teams",
+        "kind":  "list"
+    },
+    {
+        "name":  "Dice Roller",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "1x1",
+        "api":  "SecureRandom + shake sensor",
+        "desc":  "Roll dice with a tap or a shake",
+        "kind":  "buttons"
+    },
+    {
+        "name":  "Decision Spinner",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "Jetpack Glance",
+        "desc":  "Spin a wheel of your own options",
+        "kind":  "ring"
+    },
+    {
+        "name":  "Daily Comic",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x2",
+        "api":  "WorkManager + comics feed",
+        "desc":  "A new comic strip every morning",
+        "kind":  "photo"
+    },
+    {
+        "name":  "Life Progress",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "4x1",
+        "api":  "java.time + DataStore",
+        "desc":  "Weeks lived against a chosen lifespan",
+        "kind":  "progress"
+    },
+    {
+        "name":  "Flip to Reveal",
+        "source":  "FoldOS built-in",
+        "category":  "Fun \u0026 Personal",
+        "size":  "2x2",
+        "api":  "WindowManager FoldingFeature",
+        "desc":  "Daily surprise image shown when you unfold",
+        "kind":  "photo"
+    }
+]
