@@ -214,7 +214,7 @@ private fun buildRows(results: List<SearchResult>, recent: List<String>, setting
                 i++
             }
             rows += SheetRow.Apps(group, index)
-            targets += group
+            targets.addAll(group)
             index += group.size
             continue
         }

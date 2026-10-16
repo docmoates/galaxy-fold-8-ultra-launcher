@@ -108,8 +108,8 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
     val context = LocalContext.current
     val tokens = LocalFoldOsTokens.current
     val scope = rememberCoroutineScope()
-    // Both type arguments: `Flow<T>.collectAsStateWithLifecycle` is declared `<T : R, R>`.
-    val state by repo.state.collectAsStateWithLifecycle<MailState, MailState?>(initialValue = null)
+    // Flow<T>.collectAsStateWithLifecycle needs an explicit nullable T for a null initial value.
+    val state by repo.state.collectAsStateWithLifecycle<MailState?>(initialValue = null)
     val provider = remember(gmail) { gmail?.provider ?: GmailProviderClient(context) }
     val accountEmail: String? = if (gmail != null) gmail.accountEmail.collectAsStateWithLifecycle().value else null
     val inner = screen != ScreenKind.COVER
