@@ -50,8 +50,8 @@ fun isDarkAppearance(appearance: Appearance): Boolean = when (appearance) {
  */
 @Composable
 fun FoldOsTheme(settings: LauncherSettings, content: @Composable () -> Unit) {
-    // Space black always resolves the dark palette, so the wallpaper brush and the text on it stay light-on-dark.
-    val dark = isDarkAppearance(settings.appearance) || settings.spaceBlack
+
+    val dark = isDarkAppearance(settings.appearance)
     val context = LocalContext.current
     val inspection = LocalInspectionMode.current
     val dynamic: ColorScheme? = remember(context, dark, inspection) {
@@ -63,18 +63,20 @@ fun FoldOsTheme(settings: LauncherSettings, content: @Composable () -> Unit) {
             dynamicLightColorScheme(context)
         }
     }
-    val tokens = remember(settings.theme, dark, settings.colors, dynamic, settings.radiusDp, settings.highContrast, settings.spaceBlack) {
+    val tokens = remember(settings.theme, dark, settings.colors, dynamic, settings.radiusDp, settings.highContrast) {
         val themed = tokensFor(settings.theme, dark, settings.colors, dynamic).copy(radius = settings.radiusDp.dp)
         // Settings > Accessibility > High contrast: opaque panels, strong outlines, black / white text.
-        val contrasted = if (settings.highContrast) themed.withHighContrast() else themed
-        // Settings > Look > Space black: solid black surfaces, white text (keeps High contrast's stronger outline).
-        if (settings.spaceBlack) contrasted.withSpaceBlack(settings.highContrast) else contrasted
+        if (settings.highContrast) themed.withHighContrast() else themed
     }
     val colorScheme = remember(tokens) { tokens.toMaterialColorScheme() }
     val shapes = remember(tokens.radius) { shapesFor(tokens.radius) }
+    val spaceBlack = remember(settings.spaceBlack, settings.highContrast, tokens, colorScheme) {
+        SpaceBlackConfig(settings.spaceBlack, settings.highContrast, tokens, colorScheme)
+    }
 
     CompositionLocalProvider(
         LocalFoldOsTokens provides tokens,
+        LocalSpaceBlack provides spaceBlack,
         LocalContentColor provides tokens.onSurface,
     ) {
         MaterialTheme(
@@ -101,7 +103,7 @@ private fun shapesFor(radius: Dp): Shapes = Shapes(
  * opaque base so M3 containers never show through each other.
  */
 fun FoldOsTokens.toMaterialColorScheme(): ColorScheme {
-    val base = if (spaceBlack) Color.Black else if (isDark) Color(0xFF0C0D12) else Color(0xFFEEF0F5)
+    val base = if (isDark) Color(0xFF0C0D12) else Color(0xFFEEF0F5)
     val solidSurface = surface.compositeOver(base)
     val solidHighlight = highlight.compositeOver(solidSurface)
     val outlineColor = surfaceBorder.compositeOver(solidSurface)
@@ -111,11 +113,10 @@ fun FoldOsTokens.toMaterialColorScheme(): ColorScheme {
     // Progressive container tones (M3 surfaceContainer*), lighter in dark mode, darker in light mode.
     val step = if (isDark) Color.White else Color.Black
     val containerLowest = if (isDark) base else Color.White
-    // Space black: every container (sheets, menus, dialogs, cards) is pure black; the outline tells them apart.
-    val containerLow = if (spaceBlack) Color.Black else step.tint(solidSurface, 0.02f)
-    val container = if (spaceBlack) Color.Black else step.tint(solidSurface, 0.05f)
-    val containerHigh = if (spaceBlack) Color.Black else step.tint(solidSurface, 0.08f)
-    val containerHighest = if (spaceBlack) Color(0xFF0B0B0E) else step.tint(solidSurface, 0.12f)
+    val containerLow = step.tint(solidSurface, 0.02f)
+    val container = step.tint(solidSurface, 0.05f)
+    val containerHigh = step.tint(solidSurface, 0.08f)
+    val containerHighest = step.tint(solidSurface, 0.12f)
 
     return if (isDark) {
         darkColorScheme(

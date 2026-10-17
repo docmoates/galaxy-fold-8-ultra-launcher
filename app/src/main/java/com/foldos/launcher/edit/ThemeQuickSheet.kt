@@ -119,7 +119,7 @@ fun ThemeQuickSheet(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = "Space black", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Dock, cards and widgets solid black, all text white",
+                        text = "Widget tiles, app panels and the dock solid black, all text on them white",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

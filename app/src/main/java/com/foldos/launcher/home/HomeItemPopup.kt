@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.core.AppGraph
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.AppInfo
+import com.foldos.launcher.theme.NormalThemeScope
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.repo.NotificationSummary
@@ -64,6 +65,13 @@ internal fun HomeItem.homePressKey(): String =
  */
 @Composable
 internal fun HomeItemPressOverlay(ctx: HomeContext, item: HomeItem) {
+    if (ctx.pressed.value == null || !ctx.isPressed(item)) return
+    // The pop-up and menu are not Space black surfaces: back to the normal theme.
+    NormalThemeScope { HomeItemPressOverlayContent(ctx, item) }
+}
+
+@Composable
+private fun HomeItemPressOverlayContent(ctx: HomeContext, item: HomeItem) {
     val pressed = ctx.pressed.value ?: return
     if (!ctx.isPressed(item)) return
     val context = LocalContext.current

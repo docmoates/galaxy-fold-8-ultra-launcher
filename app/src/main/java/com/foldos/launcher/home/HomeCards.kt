@@ -54,6 +54,7 @@ import com.foldos.launcher.core.ui.dragTarget
 import com.foldos.launcher.items.FolderIcon
 import com.foldos.launcher.items.Folders
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import com.foldos.launcher.theme.SpaceBlackScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlin.math.ceil
@@ -127,6 +128,12 @@ internal fun cardAccepts(card: HomeItem, payload: DragPayload): Boolean = when (
  */
 @Composable
 internal fun HomeCardTile(ctx: HomeContext, card: HomeItem, cellPadding: Dp, access: HomeItemGridInfo?) {
+    // Space black: an app panel that draws a background is solid black with white labels; a clear panel is not.
+    SpaceBlackScope(active = ctx.cardBackground && !card.cardClear) { HomeCardTileContent(ctx, card, cellPadding, access) }
+}
+
+@Composable
+private fun HomeCardTileContent(ctx: HomeContext, card: HomeItem, cellPadding: Dp, access: HomeItemGridInfo?) {
     val tokens = LocalFoldOsTokens.current
     val children = rememberCardChildren(card)
     val holder = remember { HomeAnchorHolder() }

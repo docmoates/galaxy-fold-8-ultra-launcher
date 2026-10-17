@@ -24,14 +24,15 @@ import androidx.compose.ui.unit.sp
 import com.foldos.launcher.core.model.LauncherSettings
 
 /**
- * Live preview tile for Settings > Look > Space black and the edit-mode Themes sheet: the wallpaper of the
- * current look with a solid black widget card (white time and caption), a black card and a black dock pill,
- * all drawn from the real tokens of `base` with [LauncherSettings.spaceBlack] forced on.
+ * Live preview tile for Settings > Look > Space black and the edit-mode Themes sheet: the normal page (wallpaper and
+ * Appearance of the current look, light or dark) with a solid black widget tile (white time and caption), a black
+ * app panel and a black dock pill, drawn from the real tokens of `base` with [LauncherSettings.spaceBlack] forced on.
  */
 @Composable
 fun SpaceBlackPreviewTile(base: LauncherSettings, modifier: Modifier = Modifier) {
     FoldOsTheme(settings = base.copy(spaceBlack = true)) {
-        val tokens = LocalFoldOsTokens.current
+        // Page, wallpaper and Appearance stay normal; only the widget tile and the dock pill use the black tokens.
+        val tokens = LocalFoldOsTokens.current.withSpaceBlack(base.highContrast)
         val card = RoundedCornerShape((tokens.radius / 2.5f).coerceAtLeast(3.dp))
         Box(modifier = modifier.clip(RoundedCornerShape(12.dp))) {
             Wallpaper()

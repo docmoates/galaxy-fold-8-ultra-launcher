@@ -432,3 +432,13 @@ widgets cannot be recolored; their `WidgetSlot` backing tile is black. Settings 
 
 Not verified on a device (written from the source): look of every dock preset on black, the 22% accent tint on hero widgets and selected rows,
 and contrast on the cover (1080x2520) and inner (2256x2504) screens.
+
+# 1.4.2: Space black was applied globally (fix)
+
+Owner on 1.4.1: "it was not supposed to be dark mode, just black on the page for the widgets background, the apps panel background and the dock."
+Root cause: 1.4.1 put Space black in the global token override (`FoldOsTheme` forced the dark palette and applied `withSpaceBlack` to
+`LocalFoldOsTokens`, `toMaterialColorScheme` made every M3 container black, `MainActivity` forced light status bar icons, `AddToHomeSheet` used a
+black base), so everything reading tokens turned dark. Fix: the theme is untouched again; `FoldOsTheme` only exposes `LocalSpaceBlack`
+(flag + the normal tokens / scheme). `SpaceBlackScope` wraps `HomeWidgetItem`, `HomeCardTile` (only when the card draws a background) and `Dock`
+and provides black / white tokens, content color and Material scheme to descendants only; `NormalThemeScope` resets the theme for the item
+pop-up and the dock icon menu opened from inside them.

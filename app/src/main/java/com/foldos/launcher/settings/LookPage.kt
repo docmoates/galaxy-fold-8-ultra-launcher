@@ -25,7 +25,7 @@ import com.foldos.launcher.theme.isDarkAppearance
 
 object LookRows {
     val theme = SettingsRowInfo("Theme")
-    val spaceBlack = SettingsRowInfo("Space black", "Dock, cards and widgets solid black, all text white")
+    val spaceBlack = SettingsRowInfo("Space black", "Widget tiles, app panels and the dock solid black, all text on them white")
     val scheme = SettingsRowInfo("Color scheme", "Recolors accent, highlights and wallpaper on any theme")
     val accent = SettingsRowInfo("Accent color", "Buttons, highlights, active tabs")
     val wall1 = SettingsRowInfo("Wallpaper color 1")

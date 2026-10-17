@@ -4,6 +4,29 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.4.2] - 2026-10-16
+
+Space black fixed (`versionCode` 142). Same signing key, no schema change; the setting `spaceBlack` keeps its name and stored value.
+
+### Fixed
+- Space black is no longer a dark mode. 1.4.1 applied it in the global theme tokens and forced the dark palette, so the wallpaper,
+  Light / Dark / Auto, status bar icons, labels on the wallpaper, sheets, menus, dialogs, the app drawer and Settings all turned dark.
+  Now the theme, Appearance, wallpaper, color scheme and system bar icons are exactly as without the setting.
+- Only three home surfaces become solid #000000 (1dp #26262B outline) with pure white text and icons (secondary text white at 72%):
+  widget tiles (built-in widgets and the tile behind hosted app widgets), app panels (app card and app list card, with their title,
+  labels and folder icons; a panel with its background off is left alone) and the dock (every preset that has a dock background:
+  surface, labels, search field, All apps button). Apps placed loose on the page keep their normal labels on the wallpaper. Pop-ups and
+  menus opened from these surfaces use the normal theme.
+- Subtitle: "Widget tiles, app panels and the dock solid black, all text on them white". The preview tile now shows the normal page
+  with black widget, panel and dock tiles.
+
+### Changed
+- Implementation: `SpaceBlackScope` (`theme/SpaceBlack.kt`) re-provides `LocalFoldOsTokens`, `LocalContentColor` and a matching Material
+  color scheme around those three surfaces only; `NormalThemeScope` restores the normal theme for pop-ups opened from them.
+
+Not verified on a device: every dock preset on black (the Bubble background only gets black bubbles if the bg is not "none"; labels under bubbles are
+not checked), contrast on cover (1080x2520) and inner (2256x2504) in Light and Dark.
+
 ## [1.4.1] - 2026-10-16
 
 Space black look (`versionCode` 141). Same signing key, no schema change.

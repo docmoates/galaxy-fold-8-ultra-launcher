@@ -64,6 +64,8 @@ import com.foldos.launcher.a11y.rememberA11yPagerScroll
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import com.foldos.launcher.theme.LocalSpaceBlack
+import com.foldos.launcher.theme.SpaceBlackScope
 import com.foldos.launcher.widgets.WidgetSlot
 import java.time.LocalDateTime
 import java.util.Locale
@@ -121,6 +123,12 @@ object HomeBuiltInIds {
  */
 @Composable
 fun HomeWidgetItem(item: HomeItem, modifier: Modifier = Modifier, highlight: Boolean = false) {
+    // Space black: the widget tile (and its text) is solid black / white; nothing outside the tile changes.
+    SpaceBlackScope { HomeWidgetItemContent(item, modifier, highlight) }
+}
+
+@Composable
+private fun HomeWidgetItemContent(item: HomeItem, modifier: Modifier, highlight: Boolean) {
     BoxWithConstraints(modifier) {
         val spanX = item.spanX.coerceAtLeast(1)
         val spanY = item.spanY.coerceAtLeast(1)
@@ -136,7 +144,19 @@ fun HomeWidgetItem(item: HomeItem, modifier: Modifier = Modifier, highlight: Boo
                 modifier = Modifier.fillMaxSize(),
                 highlight = highlight,
             )
-            item.isAppWidget -> WidgetSlot(item, cellWidthDp, cellHeightDp, Modifier.fillMaxSize())
+            item.isAppWidget -> {
+                val tokens = LocalFoldOsTokens.current
+                val shape = RoundedCornerShape(tokens.radius)
+                // Hosted widgets draw themselves; under Space black the tile behind them is the black one.
+                val tile = if (LocalSpaceBlack.current.enabled) {
+                    Modifier.background(tokens.surface, shape).border(1.dp, tokens.surfaceBorder, shape)
+                } else {
+                    Modifier
+                }
+                Box(Modifier.fillMaxSize().then(tile)) {
+                    WidgetSlot(item, cellWidthDp, cellHeightDp, Modifier.fillMaxSize())
+                }
+            }
             else -> HomeDashCard(
                 title = item.title ?: "Widget",
                 icon = Icons.Rounded.Widgets,

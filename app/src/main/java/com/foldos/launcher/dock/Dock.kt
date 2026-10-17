@@ -52,6 +52,7 @@ import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.theme.SpaceBlackScope
 import com.foldos.launcher.home.ProvideLabelSize
 import kotlin.math.abs
 
@@ -129,6 +130,26 @@ fun Dock(
     onHomeItemTakenIntoDock: ((HomeItem) -> Unit)? = null,
 ) {
     if (!settings.feature(LauncherSettings.FEATURE_DOCK)) return
+    SpaceBlackScope(active = config.bg != DockBackground.NONE) { DockScoped(config, screen, pinned, recents, settings, onLaunch, onOpenDrawer, onSearch, modifier, onNotifications, dragController, onDockAppsChange, onHomeItemTakenIntoDock) }
+}
+
+/** The dock proper, drawn with the tokens of the enclosing scope (Space black makes them black / white). */
+@Composable
+private fun DockScoped(
+    config: DockConfig,
+    screen: ScreenKind,
+    pinned: List<AppInfo>,
+    recents: List<AppInfo>,
+    settings: LauncherSettings,
+    onLaunch: (AppInfo) -> Unit,
+    onOpenDrawer: () -> Unit,
+    onSearch: () -> Unit,
+    modifier: Modifier,
+    onNotifications: (() -> Unit)?,
+    dragController: DragController?,
+    onDockAppsChange: ((List<String>) -> Unit)?,
+    onHomeItemTakenIntoDock: ((HomeItem) -> Unit)?,
+) {
     val palette = dockPalette()
     ProvideLabelSize(settings) {
         if (config.pos == DockPosition.RAIL) {

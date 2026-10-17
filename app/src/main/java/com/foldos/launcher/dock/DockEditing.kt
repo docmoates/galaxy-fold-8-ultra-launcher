@@ -33,6 +33,7 @@ import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.ui.DragController
+import com.foldos.launcher.theme.NormalThemeScope
 import com.foldos.launcher.core.ui.DragPayload
 import com.foldos.launcher.core.ui.DragTargetIds
 import com.foldos.launcher.core.ui.dragTarget
@@ -269,6 +270,7 @@ internal fun DockSlotPlaceholder(
 internal fun DockAppMenu(edit: DockEditState?, app: AppInfo) {
     if (edit == null) return
     val context = LocalContext.current
+    NormalThemeScope {
     DropdownMenu(
         expanded = edit.menuKey == app.key,
         onDismissRequest = { edit.menuKey = null },
@@ -289,6 +291,7 @@ internal fun DockAppMenu(edit: DockEditState?, app: AppInfo) {
                 openAppInfo(context, app)
             },
         )
+    }
     }
 }
 

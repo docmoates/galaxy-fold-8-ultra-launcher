@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
             val loadedSettings by viewModel.loadedSettings.collectAsStateWithLifecycle()
             // Until DataStore has answered, `settings` is the default (Dark) and would flip the icons of a
             // Light launcher for a few frames; the dark starting style from enableLauncherEdgeToEdge stays.
-            if (loadedSettings != null) SystemBarsEffect(dark = isDarkAppearance(settings.appearance) || settings.spaceBlack)
+            if (loadedSettings != null) SystemBarsEffect(dark = isDarkAppearance(settings.appearance))
             // Built-in widgets (calendar, photos, Bluetooth battery) ask for one permission at a
             // time through this; the widget re-checks the grant when the activity resumes, and the
             // Hub's provider flows re-check on this bump (they never poll).
