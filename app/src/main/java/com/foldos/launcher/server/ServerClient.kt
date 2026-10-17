@@ -3,9 +3,11 @@ package com.foldos.launcher.server
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 /** A non-2xx answer from the Crosspoint server. [code] is the JSON `error` field, [message] is safe to show. */
 class ServerException(val status: Int, val code: String?, message: String) : Exception(message) {
@@ -14,7 +16,7 @@ class ServerException(val status: Int, val code: String?, message: String) : Exc
 }
 
 /** The `mail` block the server returns from login, `/me` and unlink. */
-data class ServerMailInfo(val available: Boolean, val linked: Boolean, val account: String?)
+data class ServerMailInfo(val available: Boolean, val linked: Boolean, val account: String?, val needsRelink: Boolean = false)
 
 /** The `subscriber` block plus its [mail] state; [token] is only set by [ServerClient.login]. */
 data class ServerSession(
@@ -35,6 +37,28 @@ data class ServerInboxMessage(
     val unread: Boolean,
     val starred: Boolean,
     val labels: Set<String>,
+)
+
+data class ServerAddress(val name: String, val email: String)
+
+data class ServerAttachment(val name: String, val mime: String, val size: Long)
+
+data class ServerMessage(
+    val id: String,
+    val threadId: String,
+    val fromName: String,
+    val fromEmail: String,
+    val to: List<ServerAddress>,
+    val cc: List<ServerAddress>,
+    val subject: String,
+    val date: Long,
+    val unread: Boolean,
+    val starred: Boolean,
+    val labels: Set<String>,
+    val bodyText: String,
+    val hasHtml: Boolean,
+    val attachments: List<ServerAttachment>,
+    val messageIdHeader: String?,
 )
 
 data class ServerInbox(val account: String?, val unread: Int, val messages: List<ServerInboxMessage>)
@@ -104,6 +128,77 @@ class ServerClient(private val baseUrl: suspend () -> String?) {
         )
     }
 
+    /** The full message; 409 `relink_required` means Gmail has to be linked again with the wider permission. */
+    suspend fun getMessage(token: String, id: String): ServerMessage {
+        val m = call("GET", "/api/v1/foldos/mail/messages/" + URLEncoder.encode(id, "UTF-8"), token, null)
+        fun addresses(key: String): List<ServerAddress> {
+            val array = m.optJSONArray(key) ?: return emptyList()
+            return buildList {
+                for (i in 0 until array.length()) {
+                    val a = array.optJSONObject(i) ?: continue
+                    val email = a.optString("email")
+                    if (email.isNotBlank()) add(ServerAddress(a.optString("name").ifBlank { email }, email))
+                }
+            }
+        }
+        val labelsArray = m.optJSONArray("labels")
+        val labels = buildSet {
+            if (labelsArray != null) for (j in 0 until labelsArray.length()) add(labelsArray.optString(j))
+        }
+        val attachmentsArray = m.optJSONArray("attachments")
+        val attachments = buildList {
+            if (attachmentsArray != null) for (k in 0 until attachmentsArray.length()) {
+                val a = attachmentsArray.optJSONObject(k) ?: continue
+                add(ServerAttachment(a.optString("name").ifBlank { "attachment" }, a.optString("mime"), a.optLong("size", 0L)))
+            }
+        }
+        val fromEmail = m.optString("from_email")
+        return ServerMessage(
+            id = m.optString("id").ifBlank { id },
+            threadId = m.optString("thread_id"),
+            fromName = m.optString("from_name").ifBlank { fromEmail },
+            fromEmail = fromEmail,
+            to = addresses("to"),
+            cc = addresses("cc"),
+            subject = m.optString("subject").ifBlank { "(no subject)" },
+            date = m.optLong("date", 0L),
+            unread = m.optBoolean("unread", false),
+            starred = m.optBoolean("starred", false),
+            labels = labels,
+            bodyText = m.optString("body_text"),
+            hasHtml = m.optBoolean("has_html", false),
+            attachments = attachments,
+            messageIdHeader = m.optString("message_id_header").ifBlank { null },
+        )
+    }
+
+    /** Sends a message; throws [ServerException] (400 `send_failed` or a validation message, 409 `relink_required`). */
+    suspend fun send(
+        token: String,
+        to: List<String>,
+        cc: List<String>,
+        bcc: List<String>,
+        subject: String,
+        body: String,
+        replyToMessageId: String?,
+        threadId: String?,
+    ) {
+        val json = JSONObject()
+            .put("to", JSONArray(to))
+            .put("cc", JSONArray(cc))
+            .put("bcc", JSONArray(bcc))
+            .put("subject", subject)
+            .put("body", body)
+            .put("reply_to_message_id", replyToMessageId ?: JSONObject.NULL)
+            .put("thread_id", threadId ?: JSONObject.NULL)
+        call("POST", "/api/v1/foldos/mail/send", token, json)
+    }
+
+    suspend fun markRead(token: String, id: String, read: Boolean) {
+        val path = "/api/v1/foldos/mail/messages/" + URLEncoder.encode(id, "UTF-8") + "/read"
+        call("POST", path, token, JSONObject().put("read", read))
+    }
+
     private fun session(json: JSONObject): ServerSession {
         val sub = json.optJSONObject("subscriber")
         return ServerSession(
@@ -118,6 +213,7 @@ class ServerClient(private val baseUrl: suspend () -> String?) {
         available = json?.optBoolean("available", false) ?: false,
         linked = json?.optBoolean("linked", false) ?: false,
         account = if (json == null || json.isNull("account")) null else json.optString("account").ifBlank { null },
+        needsRelink = json?.optBoolean("needs_relink", false) ?: false,
     )
 
     private fun deviceName(): String = "FoldOS on ${Build.MANUFACTURER} ${Build.MODEL}".take(80)

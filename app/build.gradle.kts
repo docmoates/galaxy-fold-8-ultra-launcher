@@ -42,8 +42,8 @@ android {
         applicationId = "com.foldos.launcher"
         minSdk = 34
         targetSdk = 35
-        versionCode = 142
-        versionName = "1.4.2"
+        versionCode = 150
+        versionName = "1.5.0"
         vectorDrawables {
             useSupportLibrary = true
         }

@@ -442,3 +442,19 @@ black base), so everything reading tokens turned dark. Fix: the theme is untouch
 (flag + the normal tokens / scheme). `SpaceBlackScope` wraps `HomeWidgetItem`, `HomeCardTile` (only when the card draws a background) and `Dock`
 and provides black / white tokens, content color and Material scheme to descendants only; `NormalThemeScope` resets the theme for the item
 pop-up and the dock icon menu opened from inside them.
+
+# 1.5.0: Mail reads and writes inside the tab
+
+Owner request: "get rid of the summary above the emails on the inbox and make it so emails open in this page as well as composed in this page too."
+The Connected Mail tab had a title block ("Inbox", "Gmail · N unread · address"), the template "Summary: ... wrote about ..." note and a floating Compose
+button that opened the Gmail app; tapping a row on the cover opened Gmail. 1.5.0 removes the title block and the summary note, keeps only a slim top bar
+(search, Compose, account menu) and opens messages and the composer inside the tab (`mail/MailPanes.kt`). The Gmail-app counts card stays on the setup
+states only. Needs the server's new endpoints (message, send, read) and the wider Gmail permission: an account linked read-only gets
+`409 relink_required` (or `mail.needs_relink` from `/me`) and the tab shows the Reconnect card instead of the list.
+
+Decisions: the search field and the Primary / Updates / Starred chips stay (they are controls, not a summary). Drafts live in `MailDraftStore` (memory, gone
+when the process ends); Back keeps the draft, Discard asks first when anything was typed. Opening a message marks it read through
+`MailRepository.setRead`, which flips the list row and the unread count at once and reverts them if the server refuses.
+
+Not verified (nothing was run on a device, and the server side was being built in parallel): the real response shapes, keyboard behavior in the compose view on
+cover and inner, link taps inside the selectable body, and contrast of the new panes in Space black.

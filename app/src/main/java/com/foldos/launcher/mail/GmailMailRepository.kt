@@ -6,6 +6,11 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import com.foldos.launcher.core.repo.MailAccount
+import com.foldos.launcher.core.repo.MailAddress
+import com.foldos.launcher.core.repo.MailAttachment
+import com.foldos.launcher.core.repo.MailDetail
+import com.foldos.launcher.core.repo.MailDraft
+import com.foldos.launcher.core.repo.MailOpenResult
 import com.foldos.launcher.core.repo.MailMessage
 import com.foldos.launcher.core.repo.MailRepository
 import com.foldos.launcher.core.repo.MailResult
@@ -15,6 +20,7 @@ import com.foldos.launcher.server.ServerAuthStore
 import com.foldos.launcher.server.ServerClient
 import com.foldos.launcher.server.ServerException
 import com.foldos.launcher.server.ServerMailInfo
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +37,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -257,8 +264,115 @@ class GmailMailRepository(
         scope.launch { refreshInternal(verifyAccount = true) }.join()
     }
 
+    override suspend fun openMessage(id: String): MailOpenResult {
+        val (m, result) = guarded("Could not open that message. Please try again.") { token -> client.getMessage(token, id) }
+        if (m == null) return MailOpenResult(error = result.message, relinkRequired = result.relinkRequired)
+        threadIds[m.id] = m.threadId
+        return MailOpenResult(
+            detail = MailDetail(
+                id = m.id,
+                threadId = m.threadId,
+                fromName = m.fromName,
+                fromEmail = m.fromEmail,
+                to = m.to.map { MailAddress(it.name, it.email) },
+                cc = m.cc.map { MailAddress(it.name, it.email) },
+                subject = m.subject,
+                date = m.date,
+                unread = m.unread,
+                starred = m.starred,
+                labels = m.labels,
+                bodyText = m.bodyText,
+                hasHtml = m.hasHtml,
+                attachments = m.attachments.map { MailAttachment(it.name, it.mime, it.size) },
+                messageIdHeader = m.messageIdHeader,
+            ),
+        )
+    }
+
+    override suspend fun send(draft: MailDraft): MailResult {
+        if (draft.to.none { it.isNotBlank() }) return MailResult(false, "Add at least one recipient.")
+        val (_, result) = guarded("Could not send that message. Please try again.") { token ->
+            client.send(
+                token = token,
+                to = draft.to,
+                cc = draft.cc,
+                bcc = draft.bcc,
+                subject = draft.subject,
+                body = draft.body,
+                replyToMessageId = draft.replyToMessageId,
+                threadId = draft.threadId,
+            )
+        }
+        return result
+    }
+
+    override suspend fun setRead(id: String, read: Boolean): MailResult {
+        val changed = applyReadLocally(id, read)
+        val (_, result) = guarded("Could not update that message.") { token -> client.markRead(token, id, read) }
+        if (!result.ok && changed) applyReadLocally(id, !read)
+        return result
+    }
+
+    /** Flips the unread flag of a listed message and the unread count; true when something changed. */
+    private fun applyReadLocally(id: String, read: Boolean): Boolean {
+        var changed = false
+        internalState.update { current ->
+            if (current !is MailState.Connected) return@update current
+            val target = current.messages.firstOrNull { it.id == id } ?: return@update current
+            if (target.unread == read) {
+                changed = true
+                current.copy(
+                    messages = current.messages.map { if (it.id == id) it.copy(unread = !read) else it },
+                    unread = (current.unread + if (read) -1 else 1).coerceAtLeast(0),
+                )
+            } else {
+                current
+            }
+        }
+        return changed
+    }
+
+    /**
+     * Runs a server call with the stored token and maps every failure to friendly text. Returns the value (null on
+     * failure) and a [MailResult]. 401 signs out; `relink_required` flags the account so the tab offers Reconnect.
+     */
+    private suspend fun <T> guarded(failMessage: String, block: suspend (token: String) -> T): Pair<T?, MailResult> {
+        if (offline()) return null to MailResult(false, NO_NETWORK_MESSAGE)
+        val token = authStore().token ?: return null to MailResult(false, "Sign in with your Crosspoint account first.")
+        return try {
+            val value = scope.async { block(token) }.await()
+            value to MailResult(true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ServerException) {
+            when {
+                e.unauthorized -> {
+                    clearSession()
+                    null to MailResult(false, SESSION_ENDED_MESSAGE)
+                }
+                e.code == "relink_required" -> {
+                    _account.value = _account.value.copy(needsRelink = true)
+                    null to MailResult(false, RELINK_MESSAGE, relinkRequired = true)
+                }
+                e.status == 409 || e.code == "not_linked" -> {
+                    authStore().gmailAccount = null
+                    _account.value = _account.value.copy(linked = false, gmail = null)
+                    internalState.value = MailState.NotLinked
+                    null to MailResult(false, "Gmail is not linked. Connect it again to continue.")
+                }
+                e.code == "send_failed" -> null to MailResult(false, failMessage)
+                else -> null to MailResult(false, e.message ?: failMessage)
+            }
+        } catch (e: IOException) {
+            null to MailResult(false, UNREACHABLE_MESSAGE)
+        } catch (e: Exception) {
+            Log.w(TAG, "Mail action failed: ${e.javaClass.simpleName}")
+            null to MailResult(false, failMessage)
+        }
+    }
+
     /* ------------------------------------------------------------------------------------ */
-    /* Internals                                                                            */
+    /* Internals                                                                           */
     /* ------------------------------------------------------------------------------------ */
 
     private fun signInMessage(e: ServerException): String = when {
@@ -277,8 +391,10 @@ class GmailMailRepository(
             gmail = if (info.linked) info.account else null,
             linked = info.linked,
             available = info.available,
+            needsRelink = info.linked && info.needsRelink,
         )
-        return info.linked
+        // A link made with the old read-only permission does not count until it has been redone.
+        return info.linked && !info.needsRelink
     }
 
     private suspend fun clearSession() {
@@ -311,6 +427,7 @@ class GmailMailRepository(
             when {
                 !info.available -> internalState.value = MailState.NotConfigured
                 !info.linked -> internalState.value = MailState.NotLinked
+                info.needsRelink -> internalState.value = MailState.Error(RELINK_MESSAGE)
                 else -> fetchInbox(token)
             }
         } catch (e: ServerException) {
@@ -343,12 +460,17 @@ class GmailMailRepository(
             authStore().gmailAccount = inbox.account
             _account.value = _account.value.copy(gmail = inbox.account)
         }
+        _account.value = _account.value.copy(needsRelink = false)
         internalState.value = MailState.Connected(messages, unread = inbox.unread)
     }
 
     private suspend fun handleServerError(e: ServerException) {
         when {
             e.unauthorized -> clearSession()
+            e.code == "relink_required" -> {
+                _account.value = _account.value.copy(needsRelink = true)
+                internalState.value = MailState.Error(RELINK_MESSAGE)
+            }
             e.status == 409 || e.code == "not_linked" -> {
                 authStore().gmailAccount = null
                 _account.value = _account.value.copy(linked = false, gmail = null)
@@ -371,6 +493,7 @@ class GmailMailRepository(
         const val NO_NETWORK_MESSAGE = "No-network mode is on. Turn it off in Settings > Features to use Gmail."
         const val UNREACHABLE_MESSAGE = "Can't reach the Crosspoint server. Check your connection and try again."
         const val SESSION_ENDED_MESSAGE = "Your Crosspoint sign-in ended. Please sign in again."
+        const val RELINK_MESSAGE = "Reconnect Gmail to allow reading and sending."
         const val NOT_SET_UP_MESSAGE = "Your administrator has not set up mail yet."
     }
 }

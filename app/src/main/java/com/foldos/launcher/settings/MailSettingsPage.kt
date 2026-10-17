@@ -49,7 +49,7 @@ object MailSettingsRows {
     const val ROUTE: String = "mail"
 
     val account = SettingsRowInfo("Crosspoint account", "Sign in with your Crosspoint email and password")
-    val gmailLink = SettingsRowInfo("Gmail link", "Link or unlink your Gmail (read-only, approved once in the browser)")
+    val gmailLink = SettingsRowInfo("Gmail link", "Link or unlink your Gmail (approved once in the browser; reconnect when asked to allow reading and sending)")
     val server = SettingsRowInfo("Server address", "Crosspoint server the Mail tab uses; default ${LauncherSettings.DEFAULT_MAIL_SETUP_URL}")
     val refresh = SettingsRowInfo("Refresh now", "Reload the 25 newest inbox messages")
     val mailTab = SettingsRowInfo("Mail tab in the hub", "Inbox list; list and reading pane on the inner screen")

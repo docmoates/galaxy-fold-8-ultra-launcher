@@ -547,3 +547,19 @@ All under `app/src/main/java/com/foldos/launcher/data/`.
 
 - `LauncherSettings.spaceBlack: Boolean = false` (Settings > Look > Space black, Settings home Look section, edit-mode Themes sheet). Stored with the rest of the settings JSON and included in backups; a backup without the key restores as off. Off for everyone by default.
 - 1.4.2 (`versionCode` 142) corrects 1.4.1: Space black does NOT change the theme, Appearance, wallpaper, color scheme, system bar icons, Settings, sheets, menus, dialogs, drawer or Hub. `FoldOsTheme` only provides `LocalSpaceBlack` (`SpaceBlackConfig`: flag, High contrast, the normal tokens and scheme). `SpaceBlackScope` (`theme/SpaceBlack.kt`) wraps ONLY widget tiles (`HomeWidgetItem`), app panels (`HomeCardTile`, when it draws a background) and the dock (`Dock`, when its background is not none), re-providing `LocalFoldOsTokens` = `withSpaceBlack(highContrast)` (`surface` and `drawerScrim` #000000, `surfaceBorder` #26262B, `onSurface` / `onHighlight` white, accent lightened to >= 4.5:1, `highlight` accent at 22% over black, no blur), `LocalContentColor` white and a matching Material scheme. `NormalThemeScope` restores the normal theme for pop-ups opened from those surfaces. Summary line: Settings > Look > "Widget tiles, app panels and the dock solid black, all text on them white". Composables must keep reading tokens (`surface`, `onSurface`, ...) so they follow the scope.
+
+## Mail contract (1.5.0): read and send inside the Mail tab
+
+Server (`/api/v1/foldos`, JSON, `Authorization: Bearer <token>`, errors `{"error": code, "message": text}`; 401 = signed out, 409 `not_linked`, 409 `relink_required` = Gmail was linked read-only):
+- `GET mail/inbox?limit=25` -> `{account, unread, messages:[{id, thread_id, from_name, from_email, subject, snippet, received_at, unread, starred, labels}]}`
+- `GET mail/messages/{id}` -> `{id, thread_id, from_name, from_email, to:[{name,email}], cc:[...], subject, date, unread, starred, labels, body_text, has_html, attachments:[{name,mime,size}], message_id_header}`
+- `POST mail/send {to:[..], cc:[..], bcc:[..], subject, body, reply_to_message_id|null, thread_id|null}` -> `{ok, id, thread_id}`; 400 `send_failed` or a validation message
+- `POST mail/messages/{id}/read {read: bool}` -> `{ok:true}`
+- `GET me` also returns `mail.needs_relink: boolean`.
+
+App: `server/ServerClient` gained `getMessage`, `send`, `markRead` and `ServerMailInfo.needsRelink`. `core/repo/MailRepository` gained `MailAddress`, `MailAttachment`, `MailDetail`,
+`MailOpenResult`, `MailDraft`, `MailResult.relinkRequired`, `MailAccount.needsRelink` and the methods `openMessage(id)`, `send(draft)`, `setRead(id, read)` (default bodies return a failure, so
+`NotConfiguredMailRepository` is unchanged). `MailMessage` and `MailState` are unchanged. `GmailMailRepository` maps failures to friendly text (No-network mode, 401 signs out, `relink_required`
+sets `account.needsRelink`) and applies `setRead` to the Connected list optimistically.
+UI: `mail/MailTab.kt` (setup states, slim top bar, list, two-pane layout: list about 40% / reader or compose about 60% on the inner screen, one pane at a time on the cover with system Back going up a
+level), `mail/MailPanes.kt` (`MailReaderPane`, `MailComposePane`, `MailComposeState`, `MailDraftStore`, reply / reply all / forward prefill with "On <date>, <name> wrote:" and "> " quoting).

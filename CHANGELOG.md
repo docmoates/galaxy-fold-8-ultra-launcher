@@ -4,6 +4,23 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.5.0] - 2026-10-16
+
+Mail opens and composes inside the tab (`versionCode` 150). Same signing key, no schema change. Needs the server's message / send / read endpoints.
+
+### Changed
+- Mail tab, connected: the "Inbox / N unread" title block and the "Summary: ... wrote about ..." note above the list are gone. The top of the list is a slim bar with search, a Compose button and the account menu; the first email follows right after the filter chips. The Gmail-app counts card is only on the setup states (signed out, not linked, not set up, error).
+- Tapping an email no longer jumps to the Gmail app. A reader opens inside the tab: back arrow, subject, sender name and address, full date, To and Cc, the full body (selectable, scrollable, links tappable), attachment names (tap says they open in Gmail and opens the thread there), Reply, Reply all, Forward, Mark unread and an overflow with "Open in Gmail". Opening marks the message read and the list and unread count update at once (reverted if the server refuses).
+- Compose is inside the tab too, from the Compose button, Reply, Reply all and Forward: To, Cc / Bcc behind a toggle, Subject, message, Send and Discard. Replies and forwards prefill recipients, "Re: " / "Fwd: " and a quoted original ("On <date>, <name> wrote:" with "> " lines). Sending shows progress, errors inline, then "Sent", returns to the list and refreshes. Discard asks first when there is something typed; Back keeps the draft in memory (an "Unsent draft" row resumes it). No-network mode disables Send with the usual message.
+- Layout: cover screen shows one pane at a time (list, reader, compose; system Back goes up one level); inner screen shows the list on the left (about 40%) and the reader or compose view on the right. The compose view pads for the keyboard.
+- Gmail connect text no longer says read-only.
+
+### Added
+- "Reconnect Gmail to allow reading and sending" card with a Reconnect button when the server says `relink_required` or `mail.needs_relink`.
+- `ServerClient.getMessage / send / markRead`; `MailRepository.openMessage / send / setRead`.
+
+Not verified on a device (the server side was built in parallel): the live endpoints, keyboard behavior on cover and inner, and the new panes in Space black.
+
 ## [1.4.2] - 2026-10-16
 
 Space black fixed (`versionCode` 142). Same signing key, no schema change; the setting `spaceBlack` keeps its name and stored value.

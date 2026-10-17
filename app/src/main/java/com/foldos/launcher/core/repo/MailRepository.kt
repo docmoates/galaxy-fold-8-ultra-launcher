@@ -46,10 +46,56 @@ data class MailAccount(
     val available: Boolean = true,
     /** True while the app is waiting for the browser Gmail approval to finish. */
     val waitingForLink: Boolean = false,
+    /** True when Gmail was linked with the old read-only permission and must be linked again to read and send. */
+    val needsRelink: Boolean = false,
 )
 
-/** Outcome of a user action; [message] is friendly text to show when [ok] is false. */
-data class MailResult(val ok: Boolean, val message: String? = null)
+/**
+ * Outcome of a user action; [message] is friendly text to show when [ok] is false. [relinkRequired] is true when
+ * the server said Gmail must be reconnected (`relink_required`); the Mail tab then shows the Reconnect card.
+ */
+data class MailResult(val ok: Boolean, val message: String? = null, val relinkRequired: Boolean = false)
+
+/** A name and address from a message header; [name] may be blank. */
+data class MailAddress(val name: String, val email: String) {
+    /** "Name <a@b.c>" or just the address. */
+    val display: String get() = if (name.isBlank() || name == email) email else "$name <$email>"
+}
+
+data class MailAttachment(val name: String, val mime: String, val size: Long)
+
+/** One opened message (`GET /mail/messages/{id}`); [date] epoch millis. */
+data class MailDetail(
+    val id: String,
+    val threadId: String,
+    val fromName: String,
+    val fromEmail: String,
+    val to: List<MailAddress>,
+    val cc: List<MailAddress>,
+    val subject: String,
+    val date: Long,
+    val unread: Boolean,
+    val starred: Boolean,
+    val labels: Set<String>,
+    val bodyText: String,
+    val hasHtml: Boolean,
+    val attachments: List<MailAttachment>,
+    val messageIdHeader: String?,
+)
+
+/** Result of [MailRepository.openMessage]: [detail] on success, else [error] (friendly text). */
+data class MailOpenResult(val detail: MailDetail? = null, val error: String? = null, val relinkRequired: Boolean = false)
+
+/** A message to send; recipients are "a@b.c" or "Name <a@b.c>". */
+data class MailDraft(
+    val to: List<String>,
+    val cc: List<String> = emptyList(),
+    val bcc: List<String> = emptyList(),
+    val subject: String,
+    val body: String,
+    val replyToMessageId: String? = null,
+    val threadId: String? = null,
+)
 
 /**
  * The Hub's Mail tab. People sign in with their Crosspoint account, link Gmail once in the browser, and the
@@ -76,4 +122,13 @@ interface MailRepository {
 
     /** Reloads the account status and, when linked, the inbox; no-op while signed out. */
     suspend fun refresh()
+
+    /** Loads the full message (body, recipients, attachments). Does not change read state; see [setRead]. */
+    suspend fun openMessage(id: String): MailOpenResult = MailOpenResult(error = "Reading mail is not available.")
+
+    /** Sends [draft] through the server. Callers refresh the inbox afterwards. */
+    suspend fun send(draft: MailDraft): MailResult = MailResult(false, "Sending mail is not available.")
+
+    /** Marks a message read / unread on the server; the inbox list is updated at once and reverted on failure. */
+    suspend fun setRead(id: String, read: Boolean): MailResult = MailResult(false, "Mail is not available.")
 }

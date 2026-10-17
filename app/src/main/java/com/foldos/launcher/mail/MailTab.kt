@@ -3,6 +3,7 @@ package com.foldos.launcher.mail
 import android.accounts.AccountManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,7 +23,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +44,7 @@ import androidx.compose.material.icons.rounded.Mail
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -141,7 +145,6 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
     val provider = remember(gmail) { gmail?.provider ?: GmailProviderClient(context) }
     val accountEmail: String? = account.gmail
     val inner = screen != ScreenKind.COVER
-    val aiOn = settings.feature(LauncherSettings.FEATURE_AI)
     var notice by remember { mutableStateOf<String?>(null) }
 
     // Refresh when the tab opens (or the app comes back from the browser) and every few minutes while visible.
@@ -175,36 +178,37 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
         MailState.NotLinked -> "Signed in · Gmail not linked yet"
         MailState.NotConfigured -> "Mail is not set up yet"
         MailState.Connecting -> "Gmail · loading"
-        is MailState.Connected -> buildString {
-            append("Gmail · ")
-            append(if (current.unread == 1) "1 unread" else "${current.unread} unread")
-            if (!accountEmail.isNullOrBlank()) append(" · ").append(accountEmail)
-        }
+        // Connected shows no title block at all: the list starts at the top.
+        is MailState.Connected -> accountEmail ?: "Gmail"
         is MailState.Error -> "Gmail · problem loading"
     }
+    // Gmail was linked with the old read-only permission (or the server said so mid-session): reconnect first.
+    val needsRelink = account.needsRelink && account.signedInAs != null && current != MailState.SignedOut
     val menuItems = buildList<Pair<String, () -> Unit>> {
         add("Mail settings" to { openMailSettings() })
         if (account.linked) add("Disconnect Gmail" to { scope.launch { repo.unlink() }; Unit })
         if (account.signedInAs != null) add("Sign out" to signOut)
     }
 
-    // The Compose FAB is an overlay, so the content reserves its height (56dp) + 16dp at the bottom
-    // whenever it is shown; nothing scrolls or lays out underneath it.
-    val showFab = !inner && current is MailState.Connected
+    val showList = current is MailState.Connected && !needsRelink
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 10.dp,
-                    bottom = if (showFab) MailFabClearance else 10.dp,
-                ),
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            MailPageHeader(title = "Inbox", subtitle = subtitle, menuItems = menuItems)
-            when (current) {
+            if (!showList) MailPageHeader(title = "Inbox", subtitle = subtitle, menuItems = menuItems)
+            when {
+                needsRelink -> MailSetupContent(provider = provider, inner = inner, modifier = Modifier.weight(1f)) {
+                    MailRelinkCard(
+                        waiting = account.waitingForLink,
+                        notice = notice,
+                        onConnect = connect,
+                        onSignOut = signOut,
+                    )
+                }
+                else -> when (current) {
                 null, MailState.Connecting -> MailCentered {
                     CircularProgressIndicator(color = tokens.accent)
                     Text(
@@ -243,24 +247,82 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
                 }
                 is MailState.Connected -> MailInboxContent(
                     state = current,
+                    repo = repo,
                     gmail = gmail,
                     accountEmail = accountEmail,
                     inner = inner,
-                    aiOn = aiOn,
+                    offline = settings.noNetwork,
+                    menuItems = menuItems,
                     onRefresh = { scope.launch { repo.refresh() } },
                     modifier = Modifier.weight(1f),
                 )
+                }
             }
         }
-        if (showFab) {
-            ExtendedFloatingActionButton(
-                text = { Text("Compose") },
-                icon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
-                onClick = { GmailIntents.compose(context) },
-                containerColor = tokens.accent,
-                contentColor = tokens.onAccent,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 8.dp),
+    }
+}
+
+/** Gmail was linked with the old read-only permission: one button re-runs the link flow. */
+@Composable
+private fun MailRelinkCard(
+    waiting: Boolean,
+    notice: String?,
+    onConnect: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    val tokens = LocalFoldOsTokens.current
+    FoldOsSurface(
+        modifier = Modifier.fillMaxWidth(),
+        color = tokens.highlight,
+        borderColor = Color.Transparent,
+        contentPadding = PaddingValues(18.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.Mail, contentDescription = null, tint = tokens.onHighlight, modifier = Modifier.size(18.dp))
+                Text(
+                    text = "RECONNECT GMAIL",
+                    color = tokens.onHighlight.copy(alpha = 0.8f),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                )
+            }
+            Text(
+                text = "Reconnect Gmail to allow reading and sending",
+                color = tokens.onHighlight,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 22.sp,
             )
+            Text(
+                text = "Your Gmail was linked before FoldOS could open and send mail. Approve it once more in your browser. " +
+                    "Any draft you started is kept.",
+                color = tokens.onHighlight,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+            if (waiting) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(color = tokens.onHighlight, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = "Waiting for you to finish in the browser…",
+                        color = tokens.onHighlight,
+                        fontSize = 13.5.sp,
+                        lineHeight = 19.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (!notice.isNullOrBlank()) {
+                Text(text = notice, color = tokens.onHighlight, fontSize = 13.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Button(
+                onClick = onConnect,
+                colors = ButtonDefaults.buttonColors(containerColor = tokens.accent, contentColor = tokens.onAccent),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (waiting) "Open the page again" else "Reconnect") }
+            TextButton(onClick = onSignOut) { Text("Sign out", color = tokens.onHighlight) }
         }
     }
 }
@@ -273,7 +335,7 @@ private const val MailAutoRefreshMs = 3L * 60L * 1000L
 /* ------------------------------------------------------------------------------------------ */
 
 @Composable
-private fun mailFieldColors(): TextFieldColors {
+internal fun mailFieldColors(): TextFieldColors {
     val tokens = LocalFoldOsTokens.current
     return OutlinedTextFieldDefaults.colors(
         focusedTextColor = tokens.onSurface,
@@ -401,8 +463,8 @@ private fun MailConnectCard(
                 Text(text = "Signed in as $signedInAs", color = tokens.onHighlight.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 18.sp)
             }
             Text(
-                text = "You will approve read-only access to your Gmail once, in your browser. " +
-                    "FoldOS can read your inbox but cannot send, delete or change anything.",
+                text = "You will approve access to your Gmail once, in your browser. " +
+                    "FoldOS can read your inbox, open messages and send mail you write here.",
                 color = tokens.onHighlight,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -432,30 +494,36 @@ private fun MailConnectCard(
     }
 }
 
-/** Height of the Compose FAB (Material extended FAB). */
-private val MailFabHeight = 56.dp
-
-/** Bottom content padding while the FAB is shown: FAB height + 16dp. */
-private val MailFabClearance = MailFabHeight + 16.dp
-
 /* ------------------------------------------------------------------------------------------ */
-/* Connected: inbox list and reading pane                                                     */
+/* Connected: inbox list, reader and compose                                                  */
 /* ------------------------------------------------------------------------------------------ */
 
+/**
+ * The connected Mail tab. Cover screen: one pane at a time (list, then reader or compose; system Back goes up one
+ * level). Inner screen: the list on the left (about 40%) and the reader or compose view on the right.
+ */
 @Composable
 private fun MailInboxContent(
     state: MailState.Connected,
+    repo: MailRepository,
     gmail: GmailMailRepository?,
     accountEmail: String?,
     inner: Boolean,
-    aiOn: Boolean,
+    offline: Boolean,
+    menuItems: List<Pair<String, () -> Unit>>,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val tokens = LocalFoldOsTokens.current
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(MailFilter.ALL) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var composing by rememberSaveable { mutableStateOf(false) }
+    var pendingDraft by remember { mutableStateOf<MailComposeState?>(null) }
+    val listState = rememberLazyListState()
+    val draft = MailDraftStore.current
 
     val filtered = remember(state.messages, query, filter, gmail) {
         state.messages.filter { message ->
@@ -475,39 +543,189 @@ private fun MailInboxContent(
             passesFilter && passesQuery
         }
     }
-    val selected = filtered.firstOrNull { it.id == selectedId } ?: filtered.firstOrNull()
-    val openInGmail: (MailMessage) -> Unit = { message ->
-        val threadId = gmail?.threadIdFor(message.id)
+    val openInGmail: (String?) -> Unit = { threadId ->
         if (threadId != null) GmailIntents.openThread(context, threadId, accountEmail) else GmailIntents.openGmail(context)
+    }
+
+    // A restored "composing" flag without a draft (the app process was recreated) gets a blank draft.
+    LaunchedEffect(composing, draft) {
+        if (composing && draft == null) MailDraftStore.current = newMessageDraft()
+    }
+
+    // null = resume the draft in memory (or start a blank one); otherwise a reply / forward to start.
+    val startDraft: (MailComposeState?) -> Unit = { fresh ->
+        val existing = MailDraftStore.current
+        when {
+            fresh == null -> {
+                if (existing == null) MailDraftStore.current = newMessageDraft()
+                composing = true
+            }
+            existing != null && existing.isDirty() -> pendingDraft = fresh
+            else -> {
+                MailDraftStore.current = fresh
+                composing = true
+            }
+        }
+    }
+
+    BackHandler(enabled = composing || selectedId != null) {
+        // Back keeps an unsent draft in memory; it only closes the compose view.
+        if (composing) composing = false else selectedId = null
     }
 
     val listColumn: @Composable (Modifier) -> Unit = { columnModifier ->
         Column(modifier = columnModifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MailSearchPill(query = query, onQueryChange = { query = it }, onRefresh = onRefresh)
+            MailTopBar(
+                query = query,
+                onQueryChange = { query = it },
+                onRefresh = onRefresh,
+                onCompose = { startDraft(null) },
+                menuItems = menuItems,
+            )
             MailFilterChips(selected = filter, onSelect = { filter = it }, starredAvailable = gmail != null)
-            if (aiOn && !inner) MailAiSummary(messages = state.messages)
+            if (draft != null && draft.isDirty() && !composing) {
+                MailDraftBanner(draft = draft, onResume = { startDraft(null) })
+            }
             MailListCard(
                 messages = filtered,
-                selectedId = if (inner) selected?.id else null,
-                onClick = { message -> if (inner) selectedId = message.id else openInGmail(message) },
+                selectedId = if (inner) selectedId else null,
+                listState = listState,
+                onClick = { message -> selectedId = message.id },
                 modifier = Modifier.weight(1f),
             )
         }
     }
 
-    if (!inner) {
-        listColumn(modifier.fillMaxWidth())
-    } else {
-        Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            listColumn(Modifier.weight(1f).fillMaxHeight())
-            MailReadingPane(
-                message = selected,
-                labels = selected?.let { gmail?.labelsFor(it.id) } ?: emptySet(),
-                aiOn = aiOn,
-                onOpen = { selected?.let(openInGmail) },
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+    val detailPane: @Composable (Modifier) -> Unit = { paneModifier ->
+        val activeDraft = MailDraftStore.current
+        val openId = selectedId
+        when {
+            composing -> {
+                if (activeDraft != null) {
+                    MailComposePane(
+                        draft = activeDraft,
+                        repo = repo,
+                        offline = offline,
+                        onClose = { composing = false },
+                        onDiscarded = {
+                            MailDraftStore.current = null
+                            composing = false
+                        },
+                        onSent = {
+                            MailDraftStore.current = null
+                            composing = false
+                            selectedId = null
+                            scope.launch { repo.refresh() }
+                        },
+                        modifier = paneModifier,
+                    )
+                }
+            }
+            openId != null -> MailReaderPane(
+                messageId = openId,
+                summary = state.messages.firstOrNull { it.id == openId },
+                repo = repo,
+                onBack = if (inner) null else ({ selectedId = null }),
+                onReply = { detail, all -> startDraft(replyDraft(detail, all, accountEmail)) },
+                onForward = { detail -> startDraft(forwardDraft(detail)) },
+                onOpenInGmail = openInGmail,
+                onMarkedUnread = { if (!inner) selectedId = null },
+                modifier = paneModifier,
             )
+            else -> FoldOsSurface(modifier = paneModifier) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Select a message", color = tokens.onSurface.copy(alpha = 0.65f))
+                }
+            }
         }
+    }
+
+    if (!inner) {
+        if (composing || selectedId != null) {
+            detailPane(modifier.fillMaxSize())
+        } else {
+            listColumn(modifier.fillMaxWidth())
+        }
+    } else {
+        Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            listColumn(Modifier.weight(0.4f).fillMaxHeight())
+            detailPane(Modifier.weight(0.6f).fillMaxHeight())
+        }
+    }
+
+    pendingDraft?.let { fresh ->
+        AlertDialog(
+            onDismissRequest = { pendingDraft = null },
+            title = { Text("Replace your unsent draft?") },
+            text = { Text("You have a message that has not been sent. Starting this one replaces it.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    MailDraftStore.current = fresh
+                    composing = true
+                    pendingDraft = null
+                }) { Text("Replace") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    composing = true
+                    pendingDraft = null
+                }) { Text("Open my draft") }
+            },
+        )
+    }
+}
+
+/** Slim top bar of the list: search, Compose and the account menu. No title, no counts. */
+@Composable
+private fun MailTopBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onRefresh: () -> Unit,
+    onCompose: () -> Unit,
+    menuItems: List<Pair<String, () -> Unit>>,
+) {
+    val tokens = LocalFoldOsTokens.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        MailSearchPill(query = query, onQueryChange = onQueryChange, onRefresh = onRefresh, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = onCompose,
+            modifier = Modifier.size(46.dp).clip(CircleShape).background(tokens.accent),
+        ) {
+            Icon(Icons.Rounded.Edit, contentDescription = "Compose", tint = tokens.onAccent, modifier = Modifier.size(22.dp))
+        }
+        MailAccountMenu(menuItems)
+    }
+}
+
+/** "Draft: subject · Resume" row shown over the list while an unsent draft is waiting. */
+@Composable
+private fun MailDraftBanner(draft: MailComposeState, onResume: () -> Unit) {
+    val tokens = LocalFoldOsTokens.current
+    val label = draft.subject.ifBlank { draft.to.ifBlank { "(no subject)" } }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(tokens.accent.copy(alpha = 0.14f))
+            .clickable(onClick = onResume)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(Icons.Rounded.Edit, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(18.dp))
+        Text(
+            text = "Unsent draft: $label",
+            color = tokens.onSurface,
+            fontSize = 13.5.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(text = "Resume", color = tokens.accent, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -515,6 +733,7 @@ private fun MailInboxContent(
 private fun MailListCard(
     messages: List<MailMessage>,
     selectedId: String?,
+    listState: LazyListState,
     onClick: (MailMessage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -529,7 +748,7 @@ private fun MailListCard(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 items(messages, key = { it.id }) { message ->
                     MailRow(
                         message = message,
@@ -591,108 +810,6 @@ private fun MailRow(message: MailMessage, selected: Boolean, onClick: () -> Unit
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-    }
-}
-
-/** Inner-screen reading pane (mock-up `.read`): header, subject, snippet, reply hints, reply bar. */
-@Composable
-private fun MailReadingPane(
-    message: MailMessage?,
-    labels: Set<String>,
-    aiOn: Boolean,
-    onOpen: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val tokens = LocalFoldOsTokens.current
-    FoldOsSurface(modifier = modifier) {
-        if (message == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Select a message", color = tokens.onSurface.copy(alpha = 0.65f))
-            }
-            return@FoldOsSurface
-        }
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MailAvatar(name = message.from, size = 42.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = message.from,
-                        color = tokens.onSurface,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "to me · ${formatMailTime(message.date, long = true)}",
-                        color = tokens.onSurface.copy(alpha = 0.75f),
-                        fontSize = 13.sp,
-                    )
-                }
-                if (MailLabels.STARRED in labels) {
-                    Icon(Icons.Rounded.Star, contentDescription = "Starred", tint = tokens.accent, modifier = Modifier.size(22.dp))
-                }
-                IconButton(onClick = onOpen) {
-                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open in Gmail", tint = tokens.onSurface)
-                }
-            }
-            Text(
-                text = message.subject,
-                color = tokens.onSurface,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 25.sp,
-            )
-            Column(
-                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = message.snippet.ifBlank { "(no preview)" },
-                    color = tokens.onSurface,
-                    fontSize = 14.5.sp,
-                    lineHeight = 21.sp,
-                )
-                Text(
-                    text = "FoldOS reads message headers and the preview only. Open the conversation in Gmail for the full message and attachments.",
-                    color = tokens.onSurface.copy(alpha = 0.6f),
-                    fontSize = 12.5.sp,
-                    lineHeight = 17.sp,
-                )
-                if (aiOn) {
-                    MailAiNote(text = "Quick replies open this conversation in Gmail with the text ready to paste.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        replyHintsFor(message).forEach { hint ->
-                            MailChip(text = hint, onClick = onOpen)
-                        }
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .clip(RoundedCornerShape(25.dp))
-                    .background(tokens.onSurface.copy(alpha = 0.08f))
-                    .border(1.dp, tokens.surfaceBorder, RoundedCornerShape(25.dp))
-                    .clickable(onClick = onOpen)
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Icon(Icons.AutoMirrored.Rounded.Reply, contentDescription = null, tint = tokens.onSurface, modifier = Modifier.size(20.dp))
-                Text(
-                    text = "Reply in Gmail",
-                    color = tokens.onSurface.copy(alpha = 0.6f),
-                    fontSize = 14.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(20.dp))
-            }
         }
     }
 }
@@ -824,7 +941,6 @@ private fun MailSetupContent(
 @Composable
 private fun MailPageHeader(title: String, subtitle: String, menuItems: List<Pair<String, () -> Unit>>) {
     val tokens = LocalFoldOsTokens.current
-    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -848,36 +964,44 @@ private fun MailPageHeader(title: String, subtitle: String, menuItems: List<Pair
                 )
             }
         }
-        Box {
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(
-                    Icons.Rounded.AccountCircle,
-                    contentDescription = "Mail menu",
-                    tint = tokens.onSurface.copy(alpha = 0.85f),
-                    modifier = Modifier.size(38.dp),
+        MailAccountMenu(menuItems)
+    }
+}
+
+/** The account icon with the Mail menu (settings, disconnect, sign out). */
+@Composable
+private fun MailAccountMenu(menuItems: List<Pair<String, () -> Unit>>) {
+    val tokens = LocalFoldOsTokens.current
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menuOpen = true }) {
+            Icon(
+                Icons.Rounded.AccountCircle,
+                contentDescription = "Mail menu",
+                tint = tokens.onSurface.copy(alpha = 0.85f),
+                modifier = Modifier.size(38.dp),
+            )
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            menuItems.forEach { (label, action) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        menuOpen = false
+                        action()
+                    },
                 )
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                menuItems.forEach { (label, action) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = {
-                            menuOpen = false
-                            action()
-                        },
-                    )
-                }
             }
         }
     }
 }
 
 @Composable
-private fun MailSearchPill(query: String, onQueryChange: (String) -> Unit, onRefresh: () -> Unit) {
+private fun MailSearchPill(query: String, onQueryChange: (String) -> Unit, onRefresh: () -> Unit, modifier: Modifier = Modifier) {
     val tokens = LocalFoldOsTokens.current
     FoldOsSurface(
-        modifier = Modifier.fillMaxWidth().height(52.dp),
-        shape = RoundedCornerShape(26.dp),
+        modifier = modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(24.dp),
         contentPadding = PaddingValues(horizontal = 18.dp),
     ) {
         Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -941,54 +1065,6 @@ private fun MailFilterChips(selected: MailFilter, onSelect: (MailFilter) -> Unit
     }
 }
 
-/** Template "AI summary" of the unread messages (mock-up `.aisum`); no model involved. */
-@Composable
-private fun MailAiSummary(messages: List<MailMessage>) {
-    val unread = messages.filter { it.unread }
-    if (unread.isEmpty()) return
-    val parts = unread.take(3).map { "${firstNameOf(it.from)} wrote about “${it.subject.take(48)}”" }
-    val rest = unread.size - parts.size
-    val text = buildString {
-        append("Summary: ")
-        append(parts.joinToString(", "))
-        if (rest > 0) append(" and $rest more need a look")
-        append('.')
-    }
-    MailAiNote(text = text)
-}
-
-@Composable
-private fun MailAiNote(text: String) {
-    val tokens = LocalFoldOsTokens.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape((tokens.radius - 6.dp).coerceAtLeast(8.dp)))
-            .background(tokens.accent.copy(alpha = 0.14f))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(20.dp))
-        Text(text = text, color = tokens.onSurface, fontSize = 13.5.sp, lineHeight = 19.sp)
-    }
-}
-
-@Composable
-private fun MailChip(text: String, onClick: () -> Unit) {
-    val tokens = LocalFoldOsTokens.current
-    Text(
-        text = text,
-        color = tokens.onSurface,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(tokens.surface)
-            .border(1.dp, tokens.surfaceBorder, RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 11.dp, vertical = 6.dp),
-    )
-}
 
 @Composable
 private fun MailCountPill(text: String) {
@@ -1102,17 +1178,4 @@ internal fun formatMailTime(millis: Long, long: Boolean = false): String {
         else -> time.format(DateTimeFormatter.ofPattern("MMM d, yyyy", locale))
     }
     return if (long) "$day · $clock" else day
-}
-
-/** Three canned quick replies for a message; opening Gmail is where the actual reply happens. */
-private fun replyHintsFor(message: MailMessage): List<String> {
-    val subject = message.subject.lowercase()
-    val text = (message.subject + " " + message.snippet).lowercase()
-    return when {
-        Regex("\\b(meet|meeting|1:1|call|sync|invite|reschedul|move)").containsMatchIn(text) ->
-            listOf("That works for me", "Can we find another time?", "Send the invite")
-        Regex("\\?").containsMatchIn(text) -> listOf("Yes", "Let me check and get back to you", "Thanks for asking")
-        subject.startsWith("re:") -> listOf("Thanks!", "Sounds good", "Will do")
-        else -> listOf("Thanks, got it", "Looking into it", "Let's talk tomorrow")
-    }
 }
