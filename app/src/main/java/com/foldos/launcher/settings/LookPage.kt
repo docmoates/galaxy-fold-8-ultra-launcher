@@ -17,10 +17,15 @@ import com.foldos.launcher.icons.IconShapePicker
 import com.foldos.launcher.icons.IconShapes
 import com.foldos.launcher.onboarding.OnboardingActivity
 import com.foldos.launcher.onboarding.colorsForFamily
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.foldos.launcher.theme.SpaceBlackPreviewTile
 import com.foldos.launcher.theme.isDarkAppearance
 
 object LookRows {
     val theme = SettingsRowInfo("Theme")
+    val spaceBlack = SettingsRowInfo("Space black", "Dock, cards and widgets solid black, all text white")
     val scheme = SettingsRowInfo("Color scheme", "Recolors accent, highlights and wallpaper on any theme")
     val accent = SettingsRowInfo("Accent color", "Buttons, highlights, active tabs")
     val wall1 = SettingsRowInfo("Wallpaper color 1")
@@ -40,7 +45,7 @@ object LookRows {
         title = "Look",
         subtitle = "Theme, color scheme, accent, icons, corner radius",
         icon = Icons.Outlined.Palette,
-        rows = listOf(theme, scheme, accent, wall1, wall2, radius, iconPack, iconShape, wallpaper, dailyWallpaper, presetGallery),
+        rows = listOf(theme, spaceBlack, scheme, accent, wall1, wall2, radius, iconPack, iconShape, wallpaper, dailyWallpaper, presetGallery),
     )
 
     val themeOptions: List<Pair<ThemeId, String>> = listOf(
@@ -63,6 +68,19 @@ object LookRows {
         listOf(ColorSchemeConfig.SCHEME_THEME to "Default") +
             ColorSchemes.families.map { family -> family.id to family.name } +
             (ColorSchemeConfig.SCHEME_CUSTOM to "Custom")
+}
+
+/** Look > Space black: a labeled switch with a live preview tile; also used by the main Settings page. */
+@Composable
+internal fun SpaceBlackToggleRow(settings: LauncherSettings, update: SettingsUpdater) {
+    ToggleRow(
+        info = LookRows.spaceBlack,
+        checked = settings.spaceBlack,
+        onCheckedChange = { on -> update { it.copy(spaceBlack = on) } },
+        leadingContent = {
+            SpaceBlackPreviewTile(base = settings, modifier = Modifier.size(width = 48.dp, height = 64.dp))
+        },
+    )
 }
 
 @Composable
@@ -92,6 +110,7 @@ fun LookPage(
                 update { it.copy(theme = theme, radiusDp = LookRows.defaultRadiusDp(theme)) }
             },
         )
+        SpaceBlackToggleRow(settings = settings, update = update)
         ChipsRow(
             info = LookRows.scheme,
             value = ColorSchemes.familyOfScheme(colors.scheme)?.id ?: colors.scheme,

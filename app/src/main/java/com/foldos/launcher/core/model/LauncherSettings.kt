@@ -88,6 +88,11 @@ data class LauncherSettings(
     val notificationPreview: Boolean = true,
     /** Accessibility: higher-contrast surfaces / text and stronger outlines. */
     val highContrast: Boolean = false,
+    /**
+     * Look > Space black: solid #000000 dock, cards, sheets and widget tiles with pure white text, whatever the
+     * Appearance and color scheme (the accent stays, lightened if needed). Off by default; see theme/SpaceBlack.kt.
+     */
+    val spaceBlack: Boolean = false,
     /** Accessibility: no animated transitions (pager, drawer, widget flips, parallax). */
     val reduceMotion: Boolean = false,
     /** Accessibility: multiplier applied on top of the system font scale to launcher text. */

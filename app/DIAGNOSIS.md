@@ -420,3 +420,15 @@ at the same time (Room 4 -> 5, `WidgetCardMigration`); their widgets are loose, 
 
 Not verified on a device (written from the source): dropdown behavior on the cover and inner screens, drags out of an open dropdown,
 and the migration on a real 1.3.x database.
+
+# 1.4.1: Space black
+
+Owner request: "make the dock, app background and widgets all space black and all text white". Built as a setting (`LauncherSettings.spaceBlack`,
+default off), not a hard-coded change, and only in the theme token layer (`theme/SpaceBlack.kt`, `FoldOsTheme`), so the dock presets, cards,
+folder / add / drawer sheets, menus, dialogs and built-in widgets all follow without per-composable edits. The grep of home/, dock/, builtins/,
+items/, drawer/, edit/ found no hard-coded dark text on surfaces (the only `Color.Black` uses are scrims and text shadows). The theme is forced to
+its dark palette while on, so labels drawn straight on the wallpaper stay light on a dark brush even in Light appearance. Hosted RemoteViews
+widgets cannot be recolored; their `WidgetSlot` backing tile is black. Settings keeps its own Material colors.
+
+Not verified on a device (written from the source): look of every dock preset on black, the 22% accent tint on hero widgets and selected rows,
+and contrast on the cover (1080x2520) and inner (2256x2504) screens.

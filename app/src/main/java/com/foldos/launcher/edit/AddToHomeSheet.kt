@@ -216,7 +216,7 @@ fun AddToHomeSheet(
                     .shadow(24.dp, shape, clip = false)
                     .clip(shape)
                     // Solid base first: drawerScrim can be translucent and the edit bars / dock must not ghost through.
-                    .background(if (tokens.isDark) Color(0xFF16171D) else Color(0xFFF3F3F7))
+                    .background(if (tokens.spaceBlack) Color.Black else if (tokens.isDark) Color(0xFF16171D) else Color(0xFFF3F3F7))
                     .background(tokens.drawerScrim)
                     .border(1.dp, tokens.surfaceBorder, shape)
                     .semantics { paneTitle = "Add to home" }

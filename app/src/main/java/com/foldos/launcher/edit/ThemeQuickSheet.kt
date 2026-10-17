@@ -25,7 +25,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import com.foldos.launcher.theme.SpaceBlackPreviewTile
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +101,31 @@ fun ThemeQuickSheet(
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // One-tap Space black at the top of the sheet.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .toggleable(
+                        value = settings.spaceBlack,
+                        role = Role.Switch,
+                        onValueChange = { on -> update { it.copy(spaceBlack = on) } },
+                    )
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                SpaceBlackPreviewTile(base = settings, modifier = Modifier.size(width = 48.dp, height = 64.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "Space black", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Dock, cards and widgets solid black, all text white",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = settings.spaceBlack, onCheckedChange = null)
+            }
             Text(text = "Theme", style = MaterialTheme.typography.titleLarge)
             Row(
                 modifier = Modifier.fillMaxWidth(),

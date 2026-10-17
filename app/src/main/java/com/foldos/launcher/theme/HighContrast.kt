@@ -51,7 +51,7 @@ internal fun readableOn(background: Color): Color =
     if (contrastRatio(Color.White, background) >= contrastRatio(Color.Black, background)) Color.White else Color.Black
 
 /** Moves this color toward white or black in 10% steps until it reaches [minRatio] against [background]. */
-private fun Color.withContrastAgainst(background: Color, minRatio: Float, towardWhite: Boolean): Color {
+internal fun Color.withContrastAgainst(background: Color, minRatio: Float, towardWhite: Boolean): Color {
     val target = if (towardWhite) Color.White else Color.Black
     val opaque = copy(alpha = 1f)
     var step = 0

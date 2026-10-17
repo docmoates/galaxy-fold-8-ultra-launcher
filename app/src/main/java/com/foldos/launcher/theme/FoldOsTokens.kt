@@ -42,6 +42,8 @@ data class FoldOsTokens(
     val drawerScrim: Color,
     /** True when these tokens are the dark variant. */
     val isDark: Boolean,
+    /** True when [withSpaceBlack] was applied (Settings > Look > Space black): surfaces are solid #000000. */
+    val spaceBlack: Boolean = false,
 )
 
 /** The current [FoldOsTokens]; provided by [FoldOsTheme]. */

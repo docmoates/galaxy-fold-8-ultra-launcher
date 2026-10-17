@@ -4,6 +4,14 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.4.1] - 2026-10-16
+
+Space black look (`versionCode` 141). Same signing key, no schema change.
+
+### Added
+- Settings > Look > "Space black" switch ("Dock, cards and widgets solid black, all text white") with a live preview tile; also in the Settings home Look section and as the first row of the edit-mode Themes sheet. Off by default, so nobody's look changes.
+- When on, regardless of Dark / Light / Auto and color scheme: the dock (all presets), cards, folder and add-to-home sheets, the app pop-up panel, menus, dialogs and built-in widgets are solid #000000 with a 1dp #26262B outline, and all text and icons on them are pure white (secondary text 72%). The accent stays yours and is lightened until it is readable on black. Wallpaper is untouched (the dark variant of the look is used so labels on it stay legible). Hosted app widgets keep their own colors on a black tile. Works together with High contrast (stronger outline). Included in backups; older backups restore with it off.
+
 ## [1.4.0] - 2026-10-16
 
 Widgets are loose again (`versionCode` 140). Same signing key. Room schema 4 -> 5 with a real migration (nothing is dropped).

@@ -419,6 +419,15 @@ private fun LookSection(settings: LauncherSettings, update: SettingsUpdater) {
                 )
             }
         }
+        // Space black: dock, cards and widgets solid black with white text, on any look (off by default).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        ) {
+            SpaceBlackToggleRow(settings = settings, update = update)
+        }
     }
 }
 
