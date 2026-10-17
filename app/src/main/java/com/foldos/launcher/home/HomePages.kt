@@ -1,25 +1,16 @@
 package com.foldos.launcher.home
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import android.view.accessibility.AccessibilityManager
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -35,15 +26,12 @@ import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.HomePage
-import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.ItemKind
-import com.foldos.launcher.core.ui.DragPayload
-import com.foldos.launcher.core.ui.dragTarget
-import kotlin.math.max
 
 /**
- * Renders one home page by its [HomeStyle]: the per-screen setting (Settings > Home > Cover /
- * Inner screen style), or [HomePage.style] when `HomeScreen(perPageStyle = true)`.
+ * Renders one home page. Since Round 2.0 every page is the same thing: a free-form grid canvas
+ * (`settings.colsFor(screen)` columns, rows from the height like Pixel) holding apps, folders,
+ * pairs, widgets and cards wherever the user dropped them. `HomePage.style` has no effect here.
  *
  * @param publishGeometry true for the settled current page, so its item grid publishes the
  *   [GridGeometry] the edit overlay reads through [rememberGridGeometry].
@@ -56,36 +44,7 @@ internal fun HomePageBody(
     modifier: Modifier = Modifier,
     publishGeometry: Boolean = false,
 ) {
-    val style = ctx.styleFor(page)
-    // A settled LIST page has no cell grid to publish: drop the geometry of the page before it so the
-    // edit overlay falls back to the estimate for this style instead of snapping to a stale grid.
-    if (publishGeometry && style == HomeStyle.LIST) {
-        LaunchedEffect(ctx.screen) { HomeGeometryStore.measured.remove(ctx.screen) }
-    }
-    // List and hybrid pages have no cell grid of their own: the whole page body is the drop target
-    // and the app is appended below the last item (col / row -1).
-    val dragController = ctx.dragController
-    val dropHandler = ctx.onDropPayload
-    val pageId = page?.id ?: 0L
-    val bodyDrop: Modifier = if (
-        dragController != null && dropHandler != null && pageId > 0L &&
-        (style == HomeStyle.LIST || style == HomeStyle.HYBRID)
-    ) {
-        Modifier.dragTarget(
-            controller = dragController,
-            id = "page:$pageId",
-            accepts = { true },
-            onDrop = { payload, _ -> dropHandler(payload, pageId, -1, -1) },
-        )
-    } else {
-        Modifier
-    }
-    when (style) {
-        HomeStyle.GRID -> HomeGridPage(ctx, page, items, modifier, publishGeometry)
-        HomeStyle.DASHBOARD -> HomeDashboardPage(ctx, page, items, modifier, publishGeometry)
-        HomeStyle.LIST -> HomeListPage(ctx, page, items, modifier.then(bodyDrop))
-        HomeStyle.HYBRID -> HomeHybridPage(ctx, page, items, modifier.then(bodyDrop), publishGeometry)
-    }
+    HomeCanvasPage(ctx, page, items, modifier, publishGeometry)
 }
 
 /* ---------------- Slots: one grid cell, holding an item or a stack ---------------- */
@@ -99,7 +58,7 @@ internal class HomeSlot(val items: List<HomeItem>) {
     fun toCell(freeMode: Boolean): HomeCell {
         val a = anchor
         // App / folder / pair tiles only answer presses on their own icon and label (see HomeCell.tile).
-        val tile = !isStack && a.kind != ItemKind.WIDGET
+        val tile = !isStack && a.kind != ItemKind.WIDGET && a.kind != ItemKind.CARD
         return if (freeMode && a.free && a.hasFreeBounds) {
             HomeCell(a.col, a.row, a.spanX, a.spanY, a.xDp, a.yDp, a.wDp, a.hDp, tile = tile)
         } else {
@@ -126,12 +85,27 @@ internal fun groupHomeSlots(items: List<HomeItem>): List<HomeSlot> {
     return result
 }
 
+/** True when every free-placement field of this item is set. */
+val HomeItem.hasFreeBounds: Boolean
+    get() = xDp != null && yDp != null && wDp != null && hDp != null
+
+/** Gives unsaved preview items distinct negative ids so they can be keyed and told apart. */
+internal fun List<HomeItem>.asPreviewItems(): List<HomeItem> =
+    mapIndexed { index, item -> if (item.id == 0L) item.copy(id = -(index + 1L)) else item }
+
+/** Rows needed to show [items] on a grid: the lowest cell any non-free item reaches. */
+fun rowsNeededFor(items: List<HomeItem>): Int =
+    items.filterNot { it.free && it.hasFreeBounds }
+        .maxOfOrNull { it.row.coerceAtLeast(0) + it.spanY.coerceAtLeast(1) }
+        ?: 1
+
 /**
- * Lays out [items] as slots on a [cols]-column grid: widgets span their cells, stacks flip in one
- * slot, and in free mode items with dp bounds leave the grid. Long presses on items go to
+ * Lays out [items] as slots on a [cols]-column grid: widgets and cards span their cells, stacks flip
+ * in one slot, and in free mode items with dp bounds leave the grid. Long presses on items go to
  * `HomeCallbacks.onItemLongPress`, those on empty cells to `onEmptyLongPress(pageId, col, row)`.
  *
  * @param heroHighlight draw the first glance / clock built-in with the highlight colors.
+ * @param minRows the grid never has fewer rows than this (the row count still grows with the height).
  */
 @Composable
 internal fun HomeItemsGrid(
@@ -141,6 +115,7 @@ internal fun HomeItemsGrid(
     cols: Int,
     modifier: Modifier = Modifier,
     fixedRows: Int? = null,
+    minRows: Int? = null,
     minCellHeight: Dp = 96.dp,
     gutter: Dp = 0.dp,
     cellPadding: Dp = 6.dp,
@@ -150,8 +125,8 @@ internal fun HomeItemsGrid(
     acceptDrops: Boolean = false,
 ) {
     val slots = remember(items) { groupHomeSlots(items) }
-    // Drag and drop: the page's cell grid is a drop target 'page:<pageId>' (apps from the app
-    // pop-up, items dragged from another cell); the drop cell comes from the grid's own metrics.
+    // Drag and drop: the page's cell grid is a drop target 'page:<pageId>' (apps / widgets / cards
+    // from the "Add to home" sheet, items dragged from another cell); the drop cell comes from the grid's own metrics.
     val dragController = ctx.dragController
     val dropHandler = ctx.onDropPayload
     val dropTarget: HomeGridDrop? = if (acceptDrops && dragController != null && dropHandler != null && pageId > 0L) {
@@ -166,7 +141,7 @@ internal fun HomeItemsGrid(
         slots.firstOrNull { HomeBuiltInIds.isHero(it.anchor.builtinId) }?.anchor?.id
     }
     // Accessibility: Move / Resize actions need the grid size; only grids whose item coordinates
-    // are the stored ones (classic grid, dashboard) offer them, see homeItemAccessActions.
+    // are the stored ones offer them, see homeItemAccessActions.
     val a11yRows = fixedRows ?: if (publishGeometry) HomeGeometryStore.measured[ctx.screen]?.rows else null
     val a11yGrid = remember(items, cols, a11yRows, a11yMovable) {
         if (a11yMovable) HomeItemGridInfo(items, cols, a11yRows) else null
@@ -176,6 +151,7 @@ internal fun HomeItemsGrid(
         cells = cells,
         modifier = modifier,
         fixedRows = fixedRows,
+        minRows = minRows,
         minCellHeight = minCellHeight,
         gutter = gutter,
         keys = keys,
@@ -197,10 +173,15 @@ internal fun HomeItemsGrid(
     }
 }
 
-/* ---------------- Classic grid ---------------- */
+/* ---------------- The canvas page ---------------- */
 
+/**
+ * The one page layout: `ctx.cols` columns, as many rows as the height allows (never fewer than the
+ * items need, so nothing is ever hidden; cells shrink a little when a page holds more rows than fit),
+ * every item at its stored cell, hero widgets highlighted, drops accepted.
+ */
 @Composable
-internal fun HomeGridPage(
+internal fun HomeCanvasPage(
     ctx: HomeContext,
     page: HomePage?,
     items: List<HomeItem>,
@@ -211,13 +192,13 @@ internal fun HomeGridPage(
     val pageId = page?.id ?: 0L
     val free = ctx.freeMode
     // Only the placeholder shown before any page exists is auto-filled; once a persisted page
-    // exists it renders its real items, even when the user has emptied it in edit mode (the
-    // synthetic items could not be selected, moved or deleted there).
+    // exists it renders its real items, even when the user has emptied it.
     val placeholder = page == null
     val gridItems = remember(items, cols, pageId, placeholder, free, ctx.sortedApps) {
         val source = if (items.isEmpty() && placeholder) ctx.autoGridItems(pageId, cols, maxRows = 8) else items
         reflowGridItems(source, cols, skipFree = free)
     }
+    val needed = remember(gridItems) { rowsNeededFor(gridItems) }
     // Labels reserve two lines (bigger in Easy mode / with a larger label size), so each row needs that room.
     val labelHeight = appLabelBlockHeight(ctx.settings)
     HomeItemsGrid(
@@ -226,8 +207,10 @@ internal fun HomeGridPage(
         items = gridItems,
         cols = cols,
         modifier = modifier.fillMaxSize(),
+        minRows = needed,
         minCellHeight = ctx.iconSize + labelHeight + 20.dp,
         gutter = ctx.hingeGutter,
+        heroHighlight = true,
         publishGeometry = publishGeometry,
         a11yMovable = true,
         acceptDrops = true,
@@ -299,9 +282,9 @@ internal fun reflowGridItems(items: List<HomeItem>, cols: Int, skipFree: Boolean
 
 /**
  * One item filling its slot: app (with its notification badge), folder ([HomeFolderTile]), pair
- * ([HomePairTile]) or widget. Widgets get [widgetPadding] around them (the grid gap of the mock-up)
- * and a long-press hook. An APP item whose app is in `hiddenApps` leaves its cell empty; one whose
- * app is uninstalled shows [HomeMissingTile].
+ * ([HomePairTile]), widget or card ([HomeCardTile]). Widgets get [widgetPadding] around them (the
+ * grid gap of the mock-up). An APP item whose app is in `hiddenApps` leaves its cell empty; one whose
+ * app is uninstalled shows [HomeMissingTile]. Every tile can be picked up: long press, then move.
  */
 @Composable
 internal fun HomeItemTile(
@@ -317,19 +300,8 @@ internal fun HomeItemTile(
             when {
                 app != null -> {
                     // A long press opens the item popup as before; moving the finger on from there
-                    // lifts the tile and drags it (to another cell, a page, or the dock).
-                    val dragController = ctx.dragController
-                    val dragHolder = remember { HomeAnchorHolder() }
-                    val dragModifier = if (dragController != null && !ctx.editMode && item.id > 0L) {
-                        Modifier.homeItemDrag(
-                            controller = dragController,
-                            holder = dragHolder,
-                            payload = { DragPayload.Item(item) },
-                            onStarted = { ctx.pressed.value = null },
-                        )
-                    } else {
-                        Modifier
-                    }
+                    // lifts the tile and drags it (to another cell, a page, a card or the dock).
+                    val dragModifier = ctx.itemDragModifier(item)
                     Box(Modifier.fillMaxSize()) {
                         HomeAppTile(
                             app = app,
@@ -375,14 +347,16 @@ internal fun HomeItemTile(
                     }
                     .homeAnchor(holder)
                     // Watched in the Initial pass so it also fires on top of the widget's own
-                    // content (hosted app widgets, clickable built-ins); it opens edit mode.
-                    .homeLongPressFirst { ctx.widgetLongPress(item, holder.bounds()) },
+                    // content (hosted app widgets, clickable built-ins): a long press opens the widget's
+                    // menu (Remove, Resize, Move to card); moving on from the press drags the widget.
+                    .homeWidgetGestures(ctx, item, holder),
             ) {
                 HomeWidgetItem(item, Modifier.fillMaxSize(), highlight = highlight)
                 HomeItemPressOverlay(ctx, item)
             }
         }
         ItemKind.PAIR -> HomePairTile(ctx, item, access)
+        ItemKind.CARD -> HomeCardTile(ctx, item, widgetPadding, access)
     }
 }
 
@@ -433,96 +407,9 @@ private fun rememberAccessibilityServicesEnabled(): Boolean {
     return enabled
 }
 
-/* ---------------- Hybrid panels ---------------- */
+/* ---------------- Favorites row (Flex Mode) ---------------- */
 
-/**
- * Hybrid panels (mock-up `HOME.*.hybrid`). Cover: a widget panel (glance over calendar, or the
- * page's widget items) above an apps panel of 4 x 2 favorites. Inner: the apps panel (4 x 4) on
- * the left and a column of widgets (clock, calendar, media, or the page's widget items) on the
- * right, split at the hinge.
- */
-@Composable
-internal fun HomeHybridPage(
-    ctx: HomeContext,
-    page: HomePage?,
-    items: List<HomeItem>,
-    modifier: Modifier = Modifier,
-    publishGeometry: Boolean = false,
-) {
-    val pageId = page?.id ?: 0L
-    val free = ctx.freeMode
-    val widgetItems = remember(items, ctx.screen, pageId, free) {
-        val own = items.filter { it.kind == ItemKind.WIDGET }
-        val source = if (own.isEmpty()) defaultHybridWidgetItems(ctx.screen, pageId).asPreviewItems() else own
-        reflowGridItems(source, HYBRID_WIDGET_COLUMNS, skipFree = free)
-    }
-    val widgetRows = remember(widgetItems) { max(1, dashboardRows(widgetItems)) }
-
-    if (!ctx.isInner) {
-        Column(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            HomeSurfacePanel(Modifier.weight(1.15f).fillMaxWidth(), contentPadding = 10.dp) {
-                HomeItemsGrid(
-                    ctx = ctx,
-                    pageId = pageId,
-                    items = widgetItems,
-                    cols = HYBRID_WIDGET_COLUMNS,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    fixedRows = widgetRows,
-                    cellPadding = 4.dp,
-                    heroHighlight = true,
-                )
-            }
-            HomeSurfacePanel(Modifier.weight(1f).fillMaxWidth()) {
-                HomeFavoriteGrid(
-                    ctx = ctx,
-                    favorites = ctx.favorites(items, 8),
-                    cols = 4,
-                    rows = 2,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    items = items,
-                    publishGeometry = publishGeometry,
-                )
-            }
-        }
-    } else {
-        val gap = if (ctx.hingeGutter > 0.dp) 32.dp else 24.dp
-        Row(modifier.fillMaxSize()) {
-            HomeSurfacePanel(Modifier.weight(1f).fillMaxHeight()) {
-                // Compact, consistent rows (icon + label + 20dp) from the top: the grid used to stretch its four rows
-                // over the whole panel height, leaving big vertical gaps between icon rows on the tall inner screen.
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val rowHeight = ctx.iconSize + appLabelBlockHeight(ctx.settings) + 20.dp
-                    val appRows = (maxHeight / rowHeight).toInt().coerceIn(2, 6)
-                    HomeFavoriteGrid(
-                        ctx = ctx,
-                        favorites = ctx.favorites(items, 4 * appRows),
-                        cols = 4,
-                        rows = appRows,
-                        modifier = Modifier.fillMaxWidth().height(rowHeight * appRows),
-                        items = items,
-                        publishGeometry = publishGeometry,
-                    )
-                }
-            }
-            Spacer(Modifier.width(gap))
-            HomeItemsGrid(
-                ctx = ctx,
-                pageId = pageId,
-                items = widgetItems,
-                cols = HYBRID_WIDGET_COLUMNS,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                fixedRows = widgetRows,
-                cellPadding = 7.dp,
-                heroHighlight = true,
-            )
-        }
-    }
-}
-
-/** The hybrid widget panel is two cells wide; full-width cards span both. */
-internal const val HYBRID_WIDGET_COLUMNS: Int = 2
-
-/** A plain cols x rows grid of app tiles, filled in order. */
+/** A plain cols x rows grid of app tiles, filled in order (the six-app row under the hinge in Flex Mode). */
 @Composable
 internal fun HomeFavoriteGrid(
     ctx: HomeContext,

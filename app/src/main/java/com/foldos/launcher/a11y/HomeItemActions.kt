@@ -90,7 +90,7 @@ fun homeItemAccessActions(
         move("Move up", "Moved up", 0, -1)
         move("Move down", "Moved down", 0, 1)
 
-        if (item.kind == ItemKind.WIDGET) {
+        if (item.kind == ItemKind.WIDGET || item.kind == ItemKind.CARD) {
             fun resize(label: String, spoken: String, newSpanX: Int, newSpanY: Int) {
                 if (!fits(item.col, item.row, newSpanX, newSpanY)) return
                 actions.add(

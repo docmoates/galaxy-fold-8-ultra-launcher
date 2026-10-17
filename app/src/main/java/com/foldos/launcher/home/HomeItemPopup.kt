@@ -1,6 +1,7 @@
 package com.foldos.launcher.home
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -28,9 +29,12 @@ import com.foldos.launcher.items.ContextAction
 import com.foldos.launcher.items.ItemContextMenu
 import com.foldos.launcher.notifications.NotificationPreviewCard
 import com.foldos.launcher.widgets.WidgetHostController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The item a long press opened the popup for. [anchor] is the tile's bounds in window px (null when
@@ -103,10 +107,74 @@ internal fun HomeItemPressOverlay(ctx: HomeContext, item: HomeItem) {
                     } else {
                         false
                     }
+                    ContextAction.MOVE_TO_CARD -> {
+                        moveItemToCard(context, graph, item)
+                        true
+                    }
+                    ContextAction.TAKE_OUT -> {
+                        takeItemOutOfCard(graph, item, ctx.cols)
+                        true
+                    }
+                    ContextAction.DISSOLVE_CARD -> {
+                        dissolveCard(graph, item, ctx.cols)
+                        true
+                    }
                     else -> false
                 }
             },
         )
+    }
+}
+
+/**
+ * "Move to card": puts [item] into the first card on its page that can hold it (apps cards take
+ * apps / folders / pairs, widget cards take widgets), as the last child. Toasts when the page has none.
+ */
+internal fun moveItemToCard(context: Context, graph: AppGraph, item: HomeItem) {
+    graph.appScope.launch {
+        runCatching {
+            val onPage = graph.layouts.items(item.pageId).first()
+            val card = onPage.firstOrNull { c ->
+                c.isCard && c.id != item.id && (if (item.kind == ItemKind.WIDGET) c.isWidgetsCard else c.isAppsCard)
+            }
+            if (card == null) {
+                withContext(Dispatchers.Main) {
+                    val wanted = if (item.kind == ItemKind.WIDGET) "widget card" else "app card"
+                    Toast.makeText(context, "Add a $wanted to this page first (long-press empty space > Cards)", Toast.LENGTH_SHORT).show()
+                }
+                return@runCatching
+            }
+            val count = graph.layouts.children(card.id).first().size
+            graph.layouts.moveIntoCard(item.id, card.id, count)
+        }
+    }
+}
+
+/** "Take out of card": [item] goes back onto its page at the first free cell of a [cols]-wide grid. */
+internal fun takeItemOutOfCard(graph: AppGraph, item: HomeItem, cols: Int) {
+    graph.appScope.launch {
+        runCatching {
+            val onPage = graph.layouts.items(item.pageId).first()
+            val (col, row) = homeFirstFreeCell(onPage, cols)
+            graph.layouts.removeFromCard(item.id, item.pageId, col, row)
+        }
+    }
+}
+
+/** "Move contents to page": every child of [card] takes a free cell on the page, then the empty card is removed. */
+internal fun dissolveCard(graph: AppGraph, card: HomeItem, cols: Int) {
+    if (!card.isCard || card.id <= 0) return
+    graph.appScope.launch {
+        runCatching {
+            val children = graph.layouts.children(card.id).first()
+            val placed = ArrayList(graph.layouts.items(card.pageId).first().filter { it.id != card.id })
+            for (child in children) {
+                val (col, row) = homeFirstFreeCell(placed, cols)
+                graph.layouts.removeFromCard(child.id, card.pageId, col, row)
+                placed += child.copy(parentId = null, col = col, row = row, spanX = 1, spanY = 1)
+            }
+            graph.layouts.deleteItem(card.id)
+        }
     }
 }
 

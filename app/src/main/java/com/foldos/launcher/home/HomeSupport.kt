@@ -54,8 +54,6 @@ import com.foldos.launcher.core.fold.FoldState
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.GridMode
 import com.foldos.launcher.core.model.HomeItem
-import com.foldos.launcher.core.model.HomePage
-import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.ItemKind
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
@@ -91,8 +89,6 @@ internal class HomeContext(
     val hingeGutter: Dp,
     /** Edit-mode hooks from [LocalHomeCallbacks]; every hook falls back to [onLongPressHome]. */
     val callbacks: HomeCallbacks = HomeCallbacks(),
-    /** True when [HomePage.style] decides a page's style instead of the per-screen setting. */
-    val perPageStyle: Boolean = false,
     /** Folder / pair / context-menu slots from [LocalHomeItemHooks]; null slots use the home fallbacks. */
     val hooks: HomeItemHooks = HomeItemHooks(),
     /** `BadgeRepository.counts` (package -> unread count); empty while badges are off. */
@@ -118,6 +114,11 @@ internal class HomeContext(
      * are the cell under the pointer, or -1 / -1 when the page has no cell grid (list, hybrid).
      */
     val onDropPayload: ((payload: DragPayload, pageId: Long, col: Int, row: Int) -> Unit)? = null,
+    /**
+     * Round 2.0: something was dropped on the card [card]; `order` is the child position under the
+     * pointer (the end of the card when the pointer is past the last child). Null = cards take no drops.
+     */
+    val onDropOnCard: ((payload: DragPayload, card: HomeItem, order: Int) -> Unit)? = null,
 ) {
     // Easy mode (settings.largeIcons) swaps in the larger icons, fewer columns and always-on labels.
     val cols: Int get() = settings.effectiveColsFor(screen).coerceAtLeast(1)
@@ -158,9 +159,11 @@ internal class HomeContext(
     /** Unread count summed over a folder's children; 0 when badges are off. */
     fun badgeFor(children: List<HomeItem>): Int = if (badgesOn) homeBadgeCount(badges, children) else 0
 
-    /** The style a page renders with. */
-    fun styleFor(page: HomePage?): HomeStyle =
-        if (perPageStyle && page != null) page.style else settings.styleFor(screen)
+    /** Settings > Home > Card background (a card's own "transparent" flag wins). */
+    val cardBackground: Boolean get() = settings.cardBackground
+
+    /** Settings > Home > Card titles. */
+    val cardTitles: Boolean get() = settings.cardTitles
 
     /**
      * Long press on an item. In edit mode (or when the items package takes it over through
@@ -178,17 +181,13 @@ internal class HomeContext(
     }
 
     /**
-     * Long press on a widget or widget stack: goes straight to edit mode (add widget, remove,
-     * resize, add / delete page) instead of the app-style popup, unless the items package takes the
-     * long press over through [HomeItemHooks.onItemLongPress].
+     * Long press on a widget, a widget stack or a card: the item menu (Remove, Resize, Move to card,
+     * ...), like every other tile since Round 2.0; in edit mode it selects the item. The press is
+     * recorded so the page's own empty-space detector, which sees the same press, stays quiet.
      */
     fun widgetLongPress(item: HomeItem, anchor: Rect? = null) {
         HomeLongPressClock.itemPressed()
-        if (!editMode) {
-            val hook = hooks.onItemLongPress
-            if (hook != null && hook(item, anchor)) return
-        }
-        editLongPress(item)
+        longPress(item, anchor)
     }
 
     /** The Phase 1 long press: the edit hook when provided, otherwise [onLongPressHome]. */
@@ -405,6 +404,99 @@ internal fun Modifier.homeLongPressFirst(onLongPress: () -> Unit): Modifier = co
 internal fun HomeAnchorHolder.toRoot(local: Offset): Offset {
     val c = coordinates
     return if (c != null && c.isAttached) c.localToRoot(local) else local
+}
+
+/**
+ * The drag modifier of a saved app / folder / pair tile outside edit mode: long press, then move,
+ * lifts the tile as [DragPayload.Item] on the launcher's [DragController] (closing its popup). An
+ * empty modifier when dragging is off, in edit mode (the overlay moves items itself) or for an unsaved
+ * preview item.
+ */
+@Composable
+internal fun HomeContext.itemDragModifier(item: HomeItem): Modifier {
+    val controller = dragController
+    val holder = remember { HomeAnchorHolder() }
+    if (controller == null || editMode || item.id <= 0L) return Modifier
+    return Modifier.homeItemDrag(
+        controller = controller,
+        holder = holder,
+        payload = { DragPayload.Item(item) },
+        onStarted = { pressed.value = null },
+    )
+}
+
+/**
+ * Touch handling of a widget or card tile, watched in the **Initial** pass so it works on top of the
+ * tile's own interactive content (hosted app widgets, clickable built-ins, the apps inside a card):
+ * nothing is consumed until a long press fires, so taps, scrolls and swipes inside keep working.
+ *
+ * - held for the long-press time: [HomeContext.widgetLongPress] (the item menu; a selection in edit mode);
+ * - held and then moved past the touch slop (outside edit mode, saved items only): the menu closes and
+ *   the tile is dragged as [DragPayload.Item]; release drops it, a cancelled gesture cancels it.
+ */
+internal fun Modifier.homeWidgetGestures(
+    ctx: HomeContext,
+    item: HomeItem,
+    holder: HomeAnchorHolder,
+    /** True for a press (node coordinates) that belongs to a child (a card's apps); the gesture is then ignored. */
+    ignoreAt: (Offset) -> Boolean = { false },
+): Modifier = composed {
+    val latestCtx by rememberUpdatedState(ctx)
+    val latestItem by rememberUpdatedState(item)
+    val latestIgnore by rememberUpdatedState(ignoreAt)
+    Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (latestIgnore(down.position)) return@awaitEachGesture
+            val slop = viewConfiguration.touchSlop
+            val ended = withTimeoutOrNull<Boolean>(viewConfiguration.longPressTimeoutMillis) {
+                var over = false
+                while (!over) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    if (change == null ||
+                        !change.pressed ||
+                        event.changes.count { it.pressed } > 1 ||
+                        (change.position - down.position).getDistance() > slop
+                    ) {
+                        over = true
+                    }
+                }
+                true
+            }
+            if (ended != null) return@awaitEachGesture
+            val c = latestCtx
+            val current = latestItem
+            c.widgetLongPress(current, holder.bounds())
+            val controller = c.dragController
+            val canDrag = controller != null && !c.editMode && current.id > 0L
+            var dragging = false
+            try {
+                var stillDown = true
+                while (stillDown) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    if (change == null || !change.pressed) {
+                        stillDown = false
+                    } else {
+                        if (!dragging && canDrag && (change.position - down.position).getDistance() > slop) {
+                            dragging = true
+                            c.pressed.value = null
+                            controller!!.start(DragPayload.Item(current), holder.toRoot(change.position))
+                        }
+                        if (dragging) controller!!.move(holder.toRoot(change.position))
+                    }
+                    event.changes.forEach { it.consume() }
+                }
+                if (dragging) {
+                    dragging = false
+                    controller!!.drop()
+                }
+            } finally {
+                if (dragging) controller!!.cancel()
+            }
+        }
+    }
 }
 
 /**

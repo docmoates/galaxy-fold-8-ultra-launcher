@@ -24,16 +24,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Brush
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.material.icons.rounded.VerticalSplit
+import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -103,7 +110,22 @@ enum class ContextAction(val label: String, val icon: ImageVector) {
     RESIZE("Resize", Icons.Rounded.AspectRatio),
 
     /** Widgets: enter live-edit mode (the menu tries [EDIT] when `onAction` does not take this one). */
-    EDIT_HOME("Edit home", Icons.Rounded.Edit);
+    EDIT_HOME("Edit home", Icons.Rounded.Edit),
+
+    /** Round 2.0: put this app / folder / pair / widget inside a card on its page (the caller picks the card). */
+    MOVE_TO_CARD("Move to card", Icons.Rounded.Dashboard),
+
+    /** Round 2.0: take this item out of its card back onto the page (the caller picks the cell). */
+    TAKE_OUT("Take out of card", Icons.Rounded.OpenInNew),
+
+    /** Round 2.0, cards: rename (an empty name removes the title). */
+    RENAME_CARD("Rename card", Icons.Rounded.Edit),
+
+    /** Round 2.0, cards: toggle the rounded surface behind the contents. */
+    CARD_SURFACE("Card background", Icons.Rounded.Layers),
+
+    /** Round 2.0, cards: move the contents back onto the page and remove the empty card (the caller places them). */
+    DISSOLVE_CARD("Move contents to page", Icons.Rounded.ViewModule);
 
     val destructive: Boolean get() = this == UNINSTALL
 
@@ -126,20 +148,27 @@ enum class ContextAction(val label: String, val icon: ImageVector) {
             ItemKind.APP -> buildList {
                 add(EDIT)
                 add(REMOVE)
+                add(if (item.inFolder) TAKE_OUT else MOVE_TO_CARD)
                 add(APP_INFO)
                 add(UNINSTALL)
                 add(HIDE)
                 if (settings.feature(LauncherSettings.FEATURE_PAIRS)) add(ADD_TO_PAIR)
                 add(ICON_OVERRIDE)
             }
-            ItemKind.WIDGET -> listOf(REMOVE_WIDGET, RESIZE, EDIT_HOME)
-            ItemKind.FOLDER, ItemKind.PAIR -> listOf(EDIT, REMOVE)
+            ItemKind.WIDGET -> buildList {
+                add(REMOVE_WIDGET)
+                if (!item.inFolder) add(RESIZE)
+                add(if (item.inFolder) TAKE_OUT else MOVE_TO_CARD)
+                add(EDIT_HOME)
+            }
+            ItemKind.FOLDER, ItemKind.PAIR -> listOf(EDIT, REMOVE, if (item.inFolder) TAKE_OUT else MOVE_TO_CARD)
+            ItemKind.CARD -> listOf(RESIZE, RENAME_CARD, CARD_SURFACE, DISSOLVE_CARD, REMOVE, EDIT_HOME)
         }
     }
 }
 
 /** Which full-screen sheet the menu has handed over to. */
-private enum class MenuSheet { NONE, ICON_OVERRIDE, PAIR }
+private enum class MenuSheet { NONE, ICON_OVERRIDE, PAIR, RENAME }
 
 /**
  * Long-press menu for a home item when not in edit mode (PLAN.md 5.2 "per-element context menu"):
@@ -194,10 +223,14 @@ fun ItemContextMenu(
         actions.distinct().filter { action ->
             when (action) {
                 ContextAction.EDIT, ContextAction.REMOVE -> true
-                ContextAction.REMOVE_WIDGET, ContextAction.RESIZE, ContextAction.EDIT_HOME -> item.kind == ItemKind.WIDGET
+                ContextAction.REMOVE_WIDGET -> item.kind == ItemKind.WIDGET
+                ContextAction.RESIZE, ContextAction.EDIT_HOME -> item.kind == ItemKind.WIDGET || item.kind == ItemKind.CARD
                 ContextAction.APP_INFO, ContextAction.HIDE -> item.kind == ItemKind.APP && packageName != null
                 ContextAction.UNINSTALL -> item.kind == ItemKind.APP && packageName != null && !isSystemApp
                 ContextAction.ADD_TO_PAIR, ContextAction.ICON_OVERRIDE -> item.kind == ItemKind.APP && app != null
+                ContextAction.MOVE_TO_CARD -> item.id > 0 && item.kind != ItemKind.CARD && !item.inFolder
+                ContextAction.TAKE_OUT -> item.id > 0 && item.kind != ItemKind.CARD && item.inFolder
+                ContextAction.RENAME_CARD, ContextAction.CARD_SURFACE, ContextAction.DISSOLVE_CARD -> item.kind == ItemKind.CARD && item.id > 0
             }
         }
     }
@@ -241,10 +274,28 @@ fun ItemContextMenu(
             }
             ContextAction.ADD_TO_PAIR -> if (app != null) sheet = MenuSheet.PAIR else onDismiss()
             ContextAction.ICON_OVERRIDE -> if (app != null) sheet = MenuSheet.ICON_OVERRIDE else onDismiss()
+            ContextAction.RENAME_CARD -> sheet = MenuSheet.RENAME
+            ContextAction.CARD_SURFACE -> {
+                if (item.isCard && item.id > 0) {
+                    graph.appScope.launch { graph.layouts.upsertItem(item.copy(cardClear = !item.cardClear)) }
+                }
+                onDismiss()
+            }
+            // Placing the contents needs the page grid, which only the home knows: handled through onAction.
+            ContextAction.MOVE_TO_CARD, ContextAction.TAKE_OUT, ContextAction.DISSOLVE_CARD -> onDismiss()
         }
     }
 
     when (sheet) {
+        MenuSheet.RENAME -> CardRenameDialog(
+            initial = item.title.orEmpty(),
+            onRename = { title ->
+                graph.appScope.launch {
+                    graph.layouts.upsertItem(item.copy(title = title.trim().takeIf { it.isNotEmpty() }))
+                }
+            },
+            onDismiss = onDismiss,
+        )
         MenuSheet.ICON_OVERRIDE -> {
             val target = app
             if (target != null) AppIconOverrideSheet(app = target, onClose = onDismiss)
@@ -297,7 +348,35 @@ fun ItemContextMenu(
     }
 }
 
-/** Icon (app / folder / pair / widget), the item's name and its kind. */
+/** Rename dialog of a card; an empty name removes the title. */
+@Composable
+private fun CardRenameDialog(initial: String, onRename: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Card title") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                placeholder = { Text(text = "No title") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onRename(text)
+                    onDismiss()
+                },
+            ) { Text(text = "Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(text = "Cancel") } },
+    )
+}
+
+/** Icon (app / folder / pair / widget / card), the item's name and its kind. */
 @Composable
 private fun MenuHeader(item: HomeItem, app: AppInfo?, secondApp: AppInfo?) {
     val tokens = LocalFoldOsTokens.current
@@ -306,12 +385,14 @@ private fun MenuHeader(item: HomeItem, app: AppInfo?, secondApp: AppInfo?) {
         ItemKind.FOLDER -> item.title ?: Folders.DEFAULT_TITLE
         ItemKind.PAIR -> pairTitle(item, app, secondApp)
         ItemKind.WIDGET -> item.title ?: "Widget"
+        ItemKind.CARD -> item.title ?: if (item.isWidgetsCard) "Widget card" else "App card"
     }
     val kindName = when (item.kind) {
         ItemKind.APP -> "App"
         ItemKind.FOLDER -> "Folder"
         ItemKind.PAIR -> "App pair"
         ItemKind.WIDGET -> "Widget"
+        ItemKind.CARD -> if (item.isWidgetsCard) "Widget card" else if (item.isListCard) "App card (list)" else "App card"
     }
     Row(
         modifier = Modifier
@@ -334,7 +415,11 @@ private fun MenuHeader(item: HomeItem, app: AppInfo?, secondApp: AppInfo?) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = if (item.kind == ItemKind.FOLDER) Icons.Rounded.Folder else Icons.Rounded.Widgets,
+                        imageVector = when (item.kind) {
+                            ItemKind.FOLDER -> Icons.Rounded.Folder
+                            ItemKind.CARD -> Icons.Rounded.Dashboard
+                            else -> Icons.Rounded.Widgets
+                        },
                         contentDescription = null,
                         tint = tokens.onSurface.copy(alpha = 0.8f),
                         modifier = Modifier.size(18.dp),

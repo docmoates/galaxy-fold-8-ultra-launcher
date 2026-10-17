@@ -63,7 +63,8 @@ import kotlin.math.max
 
 /**
  * The launcher home: a horizontal pager over the hub page (when enabled, on the configured side)
- * and the home pages of [screen], with the page indicator and [dock] below. In Flex Mode
+ * and the home pages of [screen] (every page one free-form grid canvas since Round 2.0), with the
+ * page indicator and [dock] below. In Flex Mode
  * ([FoldState.kind] is [ScreenKind.FLEX], i.e. half opened with a horizontal hinge, and the hinge
  * bounds are known) the first page is shown above the hinge and the dock plus a six-app row below
  * it. A half-opened book posture (vertical hinge) keeps the normal paged layout with a gutter over
@@ -79,8 +80,6 @@ import kotlin.math.max
  * @param searchBar optional search bar shown at the top of every home page.
  * @param hub optional hub page content; a placeholder is shown when null and the hub is on.
  * @param homeRequest a counter; every increment scrolls the pager back to the first home page.
- * @param perPageStyle when true each page renders with its own [HomePage.style] (mix and match);
- *   when false (default) every page follows Settings > Home > Cover / Inner screen style.
  * @param onCurrentPageChanged reports the home page the pager has settled on (null while the hub
  *   page is showing), so edit mode and the widget picker know which page they work on.
  * @param pageSelectRequest scrolls the pager to the requested page whenever a new request arrives
@@ -103,6 +102,8 @@ import kotlin.math.max
  *   near the left / right edge for 600 ms flips the pager. Tiles can be picked up (long press, then
  *   move) as [DragPayload.Item] while edit mode is off.
  * @param onDropPayload see [dragController].
+ * @param onDropOnCard Round 2.0: a payload dropped on a card (`DragTargetIds.card(id)`), with the
+ *   child position under the pointer; null = cards take no drops.
  * @param hubSelectRequest a counter; every increment scrolls the pager to the hub page (gesture
  *   action `TYPE_HUB`). Ignored while the hub is off or in Flex Mode.
  * @param keyboardRefocusKey any value that changes when an overlay (drawer, search, picker) closes; the home
@@ -130,7 +131,6 @@ fun HomeScreen(
     hub: @Composable (() -> Unit)?,
     homeRequest: Int = 0,
     modifier: Modifier = Modifier,
-    perPageStyle: Boolean = false,
     onCurrentPageChanged: ((HomePage?) -> Unit)? = null,
     pageSelectRequest: PageSelectRequest? = null,
     editMode: Boolean = false,
@@ -141,6 +141,7 @@ fun HomeScreen(
     onHubPageChanged: ((isHub: Boolean) -> Unit)? = null,
     dragController: DragController? = null,
     onDropPayload: ((payload: DragPayload, pageId: Long, col: Int, row: Int) -> Unit)? = null,
+    onDropOnCard: ((payload: DragPayload, card: HomeItem, order: Int) -> Unit)? = null,
 ) {
     val appsByKey = remember(apps) { apps.associateBy { it.key } }
     // True while the pager shows the hub page: the page indicator and the home dock slide away
@@ -188,7 +189,6 @@ fun HomeScreen(
         onLongPressHome = onLongPressHome,
         hingeGutter = gutter,
         callbacks = callbacks,
-        perPageStyle = perPageStyle,
         hooks = hooks,
         badges = badges,
         editMode = editMode,
@@ -198,6 +198,7 @@ fun HomeScreen(
         swipeUpOpensDrawer = swipeUpOpensDrawer,
         dragController = dragController,
         onDropPayload = onDropPayload,
+        onDropOnCard = onDropOnCard,
     )
 
     // Swipes (gestures/ detector: swipe up / down, two-finger, pinch, double tap; or the swipe-up

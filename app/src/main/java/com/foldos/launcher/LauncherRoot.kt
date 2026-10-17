@@ -35,7 +35,6 @@ import com.foldos.launcher.core.model.DockPosition
 import com.foldos.launcher.core.model.DrawerStyle
 import com.foldos.launcher.core.model.GestureAction
 import com.foldos.launcher.core.model.HomeItem
-import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.model.WidgetEntry
@@ -46,6 +45,8 @@ import com.foldos.launcher.core.ui.rememberDragController
 import com.foldos.launcher.dock.Dock
 import com.foldos.launcher.dock.DockDefaults
 import com.foldos.launcher.drawer.AppDrawer
+import com.foldos.launcher.edit.AddToHomeSheet
+import com.foldos.launcher.edit.CardPreview
 import com.foldos.launcher.edit.EditModeOverlay
 import com.foldos.launcher.edit.EditScaledHome
 import com.foldos.launcher.edit.ThemeQuickSheet
@@ -107,8 +108,17 @@ fun LauncherRoot(viewModel: LauncherViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-/** Remembers the spans picked for an app widget until its bind / configure flow delivers the id. */
-private class PendingWidgetSpans(var spanX: Int = 1, var spanY: Int = 1)
+/**
+ * Remembers where a hosted app widget goes until its bind / configure flow delivers the id: its spans,
+ * an optional drop cell (null = first free cell) and an optional card it was dropped on.
+ */
+private class PendingWidgetTarget(
+    var spanX: Int = 1,
+    var spanY: Int = 1,
+    var col: Int? = null,
+    var row: Int? = null,
+    var card: HomeItem? = null,
+)
 
 @Composable
 private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSettings, modifier: Modifier = Modifier) {
@@ -119,6 +129,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val searchSeed by viewModel.searchSeed.collectAsStateWithLifecycle()
     val editMode by viewModel.editMode.collectAsStateWithLifecycle()
     val pickerOpen by viewModel.widgetPickerOpen.collectAsStateWithLifecycle()
+    val addSheetOpen by viewModel.addSheetOpen.collectAsStateWithLifecycle()
     val homeRequest by viewModel.homeRequests.collectAsStateWithLifecycle()
     val hubRequest by viewModel.hubRequests.collectAsStateWithLifecycle()
     val currentPageId by viewModel.currentPageId.collectAsStateWithLifecycle()
@@ -128,21 +139,21 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val screen: ScreenKind = effectiveScreen(settings, fold)
     val pages by viewModel.pages(screen).collectAsStateWithLifecycle()
 
-    // Seed only once the wizard has chosen the style / columns the seeded pages are laid out for.
-    LaunchedEffect(screen, settings.wizardDone) {
-        if (settings.wizardDone) viewModel.ensureDefaultLayout(screen)
-    }
-
-    // The page edit mode and the picker work on: the settled pager page, else the first page.
+    // The page edit mode and the sheet work on: the settled pager page, else the first page.
     val sortedPages = remember(pages) { pages.sortedBy { it.index } }
     val editPageId: Long? = currentPageId?.takeIf { id -> pages.any { it.id == id } } ?: sortedPages.firstOrNull()?.id
-    val editPageStyle: HomeStyle? = pages.firstOrNull { it.id == editPageId }?.style
     val editItemsFlow = remember(editPageId, viewModel) {
         if (editPageId != null) viewModel.graph.layouts.items(editPageId) else flowOf<List<HomeItem>>(emptyList())
     }
     val editItems by editItemsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
-    val geometry = rememberGridGeometry(screen, settings, fold, editPageStyle)
+    val geometry = rememberGridGeometry(screen, settings, fold)
     val stacksOn = settings.feature(LauncherSettings.FEATURE_STACKS)
+
+    // Seed only once the wizard has chosen the starter / columns the seeded pages are laid out for; the
+    // visible row count comes from the (estimated or measured) grid so the seed stays on screen.
+    LaunchedEffect(screen, settings.wizardDone) {
+        if (settings.wizardDone) viewModel.ensureDefaultLayout(screen, geometry.rows)
+    }
 
     val dockConfig = settings.dockFor(screen)
     val dockOn = settings.feature(LauncherSettings.FEATURE_DOCK)
@@ -181,7 +192,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     // with that character as the start of the query. Off while search is switched off or an overlay is up;
     // while search itself is opening, further characters are appended to the seed.
     val typeToSearchOn = settings.feature(LauncherSettings.FEATURE_SEARCH) &&
-        !editMode && !drawerOpen && !pickerOpen
+        !editMode && !drawerOpen && !pickerOpen && !addSheetOpen
     val keyboardShortcuts = remember(viewModel, typeToSearchOn) {
         KeyboardShortcuts(
             onTypeToSearch = if (typeToSearchOn) {
@@ -197,7 +208,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val openSettings: (String?) -> Unit = { route ->
         context.startActivity(SettingsActivity.intent(context, route))
     }
-    val enterEdit: () -> Unit = { viewModel.enterEditMode() }
+    val openAddSheet: () -> Unit = { viewModel.openAddSheet() }
     // The item a long press (or the item menu's Edit / Resize / Edit home entry) came from: the edit
     // overlay selects it as soon as it shows, so Remove and the resize handles are right there.
     var editSelectId by remember { mutableStateOf<Long?>(null) }
@@ -208,9 +219,9 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                 viewModel.enterEditMode()
             },
             onEmptyLongPress = { _, _, _ ->
-                // An empty spot selects nothing: drop the item an earlier long press left behind.
+                // Round 2.0: empty space opens the "Add to home" sheet (apps, widgets, cards, actions), like Pixel.
                 editSelectId = null
-                viewModel.enterEditMode()
+                viewModel.openAddSheet()
             },
         )
     }
@@ -222,7 +233,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val gesturesOn = settings.feature(LauncherSettings.FEATURE_GESTURES)
     val onGestureAction: (GestureAction) -> Unit = { action -> viewModel.performGesture(context, action) }
     val pageGestures = Modifier.homeGestures(
-        enabled = !editMode && !drawerOpen && !pickerOpen && !searchOpen,
+        enabled = !editMode && !drawerOpen && !pickerOpen && !searchOpen && !addSheetOpen,
         settings = settings,
         onAction = onGestureAction,
     )
@@ -230,59 +241,69 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
 
     // Back on the home screen returns to the default page. The drawer, the picker, the edit
     // overlay and universal search each have their own BackHandler (composed later, so higher priority).
-    BackHandler(enabled = !drawerOpen && !pickerOpen && !editMode && !searchOpen) { viewModel.goHome() }
+    BackHandler(enabled = !drawerOpen && !pickerOpen && !editMode && !searchOpen && !addSheetOpen) { viewModel.goHome() }
 
     // Widget picker -> app widget: allocate, bind (system permission dialog when needed), configure
     // through MainActivity.onActivityResult, then place the item. Built-ins are placed directly.
     val widgetHost = rememberWidgetHostController()
-    val pendingSpans = remember { PendingWidgetSpans() }
+    val pending = remember { PendingWidgetTarget() }
     val packageManager = context.packageManager
     val addAppWidget = rememberAddAppWidgetFlow(widgetHost) { result ->
         when (result) {
             is AddAppWidgetResult.Ready -> {
                 val pageId = editPageId
-                if (pageId == null) {
-                    widgetHost.deleteId(result.appWidgetId)
-                    Toast.makeText(context, "No home page to add the widget to", Toast.LENGTH_SHORT).show()
-                } else {
-                    val label = runCatching { result.provider.loadLabel(packageManager) }.getOrNull()
-                        ?: result.provider.provider.packageName
-                    viewModel.addAppWidget(
+                val label = runCatching { result.provider.loadLabel(packageManager) }.getOrNull()
+                    ?: result.provider.provider.packageName
+                val card = pending.card
+                when {
+                    card != null -> viewModel.addAppWidgetToCard(result.appWidgetId, label, card)
+                    pageId == null -> {
+                        widgetHost.deleteId(result.appWidgetId)
+                        Toast.makeText(context, "No home page to add the widget to", Toast.LENGTH_SHORT).show()
+                    }
+                    else -> viewModel.addAppWidget(
                         appWidgetId = result.appWidgetId,
                         title = label,
-                        spanX = pendingSpans.spanX,
-                        spanY = pendingSpans.spanY,
+                        spanX = pending.spanX,
+                        spanY = pending.spanY,
                         pageId = pageId,
                         cols = geometry.cols,
                         rows = geometry.rows,
-                        pageStyle = editPageStyle,
+                        wantedCol = pending.col,
+                        wantedRow = pending.row,
                     )
                 }
             }
             is AddAppWidgetResult.Cancelled -> Toast.makeText(context, result.reason, Toast.LENGTH_SHORT).show()
         }
     }
-    val onPickWidget: (WidgetEntry) -> Unit = { entry ->
-        val pageId = editPageId
+    // Starts the bind / configure flow for a hosted widget; the result lands at the cell, in the card, or at the first free cell.
+    val bindAppWidget: (WidgetEntry, Int?, Int?, HomeItem?) -> Unit = { entry, col, row, card ->
         val spanX = entry.defaultSpanX.coerceIn(1, geometry.cols.coerceAtLeast(1))
         val spanY = entry.defaultSpanY.coerceIn(1, geometry.rows.coerceAtLeast(1))
+        val info = entry.provider?.let { widgetHost.providerFor(it) }
+        if (info == null) {
+            Toast.makeText(context, "${entry.name} is no longer installed", Toast.LENGTH_SHORT).show()
+        } else {
+            pending.spanX = spanX
+            pending.spanY = spanY
+            pending.col = col
+            pending.row = row
+            pending.card = card
+            addAppWidget.launch(
+                info,
+                WidgetSizing.spanToDp(card?.spanX ?: spanX, geometry.cellWidthDp),
+                WidgetSizing.spanToDp(card?.spanY ?: spanY, geometry.cellHeightDp),
+            )
+        }
+    }
+    // A widget picked by tap (sheet or full picker): first free cell of the current page.
+    val onPickWidget: (WidgetEntry) -> Unit = { entry ->
+        val pageId = editPageId
         when {
             pageId == null -> Toast.makeText(context, "No home page to add the widget to", Toast.LENGTH_SHORT).show()
-            entry.isBuiltIn -> viewModel.addBuiltInWidget(entry, pageId, geometry.cols, geometry.rows, editPageStyle)
-            else -> {
-                val info = entry.provider?.let { widgetHost.providerFor(it) }
-                if (info == null) {
-                    Toast.makeText(context, "${entry.name} is no longer installed", Toast.LENGTH_SHORT).show()
-                } else {
-                    pendingSpans.spanX = spanX
-                    pendingSpans.spanY = spanY
-                    addAppWidget.launch(
-                        info,
-                        WidgetSizing.spanToDp(spanX, geometry.cellWidthDp),
-                        WidgetSizing.spanToDp(spanY, geometry.cellHeightDp),
-                    )
-                }
-            }
+            entry.isBuiltIn -> viewModel.addBuiltInWidget(entry, pageId, geometry.cols, geometry.rows)
+            else -> bindAppWidget(entry, null, null, null)
         }
     }
 
@@ -291,12 +312,12 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     var quietDrawerOpen by rememberSaveable { mutableStateOf(false) }
     // Done / Back / home key leave edit mode without going through the sheets' onDismiss; reset
     // the flags so a sheet does not pop up by itself the next time edit mode opens.
-    LaunchedEffect(editMode) {
-        if (!editMode) {
+    LaunchedEffect(editMode, addSheetOpen) {
+        if (!editMode && !addSheetOpen) {
             themesOpen = false
             wallpaperOpen = false
-            editSelectId = null
         }
+        if (!editMode) editSelectId = null
     }
 
     // While an app is being dragged out of the pop-up the pop-up hides itself and the home behind it
@@ -316,7 +337,19 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val dockHasSearch = dockOn && !railDock && dockConfig.search
     val topSearchBarOn = settings.feature(LauncherSettings.FEATURE_SEARCH) && !dockHasSearch
     val onDropPayload: (DragPayload, Long, Int, Int) -> Unit = { payload, pageId, col, row ->
-        viewModel.dropOnPage(payload, pageId, col, row, stacksOn, geometry)
+        // Hosted app widgets must be bound (system dialog) before a row can hold them; everything else is the view model's.
+        if (payload is DragPayload.Widget && !payload.entry.isBuiltIn) {
+            bindAppWidget(payload.entry, col.takeIf { it >= 0 }, row.takeIf { it >= 0 }, null)
+        } else {
+            viewModel.dropOnPage(payload, pageId, col, row, stacksOn, geometry)
+        }
+    }
+    val onDropOnCard: (DragPayload, HomeItem, Int) -> Unit = { payload, card, order ->
+        if (payload is DragPayload.Widget && !payload.entry.isBuiltIn) {
+            bindAppWidget(payload.entry, null, null, card)
+        } else {
+            viewModel.dropOnCard(payload, card, order)
+        }
     }
 
     // Dock editing: a drop on the dock (or a reorder / remove of its own icons) reports the new ordered
@@ -330,8 +363,8 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         if (pageId == null) {
             Toast.makeText(context, "No home page to add the app to", Toast.LENGTH_SHORT).show()
         } else {
-            // The view model toasts the outcome (added / no room / widgets only).
-            viewModel.addAppToHome(app, pageId, editPageStyle, geometry)
+            // The view model toasts the outcome (added / no room).
+            viewModel.addAppToHome(app, pageId, geometry)
         }
     }
     val onAddToDock: ((AppInfo) -> Unit)? = if (dockOn) {
@@ -379,7 +412,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     apps = apps,
                     onLaunch = onLaunch,
                     onOpenDrawer = openDrawer,
-                    onLongPressHome = enterEdit,
+                    onLongPressHome = openAddSheet,
                     dock = {
                         if (dockOn && !railDock) {
                             val sideMargin = when (dockConfig.bg) {
@@ -414,7 +447,6 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                         null
                     },
                     homeRequest = homeRequest,
-                    perPageStyle = true,
                     onCurrentPageChanged = { page -> viewModel.setCurrentPage(page) },
                     pageSelectRequest = pageSelectRequest,
                     editMode = editMode,
@@ -428,6 +460,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     onHubPageChanged = { isHub -> onHub = isHub },
                     dragController = dragController,
                     onDropPayload = onDropPayload,
+                    onDropOnCard = onDropOnCard,
                 )
                 }
             }
@@ -489,22 +522,53 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                 editItems.firstOrNull { it.id == id }?.let { viewModel.resizeItem(it, spanX, spanY, geometry) }
             },
             onDelete = { id -> editItems.firstOrNull { it.id == id }?.let { viewModel.deleteItem(it) } },
-            onSetPageStyle = { pageId, style -> viewModel.setPageStyle(pageId, style, screen) },
-            onAddPage = { viewModel.addPage(screen, settings.styleFor(screen)) },
+            onAddPage = { viewModel.addPage(screen) },
             onDeletePage = { pageId -> viewModel.deletePage(pageId, screen) },
-            onAddWidget = { viewModel.openWidgetPicker() },
+            onMovePage = { pageId, delta -> viewModel.movePage(pageId, delta, screen) },
+            onAdd = openAddSheet,
             onOpenWallpaper = { wallpaperOpen = true },
             onOpenThemes = { themesOpen = true },
             onOpenDock = { openSettings(SettingsRoutes.DOCK) },
             onOpenSettings = { openSettings(null) },
             onExit = { viewModel.exitEditMode() },
             modifier = Modifier.fillMaxSize(),
+            dragController = dragController,
             onSelectPage = { pageId -> viewModel.selectPage(pageId) },
             onRestoreItem = { item -> viewModel.restoreItem(item) },
             selectRequestId = editSelectId,
         )
-        ThemeQuickSheet(visible = editMode && themesOpen, settings = settings, onDismiss = { themesOpen = false })
-        WallpaperSheet(visible = editMode && wallpaperOpen, onDismiss = { wallpaperOpen = false })
+
+        // Round 2.0: the "Add to home" sheet (long press on empty space, edit mode's Add). Drags from it land
+        // on the page grid, a card or the dock through the same controller; taps place at the first free cell.
+        AddToHomeSheet(
+            visible = addSheetOpen,
+            screen = fold.kind,
+            settings = settings,
+            apps = apps,
+            dragController = dragController,
+            onPlaceApp = { app -> onAddToHome(app) },
+            onPlaceWidget = onPickWidget,
+            onPlaceCard = { style ->
+                val pageId = editPageId
+                if (pageId == null) {
+                    Toast.makeText(context, "No home page to add the card to", Toast.LENGTH_SHORT).show()
+                } else {
+                    viewModel.createCard(pageId, style, geometry)
+                }
+            },
+            onOpenWallpaper = { wallpaperOpen = true },
+            onOpenThemes = { themesOpen = true },
+            onOpenDock = { openSettings(SettingsRoutes.DOCK) },
+            onOpenPages = {
+                viewModel.closeAddSheet()
+                viewModel.enterEditMode()
+            },
+            onOpenSettings = { openSettings(null) },
+            onDismiss = { viewModel.closeAddSheet() },
+            modifier = Modifier.fillMaxSize(),
+        )
+        ThemeQuickSheet(visible = themesOpen, settings = settings, onDismiss = { themesOpen = false })
+        WallpaperSheet(visible = wallpaperOpen, onDismiss = { wallpaperOpen = false })
 
         WidgetPicker(
             visible = pickerOpen,
@@ -560,8 +624,25 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     app.packageName == payload.item.packageName &&
                         (payload.item.activityName == null || app.activityName == payload.item.activityName)
                 }
+                is DragPayload.Widget, is DragPayload.Card -> null
             }
-            if (ghostApp != null) {
+            if (payload is DragPayload.Card) {
+                CardPreview(payload.cardStyle, Modifier.size(width = 120.dp, height = 86.dp).graphicsLayer { alpha = 0.92f })
+            } else if (payload is DragPayload.Widget) {
+                Box(
+                    Modifier
+                        .size(width = 140.dp, height = 90.dp)
+                        .background(ghostTokens.surface.copy(alpha = 0.92f), RoundedCornerShape(16.dp))
+                        .padding(10.dp),
+                ) {
+                    androidx.compose.material3.Text(
+                        text = payload.entry.name,
+                        color = ghostTokens.onSurface,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
+            } else if (ghostApp != null) {
                 HomeAppIcon(
                     app = ghostApp,
                     size = 60.dp,

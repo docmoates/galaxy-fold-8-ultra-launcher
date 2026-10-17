@@ -46,6 +46,8 @@ internal fun dockPayloadKey(payload: DragPayload): String? = when (payload) {
         val act = item.activityName
         if (item.kind == ItemKind.APP && pkg != null && act != null) "$pkg/$act" else null
     }
+    // Round 2.0 sheet payloads: widgets and cards never go into the dock.
+    is DragPayload.Widget, is DragPayload.Card -> null
 }
 
 /**

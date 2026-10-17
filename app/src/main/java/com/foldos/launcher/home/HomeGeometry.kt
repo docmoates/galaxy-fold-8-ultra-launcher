@@ -77,40 +77,36 @@ internal object HomeGeometryStore {
 /**
  * The item grid geometry of [screen] for the edit overlay. Returns the geometry the grid last laid
  * out with when the home screen of [screen] has been composed, otherwise an estimate from the
- * window size and the settings ([estimateGridGeometry]; [pageStyle] is the style of the current page when
- * pages carry their own). Recomposes when either changes.
+ * window size and the settings ([estimateGridGeometry]). Recomposes when either changes.
+ *
+ * [pageStyle] is ignored since Round 2.0 (every page is the same canvas); kept so callers compile.
  */
 @Composable
 fun rememberGridGeometry(
     screen: ScreenKind,
     settings: LauncherSettings,
     fold: FoldState,
-    pageStyle: HomeStyle? = null,
+    @Suppress("UNUSED_PARAMETER") pageStyle: HomeStyle? = null,
 ): GridGeometry {
     val measured = HomeGeometryStore.measured[screen]
     if (measured != null) return measured
-    return remember(screen, settings, fold, pageStyle) { estimateGridGeometry(screen, settings, fold, pageStyle) }
+    return remember(screen, settings, fold) { estimateGridGeometry(screen, settings, fold) }
 }
 
 /**
  * Estimates the item grid of [screen] from the window size in [fold] and the home settings, using
  * the same paddings `HomeScreen` lays out with (16dp page sides, 10dp vertical, 50+14dp search bar,
- * 27dp page indicator, a dock of icon size + chrome) and typical system bar heights.
+ * 27dp page indicator, a dock of icon size + chrome) and typical system bar heights. One formula for
+ * every page: `effectiveColsFor(screen)` columns, rows of icon + two label lines + 20dp.
  */
 fun estimateGridGeometry(
     screen: ScreenKind,
     settings: LauncherSettings,
     fold: FoldState,
-    pageStyle: HomeStyle? = null,
+    @Suppress("UNUSED_PARAMETER") pageStyle: HomeStyle? = null,
 ): GridGeometry {
-    val style = pageStyle ?: settings.styleFor(screen)
     val inner = screen != ScreenKind.COVER
-    val cols = when (style) {
-        HomeStyle.GRID -> settings.effectiveColsFor(screen).coerceAtLeast(1)
-        HomeStyle.DASHBOARD -> dashboardColumns(screen)
-        HomeStyle.LIST -> 1
-        HomeStyle.HYBRID -> 4
-    }
+    val cols = settings.effectiveColsFor(screen).coerceAtLeast(1)
     val dock = settings.dockFor(screen)
     val dockOn = settings.feature(LauncherSettings.FEATURE_DOCK)
     // The bottom dock's search add-on replaces the top search bar (LauncherRoot: topSearchBarOn).
@@ -127,12 +123,7 @@ fun estimateGridGeometry(
     // estimate assumes the capped maximum font scale: it is never shorter than the real grid's rows, so
     // a seeded layout can never put more items on a page than the grid draws.
     val labelDp = kotlin.math.ceil(AppLabelStyle.blockHeightDp(settings, AppLabelStyle.MAX_FONT_SCALE)).toInt()
-    val rows = when (style) {
-        HomeStyle.GRID -> max(1, heightDp / (settings.effectiveIconSizeDp + labelDp + 20))
-        HomeStyle.DASHBOARD -> dashboardRows(defaultDashboardItems(screen, 0L))
-        HomeStyle.LIST -> max(1, heightDp / 46)
-        HomeStyle.HYBRID -> max(1, heightDp / (settings.effectiveIconSizeDp + labelDp + 20))
-    }
+    val rows = max(1, heightDp / (settings.effectiveIconSizeDp + labelDp + 20))
     return GridGeometry(
         cols = cols,
         rows = rows,

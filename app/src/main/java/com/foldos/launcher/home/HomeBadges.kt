@@ -37,7 +37,7 @@ fun homeBadgeCount(counts: Map<String, Int>, item: HomeItem): Int {
     return when (item.kind) {
         ItemKind.APP -> of(item.packageName)
         ItemKind.PAIR -> of(item.packageName) + of(item.packageName2)
-        ItemKind.FOLDER, ItemKind.WIDGET -> 0
+        ItemKind.FOLDER, ItemKind.WIDGET, ItemKind.CARD -> 0
     }
 }
 

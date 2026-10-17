@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,11 +28,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.theme.LocalFoldOsTokens
 
 /** `Modifier.testTag` values of every edit-mode control (UI tests and accessibility tooling). */
@@ -53,26 +50,20 @@ object EditTags {
     const val ACTION_WIDGETS: String = "edit_action_widgets"
     const val ACTION_DOCK: String = "edit_action_dock"
     const val ACTION_SETTINGS: String = "edit_action_settings"
+    const val ACTION_ADD: String = "edit_action_add"
+    const val ACTION_PAGES: String = "edit_action_pages"
+    const val PAGE_LEFT: String = "edit_page_move_left"
+    const val PAGE_RIGHT: String = "edit_page_move_right"
+    const val REMOVE_STRIP: String = "edit_remove_strip"
     const val GRID_LAYER: String = "edit_grid_layer"
     const val REMOVE_ITEM: String = "edit_remove_item"
     const val CONFIRM_REMOVE_FOLDER: String = "edit_confirm_remove_folder"
     const val UNDO_SNACKBAR: String = "edit_undo_snackbar"
     const val UNDO_BUTTON: String = "edit_undo_button"
 
-    /** `edit_style_grid`, `edit_style_dashboard`, `edit_style_list`, `edit_style_hybrid`. */
-    fun styleSegment(style: HomeStyle): String = "edit_style_" + style.name.lowercase()
-
-    /** `edit_resize_top_left`, ... for the four corner handles of the selected widget. */
+    /** `edit_resize_top_left`, ... for the four corner handles of the selected widget or card. */
     fun resizeHandle(corner: String): String = "edit_resize_" + corner.lowercase()
 }
-
-/** Segmented-control entries (mock-up `editUI()`): value and label. */
-internal val EditStyleOptions: List<Pair<HomeStyle, String>> = listOf(
-    HomeStyle.GRID to "Grid",
-    HomeStyle.DASHBOARD to "Dashboard",
-    HomeStyle.LIST to "List",
-    HomeStyle.HYBRID to "Panels",
-)
 
 /** Soft shadow under labels drawn on the wallpaper (mock-up `--tsh`). */
 internal fun editTextShadow(): Shadow = Shadow(
@@ -80,54 +71,6 @@ internal fun editTextShadow(): Shadow = Shadow(
     offset = Offset(0f, 1f),
     blurRadius = 3f,
 )
-
-/**
- * Mock-up `.eseg`: a pill with one equal-width segment per home style; the current one is filled in
- * the accent. Give it a fixed height (the edit top bar uses 44dp) and `fillMaxWidth()`.
- */
-@Composable
-internal fun EditStyleSegments(
-    style: HomeStyle,
-    onSelect: (HomeStyle) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val tokens = LocalFoldOsTokens.current
-    val pill = RoundedCornerShape(999.dp)
-    Row(
-        modifier = modifier
-            .clip(pill)
-            .background(tokens.drawerScrim, pill)
-            .border(1.dp, tokens.surfaceBorder, pill)
-            .padding(4.dp)
-            .testTag(EditTags.STYLE_SEGMENTS),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        EditStyleOptions.forEach { (value, label) ->
-            val on = value == style
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(pill)
-                    .background(if (on) tokens.accent else Color.Transparent, pill)
-                    .clickable { onSelect(value) }
-                    .testTag(EditTags.styleSegment(value)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label,
-                    color = if (on) tokens.onAccent else tokens.onSurface,
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-    }
-}
 
 /** One entry of the bottom action bar; [tag] is its `testTag`. */
 internal data class EditAction(

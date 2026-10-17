@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.ui.DragController
 import com.foldos.launcher.core.ui.DragPayload
@@ -197,9 +198,17 @@ internal class HomeGridMetrics {
     }
 }
 
+/** The cells a dragged payload will take: an item's spans, 1 x 1 for an app, a widget's default, 2 x 2 for a new card. */
+internal fun dragSpans(payload: DragPayload?): Pair<Int, Int> = when (payload) {
+    is DragPayload.Item -> payload.item.spanX.coerceAtLeast(1) to payload.item.spanY.coerceAtLeast(1)
+    is DragPayload.Widget -> payload.entry.defaultSpanX.coerceAtLeast(1) to payload.entry.defaultSpanY.coerceAtLeast(1)
+    is DragPayload.Card -> HomeItem.CARD_MIN_SPAN to HomeItem.CARD_MIN_SPAN
+    is DragPayload.App, null -> 1 to 1
+}
+
 /**
  * Makes a [HomeCellGrid] a drop target of [controller] under [id]: a drop reports the cell under the
- * pointer through [onDrop], and the cell under a hovering drag is highlighted.
+ * pointer through [onDrop], and the cells under a hovering drag are highlighted.
  */
 internal class HomeGridDrop(
     val controller: DragController,
@@ -225,6 +234,8 @@ private class HomeGridCoordinates {
  * their dp rectangle, clamped to the grid bounds.
  *
  * @param fixedRows row count, or null to derive it from the height and [minCellHeight].
+ * @param minRows with a derived row count, never fewer rows than this (the cells then shrink to fit
+ *   the height), so an item stored below the derived rows is still drawn instead of dropped.
  * @param gutter extra horizontal space inserted between the two middle columns (only when
  *   [cols] is even) so the hinge of the inner screen falls into a gap, not a cell.
  * @param keys optional stable keys per child (same size as [cells]) so children keep their state
@@ -246,6 +257,7 @@ internal fun HomeCellGrid(
     cells: List<HomeCell>,
     modifier: Modifier = Modifier,
     fixedRows: Int? = null,
+    minRows: Int? = null,
     minCellHeight: Dp = 96.dp,
     gutter: Dp = 0.dp,
     keys: List<Any>? = null,
@@ -283,12 +295,18 @@ internal fun HomeCellGrid(
                 if (dropTarget.controller.hoverTargetId.value == dropTarget.id) {
                     val local = gridCoordinates.toLocal(dropTarget.controller.pointerInRoot.value)
                     if (local != null) {
-                        val col = metrics.colAt(local.x.roundToInt())
-                        val row = metrics.rowAt(local.y.roundToInt())
+                        // Live cell highlight the size of what is being dragged, kept inside the grid.
+                        val (spanX, spanY) = dragSpans(dropTarget.controller.payload.value)
+                        val sx = spanX.coerceIn(1, metrics.cols)
+                        val sy = spanY.coerceIn(1, metrics.rows)
+                        val col = metrics.colAt(local.x.roundToInt()).coerceAtMost(metrics.cols - sx)
+                        val row = metrics.rowAt(local.y.roundToInt()).coerceAtMost(metrics.rows - sy)
+                        val left = metrics.startX(col).toFloat()
+                        val right = metrics.endX(col + sx).toFloat()
                         drawRoundRect(
                             color = highlight.copy(alpha = 0.28f),
-                            topLeft = Offset(metrics.startX(col).toFloat(), (row * metrics.cellH).toFloat()),
-                            size = Size(metrics.cellW.toFloat(), metrics.cellH.toFloat()),
+                            topLeft = Offset(left, (row * metrics.cellH).toFloat()),
+                            size = Size(right - left, (sy * metrics.cellH).toFloat()),
                             cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
                         )
                     }
@@ -393,8 +411,8 @@ internal fun HomeCellGrid(
         val minCellHeightPx = max(1, minCellHeight.roundToPx())
         val rows = when {
             fixedRows != null -> max(1, fixedRows)
-            constraints.hasBoundedHeight -> max(1, constraints.maxHeight / minCellHeightPx)
-            else -> 1
+            constraints.hasBoundedHeight -> max(max(1, minRows ?: 1), constraints.maxHeight / minCellHeightPx)
+            else -> max(1, minRows ?: 1)
         }
         val height = if (constraints.hasBoundedHeight) constraints.maxHeight else rows * minCellHeightPx
         val gutterPx = if (gutter > 0.dp && columns % 2 == 0) gutter.roundToPx() else 0
