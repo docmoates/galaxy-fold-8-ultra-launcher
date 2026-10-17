@@ -151,7 +151,6 @@ object StarterLayouts {
                     )
                 }
                 val appCount = if (inner) 16 else 8
-                Seed(
                     items = widgets + appCard,
                     children = preferredHomeApps(apps, appCount).mapIndexed { i, a -> Child(widgets.size, app(a, 0, i, parent = true)) },
                 )
