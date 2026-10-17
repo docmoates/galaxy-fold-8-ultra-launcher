@@ -343,6 +343,42 @@ Paths under `app/src/main/java/com/foldos/launcher/`.
 13. "Not flipping" rows (Not reproduced): the toggles and chips are wired and persisted (`SettingsWriteQueue` -> DataStore);
     Count / Dot sat in a horizontally scrolling chip row, see 3.
 
+# Round 2.0 diagnosis: why the page templates had to go (1.3.0)
+
+Read from the code and the 1.2.x device reports. The four per-page styles each had their own renderer, their own
+column count and their own idea of which stored items were "visible", and every switch between them was a conversion
+that had to be repaired afterwards. The redesign (one free-form canvas per page plus cards as holders, see
+`app/CONTRACTS.md` "Round 2.0") removes the following root causes instead of patching them again:
+
+1. **Widgets drawn over app icons after a style switch** (1.2.1, 1.2.2): `HomeDashboardPage` drew widgets only, on 2 / 4
+   widget columns, while the page's APP rows stayed in the database on the same 4 / 6 grid cells. Switching back to Grid showed
+   both sets on one grid; `removeSeededDashboardWidgets` + `moveWidgetsOffApps` repaired only the cases they knew. Now there is
+   one grid and one set of visible items per page, every placement goes through `nearestFreeCell` / `firstFreeCell` / `placeApp`
+   with an overlap check, resizing refuses overlaps, and `repairOverlaps` packs every page once per launch. Nothing is hidden, so
+   nothing can come back on top of something else.
+2. **Inner screen cramming widgets into the top-left** (1.2.2 item 7): the dashboard's 4-column coordinates were drawn on a
+   6-column grid when a page was restyled. The migration re-spans every dashboard widget onto the page grid once
+   (`CanvasMigration`, cover x2, inner 1 -> 2 / 2 -> 3 cells) and packs it; afterwards spans are only ever set in page-grid
+   cells, by the user (resize handles) or by `StarterLayouts` for the real column count.
+3. **List edit mode: chips stacking, outlines that matched no row** (1.2.0, 1.2.2 item 2): the List style had no cell grid, so
+   the edit overlay could neither select nor outline its rows and grew a parallel "Widgets (N)" UI. A list is now an apps card in
+   list style: one grid item with a real cell rectangle, selectable, resizable and removable like everything else; the overlay has
+   one code path and no per-style branches.
+4. **Doubled widget outlines in edit mode** (1.2.2 item 11): the overlay drew its selection at the full cell while dashboard tiles
+   were inset by a per-style padding, so two frames showed. The canvas draws every widget / card with the same 6dp tile padding
+   and the overlay draws one guide inset (3dp) and one selection frame at the cell; there is no second geometry to disagree with.
+5. **"No room on this page" surprises on Hybrid pages**: the Panels renderer drew exactly 8 / 16 apps and silently stored the rest.
+   Cards have no fixed capacity: an apps card lays out as many rows as fit and scrolls past that; the page itself grows a row when
+   its visible grid is full. A placement is refused only when the grid plus one extra row has no free spot, with a toast.
+6. **Two ways to add things, neither like Pixel**: "Add widget" lived in edit mode, apps came only from the pop-up drawer, and a long
+   press on empty space jumped into edit mode. Long press now opens the "Add to home" sheet (Apps / Widgets / Cards + Wallpaper,
+   Themes, Dock, Pages, Settings); drag from it or tap to place at the first free cell; edit mode is only page management plus the
+   Remove strip, reached by pinch, the sheet's Pages action or an item menu's Edit / Resize.
+
+Not verified on a device (written from the source): the Initial-pass long press on a card's chrome versus its children, hosted app
+widgets dropped into a widget card (bind dialog then `addAppWidgetToCard`), and the migration on a database that mixes stacks with
+the old dashboard coordinates.
+
 # Mail via the Crosspoint server (1.2.4)
 
 - Why: on-phone Google sign-in needed an OAuth client id per person (1.2.3 fetched a shared one). Now the server owns the Google

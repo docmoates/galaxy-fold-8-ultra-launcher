@@ -158,7 +158,7 @@ Outputs: `app/build/outputs/apk/debug/app-debug.apk` and
 
 Pinned versions: Gradle 8.9, Android Gradle Plugin 8.7.3, Kotlin 2.1.0, KSP 2.1.0-1.0.29, Compose
 BOM 2024.12.01, Room 2.7.0 (2.6.1's KSP processor cannot read Kotlin 2.1 metadata; do not
-downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.2.2`, `versionCode` is `122`.
+downgrade it), minSdk 34, targetSdk 35. `versionName` is `1.3.0`, `versionCode` is `130`.
 
 If the release build fails inside R8, build with `-Pfoldos.minify=false` to confirm that shrinking
 is the cause, then add the missing keep rule to `app/proguard-rules.pro`.

@@ -17,10 +17,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *    and free-placement (`free`, `x_dp`, `y_dp`, `w_dp`, `h_dp`) columns.
  * 3. items gained the folder (`parent_id` + index, `folder_style`) and app-pair
  *    (`package_name_2`, `activity_name_2`) columns.
+ * 4. Round 2.0 (free canvas + cards): items gained `card_style` and `card_clear`; the per-style pages
+ *    were converted to canvas content (see [MIGRATION_3_4] / [CanvasMigration]).
  */
 @Database(
     entities = [PageEntity::class, ItemEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(LayoutConverters::class)
@@ -57,10 +59,24 @@ abstract class LayoutDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Round 2.0: adds the card columns, then converts every page from its old style to free-canvas
+         * content (DASHBOARD widgets re-spanned onto the page grid, LIST pages into one apps card in list
+         * style, HYBRID pages into a widget card over an app card) and packs each page so nothing overlaps.
+         * See [CanvasMigration].
+         */
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE items ADD COLUMN card_style TEXT")
+                db.execSQL("ALTER TABLE items ADD COLUMN card_clear INTEGER NOT NULL DEFAULT 0")
+                CanvasMigration.convertPages(db)
+            }
+        }
+
         /** Builds a new instance; callers (the [com.foldos.launcher.data.AppGraphImpl]) keep it as a singleton. */
         fun create(context: Context): LayoutDatabase =
             Room.databaseBuilder(context.applicationContext, LayoutDatabase::class.java, DATABASE_NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
     }

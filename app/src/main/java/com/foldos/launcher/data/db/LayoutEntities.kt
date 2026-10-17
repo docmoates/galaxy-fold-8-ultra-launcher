@@ -38,7 +38,8 @@ data class PageEntity(
  * Schema version 2 added the widget, stack and free-placement columns (all nullable except
  * `stack_index` and `free`, which default to 0); see [LayoutDatabase.MIGRATION_1_2]. Version 3
  * added the folder (`parent_id`, `folder_style`) and app-pair (`package_name_2`,
- * `activity_name_2`) columns, all nullable; see [LayoutDatabase.MIGRATION_2_3].
+ * `activity_name_2`) columns, all nullable; see [LayoutDatabase.MIGRATION_2_3]. Version 4 added the
+ * card columns (`card_style` nullable, `card_clear` default 0); see [LayoutDatabase.MIGRATION_3_4].
  */
 @Entity(
     tableName = "items",
@@ -97,6 +98,10 @@ data class ItemEntity(
     val activityName2: String? = null,
     @ColumnInfo(name = "folder_style")
     val folderStyle: String? = null,
+    @ColumnInfo(name = "card_style")
+    val cardStyle: String? = null,
+    @ColumnInfo(name = "card_clear", defaultValue = "0")
+    val cardClear: Boolean = false,
 ) {
     fun toModel(): HomeItem = HomeItem(
         id = id,
@@ -122,6 +127,8 @@ data class ItemEntity(
         packageName2 = packageName2,
         activityName2 = activityName2,
         folderStyle = folderStyle,
+        cardStyle = cardStyle,
+        cardClear = cardClear,
     )
 
     companion object {
@@ -149,6 +156,8 @@ data class ItemEntity(
             packageName2 = item.packageName2,
             activityName2 = item.activityName2,
             folderStyle = item.folderStyle,
+            cardStyle = item.cardStyle,
+            cardClear = item.cardClear,
         )
     }
 }

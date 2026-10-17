@@ -83,6 +83,21 @@ interface LayoutDao {
     @Query("UPDATE items SET page_id = :pageId WHERE parent_id = :parentId")
     suspend fun moveChildren(parentId: Long, pageId: Long)
 
+    /** Children of the children of [parentId] (the apps inside a folder inside a card) follow the card's page. */
+    @Query("UPDATE items SET page_id = :pageId WHERE parent_id IN (SELECT id FROM items WHERE parent_id = :parentId)")
+    suspend fun moveGrandchildren(parentId: Long, pageId: Long)
+
+    /** Deletes the children of the children of [parentId] (a card's folders' apps). */
+    @Query("DELETE FROM items WHERE parent_id IN (SELECT id FROM items WHERE parent_id = :parentId)")
+    suspend fun deleteGrandchildren(parentId: Long)
+
+    /** Puts one item into a card as child [row]: leaves the grid, any stack and free placement, takes the card's page. */
+    @Query(
+        "UPDATE items SET parent_id = :parentId, page_id = :pageId, grid_col = 0, grid_row = :row, " +
+            "stack_id = NULL, stack_index = 0, free = 0, x_dp = NULL, y_dp = NULL, w_dp = NULL, h_dp = NULL WHERE id = :id",
+    )
+    suspend fun placeInCard(id: Long, parentId: Long, pageId: Long, row: Int)
+
     @Query("UPDATE items SET folder_style = :style WHERE id = :id")
     suspend fun setFolderStyle(id: Long, style: String?)
 

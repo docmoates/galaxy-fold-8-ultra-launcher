@@ -11,7 +11,9 @@ import kotlinx.serialization.Serializable
 data class LauncherSettings(
     val screenMode: ScreenMode = ScreenMode.DIFFERENT,
     val appearance: Appearance = Appearance.DARK,
+    /** Starter layout last applied to the cover screen (seeds the first page; no rendering effect since 1.3.0). */
     val styleCover: HomeStyle = HomeStyle.GRID,
+    /** Starter layout last applied to the inner screen. */
     val styleInner: HomeStyle = HomeStyle.DASHBOARD,
     val theme: ThemeId = ThemeId.GLASS,
     val gridMode: GridMode = GridMode.GRID,
@@ -100,6 +102,10 @@ data class LauncherSettings(
     val dailyWallpaper: Boolean = false,
     /** Back up settings and layouts automatically (Android Auto Backup / scheduled export). */
     val backupAuto: Boolean = true,
+    /** Cards (Round 2.0): draw the rounded theme surface behind a card (a card's own `cardClear` wins). */
+    val cardBackground: Boolean = true,
+    /** Cards: show the card title row (cards without a title never show one). */
+    val cardTitles: Boolean = true,
 ) {
     /** The action bound to [kind]; [GestureAction.NONE] when unbound. */
     fun gesture(kind: GestureKind): GestureAction = gestures[kind.name] ?: GestureAction.NONE

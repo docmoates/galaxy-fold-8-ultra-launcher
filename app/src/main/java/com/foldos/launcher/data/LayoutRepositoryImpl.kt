@@ -12,8 +12,7 @@ import com.foldos.launcher.data.db.ItemEntity
 import com.foldos.launcher.data.db.LayoutDao
 import com.foldos.launcher.data.db.LayoutDatabase
 import com.foldos.launcher.data.db.PageEntity
-import com.foldos.launcher.home.defaultDashboardItems
-import com.foldos.launcher.home.preferredHomeApps
+import com.foldos.launcher.home.StarterLayouts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,12 +21,10 @@ import java.io.File
 
 /**
  * [LayoutRepository] on top of [LayoutDatabase]. On first run each screen gets [DEFAULT_PAGE_COUNT]
- * pages (one populated, one empty), and the first page is filled with up to 16 useful apps in a grid
- * (see [preferredHomeApps]: browser, mail, photos, maps, ... first, then the rest alphabetically): the
- * caller's column count (Settings > Home > Cover / Inner columns) times 4 rows on the cover or 3 rows
- * on the inner screen, capped at 16 (a dashboard first page gets the default widgets instead).
- * Without a column count the LauncherSettings defaults apply (4 columns / 16 apps on the cover,
- * 6 columns / 16 of 18 cells on the inner screen).
+ * pages (one populated, one empty); the first page is seeded from the chosen starter layout
+ * ([StarterLayouts]: apps grid, widgets, an apps card in list style, or a widget card over an app card)
+ * for the caller's column count (Settings > Home > Cover / Inner columns) and visible rows.
+ * Without a column count the LauncherSettings defaults apply (4 columns on the cover, 6 inside).
  *
  * Stacks use the first (anchor) item's row id as the stack id, so stack ids never collide with
  * each other and survive the anchor being flipped to the back.
@@ -61,12 +58,12 @@ class LayoutRepositoryImpl(
      * marker so a page the user adds on purpose later is never mistaken for a legacy duplicate (see
      * [removeLegacyDuplicatePages]).
      */
-    override suspend fun ensureDefaultLayout(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?) {
+    override suspend fun ensureDefaultLayout(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?, rows: Int?) {
         val marker = markerDir?.let { File(it, "foldos_legacy_pages_checked_${screen.name}") }
         if (marker != null && withContext(Dispatchers.IO) { marker.exists() }) {
             // Already tidied (or created by this version): only seed a screen that has no pages yet.
             db.withTransaction {
-                if (dao.countPages(screen.name) == 0) createDefaultPages(screen, apps, columns, style)
+                if (dao.countPages(screen.name) == 0) createDefaultPages(screen, apps, columns, style, rows)
             }
             return
         }
@@ -74,7 +71,7 @@ class LayoutRepositoryImpl(
             if (dao.countPages(screen.name) > 0) {
                 removeLegacyDuplicatePages(screen)
             } else {
-                createDefaultPages(screen, apps, columns, style)
+                createDefaultPages(screen, apps, columns, style, rows)
             }
         }
         if (marker != null) {
@@ -89,45 +86,20 @@ class LayoutRepositoryImpl(
         }
     }
 
-    private suspend fun createDefaultPages(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?) {
+    private suspend fun createDefaultPages(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?, rows: Int?) {
         val pageStyle = style ?: defaultStyle(screen)
         var firstPageId = 0L
         for (index in 0 until DEFAULT_PAGE_COUNT) {
             val id = dao.upsertPage(PageEntity(screen = screen, index = index, style = pageStyle))
             if (index == 0) firstPageId = id
         }
-        seedFirstPage(screen, firstPageId, pageStyle, apps, columns)
-    }
-
-    /** Fills the first page of a freshly created screen (see [ensureDefaultLayout]). */
-    private suspend fun seedFirstPage(
-        screen: ScreenKind,
-        pageId: Long,
-        pageStyle: HomeStyle,
-        apps: List<AppInfo>,
-        columns: Int?,
-    ) {
-        val seeded: List<ItemEntity> = if (pageStyle == HomeStyle.DASHBOARD) {
-            // Real, editable items (PLAN.md 8.1) rather than the preview the home draws for an empty page.
-            defaultDashboardItems(screen, pageId).map { ItemEntity.fromModel(it) }
-        } else {
-            val cols = columns?.coerceAtLeast(1) ?: defaultColumns(screen)
-            val count = cols * defaultRows(screen)
-            // Useful apps first (browser, mail, photos, maps, ...), then the rest alphabetically;
-            // never more than HOME_SEED_APP_LIMIT (24) however large the grid is.
-            preferredHomeApps(apps, count).mapIndexed { position, app ->
-                ItemEntity(
-                    pageId = pageId,
-                    kind = ItemKind.APP,
-                    col = position % cols,
-                    row = position / cols,
-                    packageName = app.packageName,
-                    activityName = app.activityName,
-                    title = app.label,
-                )
-            }
-        }
-        if (seeded.isNotEmpty()) dao.upsertItems(seeded)
+        // Real, editable canvas content from the starter (apps, widgets and cards), see StarterLayouts.
+        val cols = columns?.coerceAtLeast(1) ?: defaultColumns(screen)
+        StarterLayouts.write(
+            layouts = this,
+            pageId = firstPageId,
+            seed = StarterLayouts.seed(pageStyle, screen, firstPageId, apps, cols, rows ?: StarterLayouts.DEFAULT_ROWS),
+        )
     }
 
     /**
@@ -193,11 +165,12 @@ class LayoutRepositoryImpl(
         dao.upsertItem(ItemEntity.fromModel(item))
     }
 
-    /** Deletes the item; a folder takes its children with it. */
+    /** Deletes the item; a folder takes its children with it, a card its children and their children. */
     override suspend fun deleteItem(id: Long) {
         db.withTransaction {
             val item = dao.itemById(id)
-            if (item?.kind == ItemKind.FOLDER) dao.deleteChildren(id)
+            if (item?.kind == ItemKind.CARD) dao.deleteGrandchildren(id)
+            if (item?.kind == ItemKind.FOLDER || item?.kind == ItemKind.CARD) dao.deleteChildren(id)
             dao.deleteItem(id)
         }
     }
@@ -211,8 +184,9 @@ class LayoutRepositoryImpl(
             } else {
                 dao.moveItem(id, pageId, col, row)
             }
-            // Folder children follow their folder so a page delete still cascades to them.
-            if (item?.kind == ItemKind.FOLDER) dao.moveChildren(id, pageId)
+            // Folder / card children follow their container so a page delete still cascades to them.
+            if (item?.kind == ItemKind.FOLDER || item?.kind == ItemKind.CARD) dao.moveChildren(id, pageId)
+            if (item?.kind == ItemKind.CARD) dao.moveGrandchildren(id, pageId)
         }
     }
 
@@ -445,6 +419,64 @@ class LayoutRepositoryImpl(
     }
 
     override fun dockApps(screen: ScreenKind): Flow<List<String>> = dockStore.apps(screen)
+
+    // ---- Round 2.0: cards and page order ----
+
+    override suspend fun createCard(
+        pageId: Long,
+        col: Int,
+        row: Int,
+        spanX: Int,
+        spanY: Int,
+        cardStyle: String,
+        title: String?,
+    ): Long = dao.upsertItem(
+        ItemEntity(
+            pageId = pageId,
+            kind = ItemKind.CARD,
+            col = col.coerceAtLeast(0),
+            row = row.coerceAtLeast(0),
+            spanX = spanX.coerceAtLeast(HomeItem.CARD_MIN_SPAN),
+            spanY = spanY.coerceAtLeast(HomeItem.CARD_MIN_SPAN),
+            title = title?.trim()?.takeIf { it.isNotEmpty() },
+            cardStyle = cardStyle.takeIf { it in HomeItem.CARD_STYLES } ?: HomeItem.CARD_APPS,
+        ),
+    )
+
+    override suspend fun moveIntoCard(itemId: Long, cardId: Long, order: Int) {
+        db.withTransaction {
+            val item = dao.itemById(itemId) ?: return@withTransaction
+            val card = dao.itemById(cardId) ?: return@withTransaction
+            if (item.kind == ItemKind.CARD || card.kind != ItemKind.CARD || itemId == cardId) return@withTransaction
+            dao.placeInCard(id = itemId, parentId = cardId, pageId = card.pageId, row = order.coerceAtLeast(0))
+            // A folder keeps its apps; they follow it onto the card's page.
+            if (item.kind == ItemKind.FOLDER) dao.moveChildren(itemId, card.pageId)
+        }
+    }
+
+    override suspend fun removeFromCard(itemId: Long, toPageId: Long, col: Int, row: Int) {
+        db.withTransaction {
+            val item = dao.itemById(itemId) ?: return@withTransaction
+            val parentId = item.parentId ?: return@withTransaction
+            if (dao.itemById(parentId)?.kind != ItemKind.CARD) return@withTransaction
+            dao.removeFromFolder(id = itemId, pageId = toPageId, col = col.coerceAtLeast(0), row = row.coerceAtLeast(0))
+            if (item.kind == ItemKind.FOLDER) dao.moveChildren(itemId, toPageId)
+        }
+    }
+
+    override suspend fun movePage(pageId: Long, newIndex: Int) {
+        db.withTransaction {
+            val page = dao.pageById(pageId) ?: return@withTransaction
+            val pages = dao.pagesByScreenOnce(page.screen.name).toMutableList()
+            val from = pages.indexOfFirst { it.id == pageId }
+            if (from < 0) return@withTransaction
+            val to = newIndex.coerceIn(0, pages.lastIndex)
+            if (from == to) return@withTransaction
+            val moved = pages.removeAt(from)
+            pages.add(to, moved)
+            pages.forEachIndexed { index, p -> if (p.index != index) dao.setPageIndex(p.id, index) }
+        }
+    }
 
     /** Sets or clears (null) one folder's style override ("grid", "list" or "big"). */
     suspend fun setFolderStyle(folderId: Long, style: String?) {

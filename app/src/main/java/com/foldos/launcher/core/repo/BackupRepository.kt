@@ -62,9 +62,9 @@ data class BackupPage(
 /**
  * A `HomeItem` without database ids and without `appWidgetId` (hosted app widgets are not backed up).
  * [kind] is `ItemKind.name`. Relations are positions in the enclosing [BackupPage.items] list:
- * [parentIndex] = index of the FOLDER item holding this child, [stackAnchorIndex] = index of the
- * stack's anchor item (the item whose row id was the stack id); both null when not applicable. A
- * folder child keeps `col = 0` and its `row` as its order, like `HomeItem`.
+ * [parentIndex] = index of the FOLDER or CARD item holding this child (a folder may itself sit in a
+ * card), [stackAnchorIndex] = index of the stack's anchor item (the item whose row id was the stack
+ * id); both null when not applicable. A child keeps `col = 0` and its `row` as its order, like `HomeItem`.
  */
 @Serializable
 data class BackupItem(
@@ -88,4 +88,8 @@ data class BackupItem(
     val packageName2: String? = null,
     val activityName2: String? = null,
     val folderStyle: String? = null,
+    /** Round 2.0 (1.3.0): `HomeItem.cardStyle` of a CARD item; absent in older files. */
+    val cardStyle: String? = null,
+    /** Round 2.0: `HomeItem.cardClear` of a CARD item. */
+    val cardClear: Boolean = false,
 )

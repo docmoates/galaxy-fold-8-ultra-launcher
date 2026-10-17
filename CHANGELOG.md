@@ -4,6 +4,50 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.3.0] - 2026-10-16
+
+Round 2.0: free canvas + cards (`versionCode` 130). Written from the source; not yet run on a device. Same signing key.
+Room schema 3 -> 4 with a real migration (nothing is dropped).
+
+### Changed
+- Home pages no longer have a style. Every page is one free-form grid canvas (4 columns on the cover, 6 inside, rows from the
+  height) and apps, folders, pairs, widgets and cards sit wherever you drop them, like the Pixel Launcher or One UI. The live
+  cell highlight shows the size of what you drag; a drop that would overlap takes the nearest free spot or is refused with
+  "No room on this page". The "Placement: Grid / Free" setting still works (Free = unsnapped dp placement).
+- Long-pressing empty space opens the new "Add to home" sheet: tabs Apps (search, group chips, A-Z grid), Widgets (every widget
+  as a preview tile, FoldOS first) and Cards (App card, App list card, Widget card), plus Wallpaper, Themes, Dock, Pages and
+  Settings. Drag from the sheet onto the page, a card or the dock (the sheet shrinks to a strip while you drag and comes back
+  after the drop), or tap to place at the first free cell of the current page.
+- Edit mode (pinch in, the sheet's Pages action, an item menu's Edit / Resize) is now only page management: previous / next,
+  move page left / right, add page, delete page (two taps, never the last page), Done, and the actions Add, Wallpaper, Themes,
+  Dock, Settings. While you drag an item the bottom bar turns into the Remove strip. Widgets AND cards get corner resize handles;
+  folders and cards ask for a second tap before Remove; Undo puts a folder's or card's contents back too.
+- Long-pressing a widget opens its menu (Remove, Resize, Move to card, Edit home) like every other tile; keep holding and move to
+  drag it. The Grid / Dashboard / List / Panels tabs and the Settings "Cover screen style / Inner screen style" selects are gone.
+- Settings > "Starter layouts" (Classic grid, Widget dashboard, Minimal list, Panels): tapping one asks "Replace first page / Add
+  as new page" and seeds the page with ordinary draggable content. More settings > Home has "Cover starter layout" / "Inner
+  starter layout" rows. Presets, the setup wizard and the AI's "make my cover a dashboard" use the same starters.
+
+### Added
+- Cards: holders you place on the page (min 2 x 2, resizable, draggable by their chrome / title, removable). An **App card** lays
+  its apps, folders and pairs out as a mini icon grid whose columns follow its width (or as big-name rows in list style); a
+  **Widget card** holds one or more widgets and swipes through them like a stack, with dots. Drop an app or widget on a card to
+  put it inside, drag one out onto the page to take it out, drag inside the card to reorder. Card menu: Resize, Rename card, Card
+  background (transparent or themed surface), Move contents to page, Remove. Item menu: Move to card / Take out of card.
+- Settings > More settings > Home: "Card background" and "Card titles" (searchable).
+- Backup files carry cards (`cardStyle`, `cardClear`) and their contents; older backups without cards restore unchanged.
+
+### Fixed (by design, see `app/DIAGNOSIS.md` "Round 2.0")
+- Widgets drawn over app icons after a style switch, the inner screen cramming dashboard widgets into the top-left, the List
+  edit mode's stacking chips and misaligned outlines, and the doubled widget outlines in edit mode can no longer happen: there is
+  one grid, one set of visible items and one geometry per page.
+
+### Migration
+- Room 3 -> 4: `items.card_style`, `items.card_clear`. Grid pages stay as they are; Dashboard pages keep their widgets as loose
+  widgets re-spanned onto the page grid and packed without overlap (their hidden apps come back below); List pages become one
+  App list card ("Apps") covering the page (above any widgets); Panels pages become a widget card on top and an app card below.
+  The non-overlap repair runs once over every page at the first launch.
+
 ## [1.2.4] - 2026-10-16
 
 Mail through the Crosspoint server (`versionCode` 124). Written from the source; not yet run on a device. Same signing key; no schema change.

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
+import com.foldos.launcher.core.model.WidgetEntry
 import kotlin.math.roundToInt
 
 /**
@@ -35,6 +36,12 @@ import kotlin.math.roundToInt
 sealed interface DragPayload {
     data class App(val app: AppInfo) : DragPayload
     data class Item(val item: HomeItem) : DragPayload
+
+    /** A widget from the "Add to home" sheet (Round 2.0); the drop creates a new WIDGET item. */
+    data class Widget(val entry: WidgetEntry) : DragPayload
+
+    /** A new card from the "Add to home" sheet; [cardStyle] is a `HomeItem.CARD_*` value. */
+    data class Card(val cardStyle: String) : DragPayload
 }
 
 /** Ids of the drop targets the launcher registers (see `app/CONTRACTS.md`, "Drag and drop"). */
@@ -47,6 +54,9 @@ object DragTargetIds {
 
     /** A "Remove" strip shown while an [DragPayload.Item] is dragged in edit mode. */
     const val REMOVE: String = "remove"
+
+    /** A card on a page (`card:<itemId>`); its `onDrop` puts the payload inside the card. */
+    fun card(itemId: Long): String = "card:$itemId"
 }
 
 /**

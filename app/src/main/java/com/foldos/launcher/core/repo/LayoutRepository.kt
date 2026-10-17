@@ -24,11 +24,19 @@ interface LayoutRepository {
      *
      * @param columns the grid column count the seeded items should be laid out for, normally
      *   `LauncherSettings.colsFor(screen)`; null falls back to the implementation's default.
-     * @param style the style the seeded pages get, normally `LauncherSettings.styleFor(screen)`
-     *   (what the setup wizard chose); null falls back to the implementation's default. A
-     *   dashboard first page is seeded with the default built-in widgets instead of apps.
+     * @param style the starter layout the first page is seeded with (`home.StarterLayouts`), normally
+     *   `LauncherSettings.styleFor(screen)` (what the setup wizard chose); null falls back to the
+     *   implementation's default.
+     * @param rows the visible row count of the page grid (Round 2.0), so the seeded items stay on
+     *   screen; null = 6.
      */
-    suspend fun ensureDefaultLayout(screen: ScreenKind, apps: List<AppInfo>, columns: Int? = null, style: HomeStyle? = null)
+    suspend fun ensureDefaultLayout(
+        screen: ScreenKind,
+        apps: List<AppInfo>,
+        columns: Int? = null,
+        style: HomeStyle? = null,
+        rows: Int? = null,
+    )
 
     /** Inserts the item, or replaces the item with the same id. An id of 0 means "assign one". */
     suspend fun upsertItem(item: HomeItem)
@@ -128,4 +136,37 @@ interface LayoutRepository {
 
     /** The dock apps stored by [setDockApps] for [screen] (`AppInfo.key` values); empty = use the defaults. */
     fun dockApps(screen: ScreenKind): Flow<List<String>>
+
+    // ---- Round 2.0: free canvas + cards ----
+
+    /**
+     * Inserts a CARD item of [cardStyle] (`HomeItem.CARD_*`) at [col]/[row] on [pageId] spanning
+     * [spanX] x [spanY] cells (both clamped to at least `HomeItem.CARD_MIN_SPAN`) and returns its id.
+     * Nothing else moves; the caller picks a free spot.
+     */
+    suspend fun createCard(
+        pageId: Long,
+        col: Int,
+        row: Int,
+        spanX: Int,
+        spanY: Int,
+        cardStyle: String,
+        title: String? = null,
+    ): Long
+
+    /**
+     * Puts [itemId] inside the card [cardId] as child number [order] (its `row`; `col` becomes 0),
+     * leaving the grid, any stack and any free placement; the item takes the card's page. A FOLDER
+     * moved into a card takes its children along. No-op for a card or for an unknown id.
+     */
+    suspend fun moveIntoCard(itemId: Long, cardId: Long, order: Int)
+
+    /**
+     * Takes [itemId] out of its card and places it at [col]/[row] on [toPageId]. Unlike
+     * [removeFromFolder] an emptied card stays. No-op for an item that is not inside a card.
+     */
+    suspend fun removeFromCard(itemId: Long, toPageId: Long, col: Int, row: Int)
+
+    /** Moves the page [pageId] to position [newIndex] (clamped) on its screen and re-indexes the others. */
+    suspend fun movePage(pageId: Long, newIndex: Int)
 }

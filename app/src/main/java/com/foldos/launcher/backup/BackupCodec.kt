@@ -54,19 +54,26 @@ internal object BackupCodec {
 
     /**
      * Pages with their items as [BackupPage]s. Hosted app widgets (their ids belong to this install)
-     * and orphaned folder children are left out; relations are re-expressed as positions in the
-     * filtered list of each page.
+     * and orphaned children are left out; relations are re-expressed as positions in the filtered
+     * list of each page. Containers are folders and cards (Round 2.0); a folder may sit inside a card.
      */
     fun exportPages(pages: List<Pair<HomePage, List<HomeItem>>>): List<BackupPage> =
         pages.map { (page, all) ->
             val widgetsFiltered = all.filter { item ->
                 !item.isAppWidget && (item.kind != ItemKind.WIDGET || item.isBuiltInWidget)
             }
-            val folderIds = widgetsFiltered.filter { it.isFolder && it.parentId == null }.map { it.id }.toSet()
-            val items = widgetsFiltered.filter { item ->
-                val parent = item.parentId
-                parent == null || (parent in folderIds && !item.isFolder)
+            val byId = widgetsFiltered.associateBy { it.id }
+            fun validParent(item: HomeItem): Boolean {
+                val parentId = item.parentId ?: return true
+                val parent = byId[parentId] ?: return false
+                return when {
+                    parent.isCard -> parent.parentId == null && !item.isCard
+                    parent.isFolder -> (item.kind == ItemKind.APP || item.kind == ItemKind.PAIR) &&
+                        (parent.parentId == null || byId[parent.parentId]?.let { it.isCard && it.parentId == null } == true)
+                    else -> false
+                }
             }
+            val items = widgetsFiltered.filter(::validParent)
             val positionById = HashMap<Long, Int>()
             items.forEachIndexed { position, item -> positionById[item.id] = position }
             val stacks = resolveStacks(
@@ -101,6 +108,8 @@ internal object BackupCodec {
                         packageName2 = item.packageName2,
                         activityName2 = item.activityName2,
                         folderStyle = item.folderStyle,
+                        cardStyle = item.cardStyle,
+                        cardClear = item.cardClear,
                     )
                 },
             )
@@ -177,6 +186,8 @@ internal object BackupCodec {
                 wDp = source.wDp,
                 hDp = source.hDp,
                 folderStyle = source.folderStyle,
+                cardStyle = source.cardStyle,
+                cardClear = source.cardClear,
             )
             templates[i] = when (kind) {
                 ItemKind.APP -> {
@@ -200,20 +211,30 @@ internal object BackupCodec {
                 ItemKind.WIDGET ->
                     if (source.builtinId.isNullOrBlank()) null else base.copy(builtinId = source.builtinId)
                 ItemKind.FOLDER -> base
+                ItemKind.CARD -> base.copy(
+                    spanX = source.spanX.coerceAtLeast(HomeItem.CARD_MIN_SPAN),
+                    spanY = source.spanY.coerceAtLeast(HomeItem.CARD_MIN_SPAN),
+                    cardStyle = source.cardStyle?.takeIf { it in HomeItem.CARD_STYLES } ?: HomeItem.CARD_APPS,
+                )
             }
         }
 
-        // Pass 2: folder children need a real top-level folder; a folder needs a surviving child.
+        // Pass 2: children need a real container. A card is always top level and holds apps, pairs, folders
+        // and widgets; a folder holds apps and pairs and may itself sit in a card. A folder needs a surviving child.
         val parentOf = IntArray(raw.size) { -1 }
         val hasChild = BooleanArray(raw.size)
+        fun topLevelCard(index: Int): Boolean =
+            index in raw.indices && templates[index]?.kind == ItemKind.CARD && raw[index].parentIndex == null
         for (i in raw.indices) {
             val template = templates[i] ?: continue
             val parent = raw[i].parentIndex ?: continue
-            val parentOk = parent in raw.indices &&
-                parent != i &&
-                templates[parent]?.kind == ItemKind.FOLDER &&
-                raw[parent].parentIndex == null &&
-                (template.kind == ItemKind.APP || template.kind == ItemKind.PAIR)
+            val parentKind = if (parent in raw.indices && parent != i) templates[parent]?.kind else null
+            val parentOk = when (parentKind) {
+                ItemKind.CARD -> raw[parent].parentIndex == null && template.kind != ItemKind.CARD
+                ItemKind.FOLDER -> (template.kind == ItemKind.APP || template.kind == ItemKind.PAIR) &&
+                    (raw[parent].parentIndex == null || topLevelCard(raw[parent].parentIndex!!))
+                else -> false
+            }
             if (parentOk) {
                 parentOf[i] = parent
                 hasChild[parent] = true
@@ -223,7 +244,13 @@ internal object BackupCodec {
         }
         for (i in raw.indices) {
             val template = templates[i] ?: continue
-            if (template.kind == ItemKind.FOLDER && (raw[i].parentIndex != null || !hasChild[i])) templates[i] = null
+            if (template.kind == ItemKind.FOLDER && !hasChild[i]) templates[i] = null
+            if (template.kind == ItemKind.CARD && raw[i].parentIndex != null) templates[i] = null
+        }
+        // A child whose folder was just dropped (no surviving sibling) goes too.
+        for (i in raw.indices) {
+            val parent = parentOf[i]
+            if (parent >= 0 && templates[parent] == null) templates[i] = null
         }
 
         // Pass 3: ids, then folder and stack relations.

@@ -63,6 +63,7 @@ import com.foldos.launcher.core.repo.IconShape
 import com.foldos.launcher.icons.IconPackPicker
 import com.foldos.launcher.home.AppLabel
 import com.foldos.launcher.home.AppLabelStyle
+import com.foldos.launcher.home.StarterLayouts
 import com.foldos.launcher.icons.IconShapes
 import com.foldos.launcher.onboarding.AppearanceSample
 import com.foldos.launcher.onboarding.CustomColorSwatch
@@ -195,7 +196,7 @@ private fun SettingsSamples(
         contentPadding = contentPadding,
     ) {
         item(key = "screens") { ScreensSection(settings, update) }
-        item(key = "home-style") { HomeStyleSection(settings, update) }
+        item(key = "starter-layouts") { HomeStyleSection(settings, update) }
         item(key = "look") { LookSection(settings, update) }
         item(key = "colors") { ColorsSection(settings, update, isDark) }
         item(key = "dock") { DockSection(settings, update, onOpen) }
@@ -258,24 +259,28 @@ private fun ScreensSection(settings: LauncherSettings, update: SettingsUpdater) 
 /* Home style                                                                                  */
 /* ------------------------------------------------------------------------------------------ */
 
-private val HOME_STYLES = listOf(
-    HomeStyle.GRID to "Classic grid",
-    HomeStyle.DASHBOARD to "Widget dashboard",
-    HomeStyle.LIST to "Minimal list",
-    HomeStyle.HYBRID to "Hybrid panels",
-)
-
+/**
+ * Round 2.0: the four starter layouts. A tap asks "Replace first page / Add as new page" for the
+ * screen Settings is open on and seeds that page with ordinary draggable content ([StarterLayouts]);
+ * nothing is "selected" afterwards, every page is the same free canvas.
+ */
 @Composable
 private fun HomeStyleSection(settings: LauncherSettings, update: SettingsUpdater) {
+    val screen = rememberSettingsScreen(settings)
+    val applyStarter = rememberStarterApplier()
+    var pending by rememberSaveable { mutableStateOf<String?>(null) }
+    val pendingStarter = pending?.let { name -> HomeStyle.entries.firstOrNull { it.name == name } }
     SampleSection(
-        title = "Home style",
-        subtitle = "Tap a preview. You can still mix styles page by page in edit mode.",
+        title = "Starter layouts",
+        subtitle = "Tap one to fill the ${screenWord(screen)} screen's first page, or add it as a new page. " +
+            "Afterwards drag, resize and remove anything: long-press empty space to add apps, widgets and cards.",
     ) {
-        SampleGrid(items = HOME_STYLES) { (style, name) ->
+        SampleGrid(items = StarterLayouts.all) { (style, name) ->
             SampleCard(
                 label = name,
-                selected = settings.styleCover == style,
-                onClick = { update { it.copy(styleCover = style, styleInner = style) } },
+                selected = false,
+                onClick = { pending = style.name },
+                description = StarterLayouts.description(style),
             ) {
                 SampleHomePreview(
                     style = style,
@@ -287,6 +292,15 @@ private fun HomeStyleSection(settings: LauncherSettings, update: SettingsUpdater
             }
         }
         LabelSizeCards(settings, update)
+    }
+    if (pendingStarter != null) {
+        StarterApplyDialog(
+            starter = pendingStarter,
+            screen = screen,
+            onReplaceFirst = { applyStarter(screen, pendingStarter, true) },
+            onAddPage = { applyStarter(screen, pendingStarter, false) },
+            onDismiss = { pending = null },
+        )
     }
 }
 

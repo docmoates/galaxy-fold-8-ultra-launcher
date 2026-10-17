@@ -10,9 +10,17 @@ enum class ScreenKind { COVER, INNER, FLEX }
 @Serializable
 enum class ScreenMode { SAME, DIFFERENT, CONTINUITY }
 
-/** Home style per page (mock-up `style.cover` / `style.inner`). */
+/**
+ * Starter layout (Round 2.0; formerly the per-page home style). Every page is one free-form grid
+ * canvas now; a starter only decides what a page is SEEDED with (apps grid, loose widgets, an apps
+ * card in list style, a widget card over an app card). `LauncherSettings.styleCover` / `styleInner`
+ * keep the last starter applied to that screen. The name is kept so stored rows and backups load.
+ */
 @Serializable
 enum class HomeStyle { GRID, DASHBOARD, LIST, HYBRID }
+
+/** Readable alias: the enum is a starter layout, not a rendering style. */
+typealias StarterLayout = HomeStyle
 
 /** Grid placement vs. free placement (mock-up `gridMode`). */
 @Serializable

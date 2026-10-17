@@ -4,7 +4,11 @@ import android.content.ComponentName
 import android.graphics.drawable.Drawable
 import kotlinx.serialization.Serializable
 
-/** A home page on one screen. [index] is the page order; page 0 is the default page. */
+/**
+ * A home page on one screen. [index] is the page order; page 0 is the default page. Since Round 2.0
+ * every page is the same free-form grid canvas: [style] only records the starter layout the page was
+ * seeded from and has no effect on rendering.
+ */
 data class HomePage(
     val id: Long,
     val screen: ScreenKind,
@@ -12,8 +16,12 @@ data class HomePage(
     val style: HomeStyle,
 )
 
-/** What a [HomeItem] holds. */
-enum class ItemKind { APP, FOLDER, WIDGET, PAIR }
+/**
+ * What a [HomeItem] holds. [CARD] (Round 2.0) is a holder drawn on the page that contains other
+ * items (`parentId = card.id`): an apps card (mini grid or list of APP / FOLDER / PAIR items) or a
+ * widgets card (one or more WIDGET items, swiped through).
+ */
+enum class ItemKind { APP, FOLDER, WIDGET, PAIR, CARD }
 
 /**
  * One item placed on a home page. Grid coordinates are in cells; for [GridMode.FREE] layouts
@@ -66,7 +74,42 @@ data class HomeItem(
     val activityName2: String? = null,
     /** Per-folder style override ("grid", "list" or "big"); null = `LauncherSettings.folderStyle`. */
     val folderStyle: String? = null,
+    /**
+     * For an [ItemKind.CARD]: [CARD_APPS] (mini icon grid), [CARD_APPS_LIST] (icon + name rows) or
+     * [CARD_WIDGETS] (widgets, swiped through). Null for every other kind.
+     */
+    val cardStyle: String? = null,
+    /** For a card: true draws no surface behind the contents ("transparent" card). */
+    val cardClear: Boolean = false,
 ) {
+    /** True for a card holder (its contents come from `LayoutRepository.children(id)`). */
+    val isCard: Boolean get() = kind == ItemKind.CARD
+
+    /** True for a card that holds apps, folders and pairs (grid or list style). */
+    val isAppsCard: Boolean get() = isCard && cardStyle != CARD_WIDGETS
+
+    /** True for a card that holds widgets. */
+    val isWidgetsCard: Boolean get() = isCard && cardStyle == CARD_WIDGETS
+
+    /** True for an apps card drawn as icon + name rows. */
+    val isListCard: Boolean get() = isCard && cardStyle == CARD_APPS_LIST
+
+    companion object {
+        /** `cardStyle` of an apps card drawn as a mini icon grid. */
+        const val CARD_APPS: String = "apps"
+
+        /** `cardStyle` of an apps card drawn as icon + name rows (the old "Minimal list"). */
+        const val CARD_APPS_LIST: String = "apps-list"
+
+        /** `cardStyle` of a widgets card. */
+        const val CARD_WIDGETS: String = "widgets"
+
+        /** Every card style, in picker order. */
+        val CARD_STYLES: List<String> = listOf(CARD_APPS, CARD_APPS_LIST, CARD_WIDGETS)
+
+        /** Cards are never smaller than this (cells). */
+        const val CARD_MIN_SPAN: Int = 2
+    }
     /** True for a widget item backed by a hosted app widget. */
     val isAppWidget: Boolean get() = kind == ItemKind.WIDGET && appWidgetId != null
 
@@ -79,7 +122,7 @@ data class HomeItem(
     /** True for an app pair with both apps set. */
     val isPair: Boolean get() = kind == ItemKind.PAIR && packageName2 != null && activityName2 != null
 
-    /** True when this item is inside a folder rather than on the grid. */
+    /** True when this item is inside a folder or a card rather than on the grid. */
     val inFolder: Boolean get() = parentId != null
 }
 
