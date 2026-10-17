@@ -85,7 +85,7 @@ internal object CanvasMigration {
             "HYBRID" -> {
                 val holdable = items.filter { it.kind != ItemKind.WIDGET.name && it.kind != ItemKind.CARD.name }
                 val widgets = items.filter { it.kind == ItemKind.WIDGET.name }
-                val widgetCard = insertCard(db, page.id, 0, 0, cols, 3, HomeItem.CARD_WIDGETS, null)
+                val widgetCard = insertCard(db, page.id, 0, 0, cols, 3, HomeItem.LEGACY_CARD_WIDGETS, null)
                 widgets.sortedWith(compareBy({ it.row }, { it.col })).forEachIndexed { order, item ->
                     placeInCard(db, item.id, widgetCard, page.id, order)
                 }
@@ -117,6 +117,14 @@ internal object CanvasMigration {
             }
             else -> pack(db, items, cols)
         }
+    }
+
+    /** Packs the top-level items of [pageId] so no two slots overlap (used after structural migrations). */
+    fun repackPage(db: SupportSQLiteDatabase, pageId: Long) {
+        var screen = "COVER"
+        db.query("SELECT screen FROM pages WHERE id = ?", arrayOf<Any>(pageId)).use { c -> if (c.moveToFirst()) screen = c.getString(0) ?: "COVER" }
+        val cols = if (screen == "COVER") 4 else 6
+        pack(db, topLevelItems(db, pageId), cols)
     }
 
     private fun topLevelItems(db: SupportSQLiteDatabase, pageId: Long): List<Row> {
@@ -225,5 +233,65 @@ internal object CanvasMigration {
                 }
             }
         }
+    }
+}
+
+/**
+ * Room 4 -> 5 (1.4.0): the widget card flavor is gone. Every top-level CARD with `card_style = 'widgets'` is
+ * deleted and its children become loose items on the same page: the first child takes the card's cell and
+ * span, and when there are several widgets they all share one stack there (`stack_id` = the first one's id,
+ * `stack_index` in the card's order), so nothing is lost and nothing overlaps. An empty widget card is just
+ * deleted. Afterwards every touched page is packed so no two slots overlap.
+ */
+internal object WidgetCardMigration {
+
+    private class CardRow(val id: Long, val pageId: Long, val col: Int, val row: Int, val spanX: Int, val spanY: Int)
+
+    fun dissolve(db: SupportSQLiteDatabase) {
+        val cards = ArrayList<CardRow>()
+        db.query(
+            "SELECT id, page_id, grid_col, grid_row, span_x, span_y FROM items " +
+                "WHERE kind = 'CARD' AND card_style = ? AND parent_id IS NULL ORDER BY id ASC",
+            arrayOf<Any>(HomeItem.LEGACY_CARD_WIDGETS),
+        ).use { c ->
+            while (c.moveToNext()) {
+                cards.add(CardRow(c.getLong(0), c.getLong(1), c.getInt(2), c.getInt(3), c.getInt(4).coerceAtLeast(1), c.getInt(5).coerceAtLeast(1)))
+            }
+        }
+        val pages = LinkedHashSet<Long>()
+        for (card in cards) {
+            runCatching { dissolveCard(db, card) }
+            pages.add(card.pageId)
+        }
+        for (pageId in pages) {
+            runCatching { CanvasMigration.repackPage(db, pageId) }
+        }
+    }
+
+    private fun dissolveCard(db: SupportSQLiteDatabase, card: CardRow) {
+        val children = ArrayList<Pair<Long, String>>()
+        db.query(
+            "SELECT id, kind FROM items WHERE parent_id = ? ORDER BY grid_row ASC, id ASC",
+            arrayOf<Any>(card.id),
+        ).use { c -> while (c.moveToNext()) children.add(c.getLong(0) to (c.getString(1) ?: "WIDGET")) }
+        val widgets = children.filter { it.second == ItemKind.WIDGET.name }
+        val others = children.filter { it.second != ItemKind.WIDGET.name }
+        val stackId: Long? = if (widgets.size > 1) widgets.first().first else null
+        widgets.forEachIndexed { index, (id, _) ->
+            db.execSQL(
+                "UPDATE items SET parent_id = NULL, page_id = ?, grid_col = ?, grid_row = ?, span_x = ?, span_y = ?, " +
+                    "stack_id = ?, stack_index = ?, free = 0, x_dp = NULL, y_dp = NULL, w_dp = NULL, h_dp = NULL WHERE id = ?",
+                arrayOf<Any?>(card.pageId, card.col, card.row, card.spanX, card.spanY, stackId, if (stackId == null) 0 else index, id),
+            )
+        }
+        // Anything else that was somehow inside (never offered by the UI): loose 1 x 1 at the card's cell; the pack moves it on.
+        for ((id, _) in others) {
+            db.execSQL(
+                "UPDATE items SET parent_id = NULL, page_id = ?, grid_col = ?, grid_row = ?, span_x = 1, span_y = 1, " +
+                    "stack_id = NULL, stack_index = 0, free = 0 WHERE id = ?",
+                arrayOf<Any>(card.pageId, card.col, card.row, id),
+            )
+        }
+        db.execSQL("DELETE FROM items WHERE id = ?", arrayOf<Any>(card.id))
     }
 }

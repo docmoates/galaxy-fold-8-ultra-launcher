@@ -128,18 +128,18 @@ internal fun HomeItemPressOverlay(ctx: HomeContext, item: HomeItem) {
 
 /**
  * "Move to card": puts [item] into the first card on its page that can hold it (apps cards take
- * apps / folders / pairs, widget cards take widgets), as the last child. Toasts when the page has none.
+ * apps / folders / pairs), as the last child. Toasts when the page has none.
  */
 internal fun moveItemToCard(context: Context, graph: AppGraph, item: HomeItem) {
     graph.appScope.launch {
         runCatching {
             val onPage = graph.layouts.items(item.pageId).first()
             val card = onPage.firstOrNull { c ->
-                c.isCard && c.id != item.id && (if (item.kind == ItemKind.WIDGET) c.isWidgetsCard else c.isAppsCard)
+                c.isCard && c.id != item.id && c.isAppsCard
             }
             if (card == null) {
                 withContext(Dispatchers.Main) {
-                    val wanted = if (item.kind == ItemKind.WIDGET) "widget card" else "app card"
+                    val wanted = "app card"
                     Toast.makeText(context, "Add a $wanted to this page first (long-press empty space > Cards)", Toast.LENGTH_SHORT).show()
                 }
                 return@runCatching

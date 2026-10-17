@@ -303,11 +303,12 @@ never fewer than the items need) and everything on it is draggable content: apps
 to ignore the two new drag payloads.
 
 - **Model** (`core/model/Layout.kt`): `ItemKind.CARD`; `HomeItem.cardStyle: String?` (`HomeItem.CARD_APPS` "apps" = mini icon grid,
-  `CARD_APPS_LIST` "apps-list" = icon + name rows, `CARD_WIDGETS` "widgets" = widgets swiped like a stack; `CARD_STYLES`),
-  `HomeItem.cardClear: Boolean` (no surface), helpers `isCard`, `isAppsCard`, `isWidgetsCard`, `isListCard`, `CARD_MIN_SPAN = 2`.
+  `CARD_APPS_LIST` "apps-list" = icon + name rows; `CARD_STYLES`; the 1.3.x "widgets" style is removed in 1.4.0, only `LEGACY_CARD_WIDGETS` remains for migration and old backups),
+  `HomeItem.cardClear: Boolean` (no surface), helpers `isCard`, `isAppsCard`, `isListCard`, `CARD_MIN_SPAN = 2`.
   A card's children have `parentId = card.id` (like folder children: `row` = order, `col` = 0, excluded from `items(pageId)`,
-  listed by `children(cardId)`); a FOLDER may sit inside an apps card (one level), its apps keep `parentId = folder.id`. A widget
-  child keeps the card's spans when it is added; the card draws it at the card's current size. `HomePage.style` and
+  listed by `children(cardId)`); a FOLDER may sit inside an apps card (one level), its apps keep `parentId = folder.id`. Widgets are never card children (1.4.0).
+  (1.3.x text, no longer true: a widget
+  child keeps the card's spans when it is added.) `HomePage.style` and
   `LauncherSettings.styleCover` / `styleInner` only record the **starter layout** (`HomeStyle`, alias `StarterLayout`) a page / screen
   was last seeded from; nothing renders by style. `LauncherSettings.cardBackground` / `cardTitles` (Settings > More > Home).
 - **Drag payloads** (`core/ui/Drag.kt`): `DragPayload.Widget(entry: WidgetEntry)` and `DragPayload.Card(cardStyle)` from the
@@ -333,7 +334,7 @@ to ignore the two new drag payloads.
   `home/StarterLayouts.kt`: `all`, `name`, `description`, `seed(starter, screen, pageId, apps, cols, rows): Seed`, `write(layouts, pageId, seed)`,
   `apply(layouts, screen, starter, apps, cols, rows, replacePageId): Long` (Classic grid = apps; Widget dashboard = glance, weather,
   devices, todo, focus loose + one widget card with calendar / media / news; Minimal list = one `apps-list` card with the first 12 / 14 apps
-  A-Z; Panels = a widget card (3 rows) over an app card).
+  A-Z; Panels = loose widgets (3 rows) over an app card).
 - **`edit/`**: `AddToHomeSheet.kt` (`AddToHomeSheet(visible, screen, settings, apps, dragController, onPlaceApp, onPlaceWidget,
   onPlaceCard, onOpenWallpaper, onOpenThemes, onOpenDock, onOpenPages, onOpenSettings, onDismiss)`): tabs Apps (search, `GroupChipRow`,
   `DrawerAppGrid` with `dragSource`), Widgets (`picker.WidgetPreview` tiles grouped by app), Cards (three previews, `CardPreview`),
@@ -367,6 +368,32 @@ to ignore the two new drag payloads.
   `parentIndex` may point at a card); import accepts CARD parents (apps, pairs, folders, widgets) and FOLDER parents (apps, pairs,
   the folder itself top level or inside a card). Files written by 1.2.x import unchanged; a file with cards opened by 1.2.x drops the
   CARD rows and their children (unknown kind).
+
+#### Round 2.0 update, 1.4.0 (`versionCode` 140): widget cards removed
+
+- Widgets exist ONLY as loose canvas items (drag, resize, stack through `stackId`). There is no `widgets` card style, no widget pager /
+  tiling (`CardWidgets`, `WidgetFitted`, `fitScale` are gone), no "Widget card" tile in the Cards tab, no widget "Move to card" and no
+  "Drop widgets here". `cardAccepts` takes only apps / folders / pairs; apps cards (`apps`, `apps-list`) are unchanged. Wherever the
+  Round 2.0 text above says a card holds widgets (widget children, `isWidgetsCard`, widget card starters), it no longer applies.
+- Starter layouts: Widget dashboard = loose glance / weather / devices / calendar / todo / focus / media (+ news inside); Panels = loose
+  widgets (cover: glance + calendar; inside: clock + calendar + media) over an `apps` card. `StarterLayouts.Seed` children are app children only.
+- **Room 4 -> 5** (`MIGRATION_4_5` -> `data/db/WidgetCardMigration.dissolve`, plain SQL, no schema change): for every top-level card with
+  `card_style = 'widgets'`: its widget children (ordered by `grid_row`, id) get `parent_id = NULL` and the card's `grid_col` / `grid_row` /
+  `span_x` / `span_y`; with more than one they share one stack (`stack_id` = the first one's id, `stack_index` 0..n-1); any non-widget child
+  becomes a loose 1 x 1; the card row is deleted (an empty card is just deleted); then `CanvasMigration.repackPage` packs the page (a stack
+  counts as one slot). The 1.3.1 `repairEmptyWidgetCardsOnce` is removed. `fallbackToDestructiveMigration` stays only as the last resort
+  for unknown versions.
+- **Backup**: `BackupCodec.dissolveWidgetCards` converts widget cards of old files the same way before the normal import checks (the card
+  is not counted as skipped); export never writes a `cardStyle = "widgets"` card. The `BackupItem` format is unchanged.
+- **Add to home > Widgets** (`edit/AddToHomeSheet.kt`): collapsible sections. "FoldOS widgets" = one section per `WidgetCategory` (enum order,
+  only categories that have built-ins; key `cat:<NAME>`; the first is open by default), "From your apps" = one section per providing app
+  (`app:<package>`; header with `picker.WidgetGroupIcon`, name and count). Open state is `expandedSections` (a `SnapshotStateMap`) hoisted in
+  `AddToHomeSheet` and cleared when the sheet closes. Search (name / app / category; a matching section label keeps all its widgets) opens
+  every section with matches. Tiles are the unchanged `WidgetTile` (tap = `onPlaceWidget`, hold and move = `DragPayload.Widget`, size
+  "2 x 2"). The old two-level `WidgetPicker`, `WidgetPickerList`, `WidgetPickerDetail` and `LauncherViewModel.widgetPickerOpen` /
+  `openWidgetPicker` / `closeWidgetPicker` are deleted; `picker/WidgetPickerModel`, `WidgetPickerParts` (now also hosting
+  `rememberWidgetPickerBackdropModifier`), `WidgetPickerIcons` and `WidgetPreviews` stay. `settings.WidgetsPage`'s grouping choice
+  (`wpGroup`) no longer drives anything visible.
 
 ## Shared contracts (owned by Contracts)
 
@@ -508,7 +535,7 @@ All under `app/src/main/java/com/foldos/launcher/core/`.
 
 All under `app/src/main/java/com/foldos/launcher/data/`.
 
-- `db/LayoutDatabase.kt`: Room **version 4**, entities `PageEntity`, `ItemEntity`, converters `LayoutConverters` (enums by name). `LayoutDatabase.MIGRATION_1_2` adds to `items`: `app_widget_id INTEGER`, `builtin_id TEXT`, `stack_id INTEGER`, `stack_index INTEGER NOT NULL DEFAULT 0`, `free INTEGER NOT NULL DEFAULT 0`, `x_dp REAL`, `y_dp REAL`, `w_dp REAL`, `h_dp REAL`. `MIGRATION_2_3` adds `parent_id INTEGER` (+ `index_items_parent_id`), `package_name_2 TEXT`, `activity_name_2 TEXT`, `folder_style TEXT`. `MIGRATION_3_4` (1.3.0) adds `card_style TEXT`, `card_clear INTEGER NOT NULL DEFAULT 0` and converts the styled pages to canvas content (`db/CanvasMigration.kt`, see "Round 2.0"). `create(context)` adds all three migrations and keeps `fallbackToDestructiveMigration(dropAllTables = true)` as the last resort. Every future schema change bumps the version and adds a `Migration`.
+- `db/LayoutDatabase.kt`: Room **version 5**, entities `PageEntity`, `ItemEntity`, converters `LayoutConverters` (enums by name). `LayoutDatabase.MIGRATION_1_2` adds to `items`: `app_widget_id INTEGER`, `builtin_id TEXT`, `stack_id INTEGER`, `stack_index INTEGER NOT NULL DEFAULT 0`, `free INTEGER NOT NULL DEFAULT 0`, `x_dp REAL`, `y_dp REAL`, `w_dp REAL`, `h_dp REAL`. `MIGRATION_2_3` adds `parent_id INTEGER` (+ `index_items_parent_id`), `package_name_2 TEXT`, `activity_name_2 TEXT`, `folder_style TEXT`. `MIGRATION_3_4` (1.3.0) adds `card_style TEXT`, `card_clear INTEGER NOT NULL DEFAULT 0` and converts the styled pages to canvas content (`db/CanvasMigration.kt`, see "Round 2.0"). `MIGRATION_4_5` (1.4.0, widget cards dissolved into loose widgets, see "Round 2.0 update, 1.4.0") is added too; `create(context)` adds all four migrations and keeps `fallbackToDestructiveMigration(dropAllTables = true)` as the last resort. Every future schema change bumps the version and adds a `Migration`.
 - `db/LayoutEntities.kt`: `PageEntity(id, screen, page_index, style)`; `ItemEntity(id, page_id, kind, grid_col, grid_row, span_x, span_y, package_name, activity_name, title, app_widget_id, builtin_id, stack_id, stack_index, free, x_dp, y_dp, w_dp, h_dp, parent_id, package_name_2, activity_name_2, folder_style)` with `toModel()` / `fromModel()`.
 - `db/LayoutDao.kt`: `pagesByScreen`, `pagesByScreenOnce`, `pageById`, `firstPage`, `countPages`, `maxPageIndex`, `upsertPage`, `setPageStyle(pageId, style: String)`, `setPageIndex`, `deletePage`, `itemsByPage` / `itemsByPageOnce` (both `parent_id IS NULL`), `childrenOf(parentId): Flow`, `childrenOfOnce`, `countChildren`, `placeInFolder(id, parentId, pageId, col, row)`, `removeFromFolder(id, pageId, col, row)`, `moveChildren(parentId, pageId)`, `setFolderStyle(id, style: String?)`, `deleteChildren(parentId)`, `itemById`, `itemsByIds`, `countItemsForScreen`, `countItemsForPage`, `upsertItem`, `upsertItems`, `moveItem`, `moveStack`, `resizeItem`, `resizeStack`, `placeInStack`, `deleteItem`, `allPagesOnce`, `allItemsByPageOnce`, `deleteAllItems`, `deleteAllPages` (Phase 6).
 - `LayoutRepositoryImpl(db: LayoutDatabase, dockStore: DockAppsStore) : LayoutRepository` implements every method above (including `children`, `createFolder`, `createPair`, `removeFromFolder`); extra public `suspend fun upsertPage(page: HomePage): Long` and `suspend fun setFolderStyle(folderId: Long, style: String?)`. Fix round 1.1 adds `DockAppsStore(context)` (`data/DockAppsStore.kt`: `apps(screen): Flow<List<String>>`, `suspend set(screen, appKeys)`).

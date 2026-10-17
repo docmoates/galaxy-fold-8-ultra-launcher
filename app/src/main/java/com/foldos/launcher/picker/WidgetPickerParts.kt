@@ -257,3 +257,11 @@ internal fun WidgetGroupIcon(group: WidgetAppGroup, size: Dp, modifier: Modifier
         }
     }
 }
+
+/**
+ * Modifier the caller puts on the home content so the home blurs while the drawer pop-up is open. Same
+ * behaviour and API 31 guard as the drawer's backdrop. (Lived in the removed two-level `WidgetPicker` until 1.4.0.)
+ */
+@Composable
+fun rememberWidgetPickerBackdropModifier(visible: Boolean, blur: Boolean): Modifier =
+    com.foldos.launcher.drawer.rememberDrawerBackdropModifier(visible = visible, blur = blur)

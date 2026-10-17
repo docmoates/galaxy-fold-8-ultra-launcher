@@ -23,30 +23,37 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Dock
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +82,7 @@ import com.foldos.launcher.core.model.AppInfo
 import com.foldos.launcher.core.model.HomeItem
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.model.WidgetCategory
 import com.foldos.launcher.core.model.WidgetEntry
 import com.foldos.launcher.core.ui.DragController
 import com.foldos.launcher.core.ui.DragPayload
@@ -84,6 +92,8 @@ import com.foldos.launcher.drawer.DrawerGrabHandle
 import com.foldos.launcher.drawer.DrawerSearchField
 import com.foldos.launcher.home.ProvideLabelSize
 import com.foldos.launcher.picker.PickerModel as WidgetPickerModel
+import com.foldos.launcher.picker.WidgetGroupIcon
+import com.foldos.launcher.picker.WidgetPickerIcons
 import com.foldos.launcher.picker.WidgetPreview
 import com.foldos.launcher.theme.LocalFoldOsTokens
 
@@ -99,9 +109,9 @@ internal enum class AddTab(val label: String) { APPS("Apps"), WIDGETS("Widgets")
  * card on the inner screen. Three tabs:
  * - **Apps**: search, the app pop-up's group chips and an A-Z grid. Tap an app to put it on the first
  *   free cell of the current page; long press and move to drag it onto the page, a card or the dock.
- * - **Widgets**: every widget of the catalog (FoldOS built-ins first, then one section per app) as a
- *   preview tile; tap places, long press and move drags.
- * - **Cards**: an App card, an App card in list style and a Widget card, with small previews; tap or drag.
+ * - **Widgets**: collapsible dropdowns (FoldOS widgets by category, then one per app) of preview tiles;
+ *   tap places, long press and move drags.
+ * - **Cards**: an App card and an App card in list style, with small previews; tap or drag.
  * Under the tabs an actions row: Wallpaper, Themes, Dock, Pages (edit mode's page strip) and Settings.
  *
  * While something is dragged out of the sheet it squashes into a thin strip at its edge (it stays
@@ -130,6 +140,9 @@ fun AddToHomeSheet(
     val animMs = a11yDuration(SHEET_ANIM_MS)
     var tab by rememberSaveable { mutableStateOf(AddTab.APPS.name) }
     val currentTab = AddTab.entries.firstOrNull { it.name == tab } ?: AddTab.APPS
+    // Which Widgets dropdowns are open; remembered while the sheet is up, reset when it closes.
+    val expandedSections = remember { mutableStateMapOf<String, Boolean>() }
+    LaunchedEffect(visible) { if (!visible) expandedSections.clear() }
 
     val currentDismiss = rememberUpdatedState(onDismiss)
     // Registered after (so above) the edit overlay's exit handler: Back closes the sheet first.
@@ -238,7 +251,7 @@ fun AddToHomeSheet(
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when (currentTab) {
                                 AddTab.APPS -> AppsTab(settings, apps, visible, dragController, onDragStarted, onPlaceApp, onDismiss)
-                                AddTab.WIDGETS -> WidgetsTab(dragController, onDragStarted, onPlaceWidget)
+                                AddTab.WIDGETS -> WidgetsTab(expandedSections, dragController, onDragStarted, onPlaceWidget)
                                 AddTab.CARDS -> CardsTab(dragController, onDragStarted, onPlaceCard)
                             }
                         }
@@ -363,8 +376,29 @@ private fun AppsTab(
 
 /* ---------------- Widgets ---------------- */
 
+/** One dropdown section of the Widgets tab. */
+private class WidgetSection(
+    val key: String,
+    val label: String,
+    val icon: @Composable () -> Unit,
+    val entries: List<WidgetEntry>,
+)
+
+private fun WidgetEntry.matches(query: String): Boolean =
+    name.contains(query, ignoreCase = true) ||
+        source.contains(query, ignoreCase = true) ||
+        category.displayName.contains(query, ignoreCase = true)
+
+/**
+ * The Widgets tab as collapsible dropdowns (1.4.0): "FoldOS widgets" holds one dropdown per
+ * [WidgetCategory] (the first is open at the start), "From your apps" one dropdown per app that hosts
+ * widgets (app icon, name, count). Each opens into preview tiles (tap adds, hold and move drags; the
+ * size shows as "2 x 2"). The search field filters across everything and opens every section that has
+ * a match. [expanded] is hoisted to the sheet so open sections survive tab switches while it is open.
+ */
 @Composable
 private fun WidgetsTab(
+    expanded: SnapshotStateMap<String, Boolean>,
     dragController: DragController,
     onDragStarted: () -> Unit,
     onPlaceWidget: (WidgetEntry) -> Unit,
@@ -374,27 +408,66 @@ private fun WidgetsTab(
     val entries by graph.widgets.entries.collectAsStateWithLifecycle(initialValue = emptyList())
     var query by rememberSaveable { mutableStateOf("") }
     val model = remember(entries) { WidgetPickerModel(entries = entries, recents = emptyList(), loading = false) }
-    val filtered = remember(model, query) {
-        val q = query.trim()
-        model.groups.mapNotNull { group ->
-            val matching = if (q.isEmpty()) {
-                group.entries
+    val q = query.trim()
+    val accent = tokens.accent
+    val sections: Pair<List<WidgetSection>, List<WidgetSection>> = remember(model, q, accent) {
+        fun keep(list: List<WidgetEntry>, label: String): List<WidgetEntry> =
+            if (q.isEmpty() || label.contains(q, ignoreCase = true)) list else list.filter { it.matches(q) }
+        val builtIns = model.groups.firstOrNull { it.isBuiltIn }?.entries.orEmpty()
+        val foldos = WidgetCategory.entries.mapNotNull { category ->
+            val shown = keep(builtIns.filter { it.category == category }, category.displayName)
+            if (shown.isEmpty()) {
+                null
             } else {
-                group.entries.filter { it.name.contains(q, ignoreCase = true) || group.label.contains(q, ignoreCase = true) }
+                WidgetSection(
+                    key = "cat:${category.name}",
+                    label = category.displayName,
+                    icon = {
+                        Icon(
+                            imageVector = WidgetPickerIcons.forCategory(category),
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    },
+                    entries = shown,
+                )
             }
-            if (matching.isEmpty()) null else group to matching
         }
+        val apps = model.groups.filter { !it.isBuiltIn }.mapNotNull { group ->
+            val shown = keep(group.entries, group.label)
+            if (shown.isEmpty()) {
+                null
+            } else {
+                WidgetSection(
+                    key = "app:${group.key}",
+                    label = group.label,
+                    icon = { WidgetGroupIcon(group, 28.dp) },
+                    entries = shown,
+                )
+            }
+        }
+        foldos to apps
     }
+    val foldosSections = sections.first
+    val appSections = sections.second
+    val firstKey = foldosSections.firstOrNull()?.key
+    fun isOpen(key: String): Boolean = q.isNotEmpty() || (expanded[key] ?: (key == firstKey))
+
     Column(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         DrawerSearchField(
             query = query,
             onQueryChange = { query = it },
             appCount = entries.size,
-            onSearch = { filtered.firstOrNull()?.second?.firstOrNull()?.let(onPlaceWidget) },
+            onSearch = { (foldosSections + appSections).firstOrNull()?.entries?.firstOrNull()?.let(onPlaceWidget) },
         )
         if (entries.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(text = "Loading widgets", color = tokens.onSurface.copy(alpha = 0.7f))
+            }
+        } else if (foldosSections.isEmpty() && appSections.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = "No widgets match", color = tokens.onSurface.copy(alpha = 0.7f))
             }
         } else LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
@@ -403,23 +476,88 @@ private fun WidgetsTab(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(bottom = 12.dp),
         ) {
-            filtered.forEach { (group, widgets) ->
-                item(key = "h:${group.key}", span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = group.label,
-                        color = tokens.onSurface.copy(alpha = 0.75f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 6.dp, start = 2.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                items(widgets, key = { it.id }) { entry ->
-                    WidgetTile(entry, dragController, onDragStarted, onPlaceWidget)
+            fun LazyGridScope.sectionItems(list: List<WidgetSection>) {
+                list.forEach { section ->
+                    val open = isOpen(section.key)
+                    item(key = "h:${section.key}", span = { GridItemSpan(maxLineSpan) }) {
+                        WidgetSectionHeader(section, open) { expanded[section.key] = !open }
+                    }
+                    if (open) {
+                        items(section.entries, key = { "w:${it.id}" }) { entry ->
+                            WidgetTile(entry, dragController, onDragStarted, onPlaceWidget)
+                        }
+                    }
                 }
             }
+            if (foldosSections.isNotEmpty()) {
+                item(key = "t:foldos", span = { GridItemSpan(maxLineSpan) }) { WidgetGroupTitle("FoldOS widgets") }
+                sectionItems(foldosSections)
+            }
+            if (appSections.isNotEmpty()) {
+                item(key = "t:apps", span = { GridItemSpan(maxLineSpan) }) { WidgetGroupTitle("From your apps") }
+                sectionItems(appSections)
+            }
         }
+    }
+}
+
+@Composable
+private fun WidgetGroupTitle(text: String) {
+    val tokens = LocalFoldOsTokens.current
+    Text(
+        text = text.uppercase(),
+        color = tokens.onSurface.copy(alpha = 0.6f),
+        fontSize = 11.5.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(top = 6.dp, start = 2.dp),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** The tappable row of one dropdown: icon, name, widget count and a chevron. */
+@Composable
+private fun WidgetSectionHeader(section: WidgetSection, open: Boolean, onToggle: () -> Unit) {
+    val tokens = LocalFoldOsTokens.current
+    val shape = RoundedCornerShape(16.dp)
+    val count = section.entries.size
+    val countText = if (count == 1) "1 widget" else "$count widgets"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clip(shape)
+            .background(tokens.surface, shape)
+            .border(1.dp, tokens.surfaceBorder, shape)
+            .a11yButton(label = "${section.label}, $countText, ${if (open) "expanded" else "collapsed"}", onActivate = onToggle)
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) { section.icon() }
+        Text(
+            text = section.label,
+            color = tokens.onSurface,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = countText,
+            color = tokens.onSurface.copy(alpha = 0.6f),
+            fontSize = 12.sp,
+            maxLines = 1,
+        )
+        Icon(
+            imageVector = if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            contentDescription = null,
+            tint = tokens.onSurface.copy(alpha = 0.7f),
+            modifier = Modifier.size(24.dp),
+        )
     }
 }
 
@@ -479,7 +617,6 @@ private class CardChoice(val style: String, val title: String, val description: 
 private val CardChoices = listOf(
     CardChoice(HomeItem.CARD_APPS, "App card", "A rounded holder for app icons. Drop apps on it; it lays them out for you."),
     CardChoice(HomeItem.CARD_APPS_LIST, "App list card", "Apps as big names in rows, like the old Minimal list."),
-    CardChoice(HomeItem.CARD_WIDGETS, "Widget card", "Holds one or more widgets; swipe through them like a stack."),
 )
 
 @Composable
@@ -498,7 +635,7 @@ private fun CardsTab(
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
-                text = "Cards hold apps or widgets on the page. Tap to add one (2 x 2, resize it afterwards) or drag it into place.",
+                text = "Cards hold apps on the page. Tap to add one (2 x 2, resize it afterwards) or drag it into place.",
                 color = tokens.onSurface.copy(alpha = 0.6f),
                 fontSize = 12.sp,
                 maxLines = 3,
@@ -544,7 +681,7 @@ private fun CardsTab(
     }
 }
 
-/** Small schematic of a card: dots for an apps grid, lines for the list, a wide block for widgets. */
+/** Small schematic of a card: dots for an apps grid, lines for the list. */
 @Composable
 internal fun CardPreview(style: String, modifier: Modifier = Modifier) {
     val tokens = LocalFoldOsTokens.current
@@ -558,14 +695,6 @@ internal fun CardPreview(style: String, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         when (style) {
-            HomeItem.CARD_WIDGETS -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(8.dp)).background(tokens.accent.copy(alpha = 0.55f)))
-                Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    repeat(3) { i ->
-                        Box(Modifier.size(4.dp).background(tokens.onSurface.copy(alpha = if (i == 0) 0.9f else 0.3f), RoundedCornerShape(2.dp)))
-                    }
-                }
-            }
             HomeItem.CARD_APPS_LIST -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
                 repeat(3) { i ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

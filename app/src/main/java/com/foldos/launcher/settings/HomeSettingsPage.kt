@@ -18,7 +18,7 @@ object HomeRows {
     val starterCover = SettingsRowInfo("Cover starter layout", "Seed the cover's first page or a new page with a layout")
     val starterInner = SettingsRowInfo("Inner starter layout", "Seed the inner screen's first page or a new page with a layout")
     val gridMode = SettingsRowInfo("Placement", "Snap to grid or place freely")
-    val cardBackground = SettingsRowInfo("Card background", "Rounded surface behind app and widget cards")
+    val cardBackground = SettingsRowInfo("Card background", "Rounded surface behind app cards")
     val cardTitles = SettingsRowInfo("Card titles", "Show the title row on cards that have one")
     val drawerStyle = SettingsRowInfo("App drawer", "Pixel-style pop-up or full screen")
     val popBlur = SettingsRowInfo("Blur behind pop-up", "Blur home while the drawer is open")

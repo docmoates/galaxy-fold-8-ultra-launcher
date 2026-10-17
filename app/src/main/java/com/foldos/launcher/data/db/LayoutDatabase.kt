@@ -19,10 +19,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *    (`package_name_2`, `activity_name_2`) columns.
  * 4. Round 2.0 (free canvas + cards): items gained `card_style` and `card_clear`; the per-style pages
  *    were converted to canvas content (see [MIGRATION_3_4] / [CanvasMigration]).
+ * 5. 1.4.0: the widget card flavor was removed; its widgets became loose items (see [MIGRATION_4_5] / [WidgetCardMigration]). No column changes.
  */
 @Database(
     entities = [PageEntity::class, ItemEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(LayoutConverters::class)
@@ -73,10 +74,20 @@ abstract class LayoutDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 1.4.0: widget cards no longer exist. Each one is deleted and its widgets become loose items on the
+         * same page (first at the card's cell and span, several in one stack there); see [WidgetCardMigration].
+         */
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                WidgetCardMigration.dissolve(db)
+            }
+        }
+
         /** Builds a new instance; callers (the [com.foldos.launcher.data.AppGraphImpl]) keep it as a singleton. */
         fun create(context: Context): LayoutDatabase =
             Room.databaseBuilder(context.applicationContext, LayoutDatabase::class.java, DATABASE_NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
     }

@@ -112,7 +112,7 @@ enum class ContextAction(val label: String, val icon: ImageVector) {
     /** Widgets: enter live-edit mode (the menu tries [EDIT] when `onAction` does not take this one). */
     EDIT_HOME("Edit home", Icons.Rounded.Edit),
 
-    /** Round 2.0: put this app / folder / pair / widget inside a card on its page (the caller picks the card). */
+    /** Round 2.0: put this app / folder / pair inside a card on its page (the caller picks the card). */
     MOVE_TO_CARD("Move to card", Icons.Rounded.Dashboard),
 
     /** Round 2.0: take this item out of its card back onto the page (the caller picks the cell). */
@@ -158,7 +158,6 @@ enum class ContextAction(val label: String, val icon: ImageVector) {
             ItemKind.WIDGET -> buildList {
                 add(REMOVE_WIDGET)
                 if (!item.inFolder) add(RESIZE)
-                add(if (item.inFolder) TAKE_OUT else MOVE_TO_CARD)
                 add(EDIT_HOME)
             }
             ItemKind.FOLDER, ItemKind.PAIR -> listOf(EDIT, REMOVE, if (item.inFolder) TAKE_OUT else MOVE_TO_CARD)
@@ -228,7 +227,7 @@ fun ItemContextMenu(
                 ContextAction.APP_INFO, ContextAction.HIDE -> item.kind == ItemKind.APP && packageName != null
                 ContextAction.UNINSTALL -> item.kind == ItemKind.APP && packageName != null && !isSystemApp
                 ContextAction.ADD_TO_PAIR, ContextAction.ICON_OVERRIDE -> item.kind == ItemKind.APP && app != null
-                ContextAction.MOVE_TO_CARD -> item.id > 0 && item.kind != ItemKind.CARD && !item.inFolder
+                ContextAction.MOVE_TO_CARD -> item.id > 0 && item.kind != ItemKind.CARD && item.kind != ItemKind.WIDGET && !item.inFolder
                 ContextAction.TAKE_OUT -> item.id > 0 && item.kind != ItemKind.CARD && item.inFolder
                 ContextAction.RENAME_CARD, ContextAction.CARD_SURFACE, ContextAction.DISSOLVE_CARD -> item.kind == ItemKind.CARD && item.id > 0
             }
@@ -385,14 +384,14 @@ private fun MenuHeader(item: HomeItem, app: AppInfo?, secondApp: AppInfo?) {
         ItemKind.FOLDER -> item.title ?: Folders.DEFAULT_TITLE
         ItemKind.PAIR -> pairTitle(item, app, secondApp)
         ItemKind.WIDGET -> item.title ?: "Widget"
-        ItemKind.CARD -> item.title ?: if (item.isWidgetsCard) "Widget card" else "App card"
+        ItemKind.CARD -> item.title ?: "App card"
     }
     val kindName = when (item.kind) {
         ItemKind.APP -> "App"
         ItemKind.FOLDER -> "Folder"
         ItemKind.PAIR -> "App pair"
         ItemKind.WIDGET -> "Widget"
-        ItemKind.CARD -> if (item.isWidgetsCard) "Widget card" else if (item.isListCard) "App card (list)" else "App card"
+        ItemKind.CARD -> if (item.isListCard) "App card (list)" else "App card"
     }
     Row(
         modifier = Modifier

@@ -140,7 +140,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun goHome() {
         _drawerOpen.value = false
-        _widgetPickerOpen.value = false
         _addSheetOpen.value = false
         _editMode.value = false
         _searchOpen.value = false
@@ -172,7 +171,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
         _drawerOpen.value = false
-        _widgetPickerOpen.value = false
         _addSheetOpen.value = false
         _searchSeed.value = initialText?.takeIf { it.isNotEmpty() }
         _searchOpen.value = true
@@ -202,7 +200,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun openHub() {
         _drawerOpen.value = false
-        _widgetPickerOpen.value = false
         _addSheetOpen.value = false
         _searchOpen.value = false
         _editMode.value = false
@@ -281,7 +278,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun exitEditMode() {
         _editMode.value = false
-        _widgetPickerOpen.value = false
         _addSheetOpen.value = false
     }
 
@@ -292,27 +288,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun openAddSheet() {
         _drawerOpen.value = false
-        _widgetPickerOpen.value = false
         _addSheetOpen.value = true
     }
 
     fun closeAddSheet() {
         _addSheetOpen.value = false
-    }
-
-    private val _widgetPickerOpen = MutableStateFlow(false)
-
-    /** True while the full widget picker is open (kept for the Settings / a11y entry; the sheet's Widgets tab is the usual way). */
-    val widgetPickerOpen: StateFlow<Boolean> = _widgetPickerOpen.asStateFlow()
-
-    fun openWidgetPicker() {
-        _drawerOpen.value = false
-        _addSheetOpen.value = false
-        _widgetPickerOpen.value = true
-    }
-
-    fun closeWidgetPicker() {
-        _widgetPickerOpen.value = false
     }
 
     private val _currentPageId = MutableStateFlow<Long?>(null)

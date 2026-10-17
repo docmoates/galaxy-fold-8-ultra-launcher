@@ -60,7 +60,8 @@ internal object BackupCodec {
     fun exportPages(pages: List<Pair<HomePage, List<HomeItem>>>): List<BackupPage> =
         pages.map { (page, all) ->
             val widgetsFiltered = all.filter { item ->
-                !item.isAppWidget && (item.kind != ItemKind.WIDGET || item.isBuiltInWidget)
+                !item.isAppWidget && (item.kind != ItemKind.WIDGET || item.isBuiltInWidget) &&
+                    !(item.isCard && item.cardStyle == HomeItem.LEGACY_CARD_WIDGETS)
             }
             val byId = widgetsFiltered.associateBy { it.id }
             fun validParent(item: HomeItem): Boolean {
@@ -151,20 +152,63 @@ internal object BackupCodec {
                 val built = buildPageItems(page.items, resolveApp, nextId)
                 nextId = built.nextId
                 imported += built.items.size
-                skipped += page.items.size - built.items.size
+                skipped += page.items.size - built.items.size - built.dissolved
                 result += HomePage(id = 0, screen = screen, index = pageIndex, style = style) to built.items
             }
         }
         return Built(pages = result, imported = imported, skipped = skipped)
     }
 
-    private class PageItems(val items: List<HomeItem>, val nextId: Long)
+    private class PageItems(val items: List<HomeItem>, val nextId: Long, val dissolved: Int)
+
+    /**
+     * 1.4.0: widget cards are gone. A file written by 1.3.x may still hold CARD items with `cardStyle = "widgets"`;
+     * each one is removed (its slot becomes an unknown kind, so positions stay valid) and its children become
+     * loose items at the card's cell and span: the first keeps the cell, several share one stack there (anchor =
+     * the first child, in the card's order). Returns the rewritten list and how many cards were removed.
+     */
+    private fun dissolveWidgetCards(raw: List<BackupItem>): Pair<List<BackupItem>, Int> {
+        val cards = raw.indices.filter {
+            raw[it].kind == ItemKind.CARD.name && raw[it].cardStyle == HomeItem.LEGACY_CARD_WIDGETS && raw[it].parentIndex == null
+        }
+        if (cards.isEmpty()) return raw to 0
+        val out = raw.toMutableList()
+        for (cardIndex in cards) {
+            val card = raw[cardIndex]
+            val children = raw.indices
+                .filter { raw[it].parentIndex == cardIndex }
+                .sortedWith(compareBy({ raw[it].row }, { it }))
+            val widgets = children.filter { raw[it].kind == ItemKind.WIDGET.name }
+            val stacked = widgets.size > 1
+            out[cardIndex] = BackupItem(kind = "REMOVED_WIDGET_CARD", col = 0, row = 0)
+            for (child in children) {
+                val source = raw[child]
+                val isWidget = source.kind == ItemKind.WIDGET.name
+                out[child] = source.copy(
+                    parentIndex = null,
+                    col = card.col,
+                    row = card.row,
+                    spanX = if (isWidget) card.spanX else 1,
+                    spanY = if (isWidget) card.spanY else 1,
+                    free = false,
+                    xDp = null,
+                    yDp = null,
+                    wDp = null,
+                    hDp = null,
+                    stackAnchorIndex = if (isWidget && stacked) widgets.first() else null,
+                    stackIndex = if (isWidget && stacked) widgets.indexOf(child) else 0,
+                )
+            }
+        }
+        return out to cards.size
+    }
 
     private fun buildPageItems(
-        raw: List<BackupItem>,
+        rawIn: List<BackupItem>,
         resolveApp: (String?, String?) -> String?,
         firstId: Long,
     ): PageItems {
+        val (raw, dissolved) = dissolveWidgetCards(rawIn)
         val templates = arrayOfNulls<HomeItem>(raw.size)
 
         // Pass 1: per-item validity and the app check.
@@ -275,7 +319,7 @@ internal object BackupCodec {
                 stackIndex = rank,
             )
         }
-        return PageItems(items = items, nextId = firstId + kept.size)
+        return PageItems(items = items, nextId = firstId + kept.size, dissolved = dissolved)
     }
 
     /**

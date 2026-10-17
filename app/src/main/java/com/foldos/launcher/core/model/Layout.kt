@@ -75,8 +75,8 @@ data class HomeItem(
     /** Per-folder style override ("grid", "list" or "big"); null = `LauncherSettings.folderStyle`. */
     val folderStyle: String? = null,
     /**
-     * For an [ItemKind.CARD]: [CARD_APPS] (mini icon grid), [CARD_APPS_LIST] (icon + name rows) or
-     * [CARD_WIDGETS] (widgets, swiped through). Null for every other kind.
+     * For an [ItemKind.CARD]: [CARD_APPS] (mini icon grid) or [CARD_APPS_LIST] (icon + name rows).
+     * Null for every other kind. (The 1.3.x "widgets" style is gone; see [LEGACY_CARD_WIDGETS].)
      */
     val cardStyle: String? = null,
     /** For a card: true draws no surface behind the contents ("transparent" card). */
@@ -86,10 +86,7 @@ data class HomeItem(
     val isCard: Boolean get() = kind == ItemKind.CARD
 
     /** True for a card that holds apps, folders and pairs (grid or list style). */
-    val isAppsCard: Boolean get() = isCard && cardStyle != CARD_WIDGETS
-
-    /** True for a card that holds widgets. */
-    val isWidgetsCard: Boolean get() = isCard && cardStyle == CARD_WIDGETS
+    val isAppsCard: Boolean get() = isCard
 
     /** True for an apps card drawn as icon + name rows. */
     val isListCard: Boolean get() = isCard && cardStyle == CARD_APPS_LIST
@@ -101,11 +98,11 @@ data class HomeItem(
         /** `cardStyle` of an apps card drawn as icon + name rows (the old "Minimal list"). */
         const val CARD_APPS_LIST: String = "apps-list"
 
-        /** `cardStyle` of a widgets card. */
-        const val CARD_WIDGETS: String = "widgets"
+        /** `cardStyle` of the removed 1.3.x widget card; only migration and old backups still read it (1.4.0 turns them into loose widgets). */
+        const val LEGACY_CARD_WIDGETS: String = "widgets"
 
         /** Every card style, in picker order. */
-        val CARD_STYLES: List<String> = listOf(CARD_APPS, CARD_APPS_LIST, CARD_WIDGETS)
+        val CARD_STYLES: List<String> = listOf(CARD_APPS, CARD_APPS_LIST)
 
         /** Cards are never smaller than this (cells). */
         const val CARD_MIN_SPAN: Int = 2

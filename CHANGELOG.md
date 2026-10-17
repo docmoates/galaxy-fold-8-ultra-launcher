@@ -4,6 +4,29 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.4.0] - 2026-10-16
+
+Widgets are loose again (`versionCode` 140). Same signing key. Room schema 4 -> 5 with a real migration (nothing is dropped).
+
+### Changed
+- Add to home > Widgets is now a list of collapsible dropdowns, so every widget is reachable again. "FoldOS widgets" has one
+  dropdown per widget category (Clock & Time, Weather, Calendar & Tasks, ...; each with its count, the first one open), "From your
+  apps" has one dropdown per app that provides widgets (app icon, name, count). A dropdown opens into preview tiles with the size
+  ("2 x 2"); tap adds, hold and move drags onto the page as before. The search box filters across all of them and opens every
+  dropdown that has a match. Open dropdowns are remembered while the sheet is open and on the cover (one tile column pair) and
+  inside (wider grid) alike.
+- Widget cards are gone. Widgets are only loose items on the canvas (drag, resize, stack as before). The Cards tab offers the App
+  card and the App list card only; "Move to card" is for apps, folders and pairs; there is no "Drop widgets here".
+- Starter layouts: Widget dashboard and Panels place loose widgets (Panels: loose widgets over an app card).
+
+### Migration
+- Each 1.3.x widget card is deleted and its widgets become loose widgets on the same page: the first takes the card's cell and size;
+  when there are several they share one stack in that slot, in the card's order. An empty widget card is simply removed. The pages
+  are then packed so nothing overlaps. Backups written by 1.3.x with widget cards import the same way; 1.4.0 never writes them.
+
+### Removed
+- The unreachable two-level widget picker (`picker/WidgetPicker*.kt` list, detail pager and shell) and its view-model state.
+
 ## [1.3.1] - 2026-10-16
 
 Fixes from the first run of 1.3.0 on the phone (`versionCode` 131). Same signing key; no schema change.

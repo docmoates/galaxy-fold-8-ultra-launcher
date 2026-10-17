@@ -409,3 +409,14 @@ the old dashboard coordinates.
 
 Not verified on a device (written from the source): the Back order with the sheet opened from edit mode, the scaled widgets' touch
 targets in a widget card, two-up tiling on the inner screen, and the one-time repair on a database migrated by 1.3.0.
+
+# 1.4.0: "what happened to all the widgets?"
+
+Cause: 1.3.0 replaced the Add sheet's widget chooser with a flat grid (`edit/AddToHomeSheet.kt`) and the two-level picker
+(`picker/WidgetPicker*.kt`: categories, A-Z app list, detail pager) had no caller left, so the 17 categories and the per-app lists
+looked gone although the catalog (`graph.widgets`: FoldOS built-ins plus hosted app widgets) was intact. 1.4.0 rebuilds the Widgets
+tab as dropdowns (FoldOS widgets by `WidgetCategory`, then one per app) and deletes the unreachable picker. Widget cards were removed
+at the same time (Room 4 -> 5, `WidgetCardMigration`); their widgets are loose, stacked in the card's slot when there were several.
+
+Not verified on a device (written from the source): dropdown behavior on the cover and inner screens, drags out of an open dropdown,
+and the migration on a real 1.3.x database.

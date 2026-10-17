@@ -35,9 +35,9 @@ object StarterLayouts {
     /** One-line description for the starter tiles. */
     fun description(starter: HomeStyle): String = when (starter) {
         HomeStyle.GRID -> "Your most used apps as icons"
-        HomeStyle.DASHBOARD -> "Glance, weather and devices up top, a swipeable widget card below"
+        HomeStyle.DASHBOARD -> "Glance, weather, calendar and more as loose widgets"
         HomeStyle.LIST -> "One app card in list style: big names, no icons"
-        HomeStyle.HYBRID -> "A widget card over an app card"
+        HomeStyle.HYBRID -> "Loose widgets over an app card"
     }
 
     /** A child of a seeded card: [parent] indexes [Seed.items]. */
@@ -85,7 +85,6 @@ object StarterLayouts {
             title = title,
             cardStyle = style,
         )
-        fun cardWidget(cardItem: HomeItem, id: String, order: Int): HomeItem = widget(id, 0, order, cardItem.spanX, cardItem.spanY)
 
         return when (starter) {
             HomeStyle.GRID -> {
@@ -98,35 +97,31 @@ object StarterLayouts {
             HomeStyle.DASHBOARD -> {
                 if (!inner || columns < 6) {
                     val half = columns / 2
-                    val widgetCard = card(HomeItem.CARD_WIDGETS, 0, 2, columns, 2)
-                    val items = listOf(
-                        widget(HomeBuiltInIds.GLANCE, 0, 0, columns, 1),
-                        widget(HomeBuiltInIds.WEATHER, 0, 1, half, 1),
-                        widget(HomeBuiltInIds.DEVICES, half, 1, columns - half, 1),
-                        widgetCard,
-                        widget(HomeBuiltInIds.TODO, 0, 4, half, 1),
-                        widget(HomeBuiltInIds.FOCUS, half, 4, columns - half, 1),
-                    )
                     Seed(
-                        items = items,
-                        children = listOf(HomeBuiltInIds.CALENDAR, HomeBuiltInIds.MEDIA, HomeBuiltInIds.NEWS)
-                            .mapIndexed { i, id -> Child(3, cardWidget(widgetCard, id, i)) },
+                        items = listOf(
+                            widget(HomeBuiltInIds.GLANCE, 0, 0, columns, 1),
+                            widget(HomeBuiltInIds.WEATHER, 0, 1, half, 1),
+                            widget(HomeBuiltInIds.DEVICES, half, 1, columns - half, 1),
+                            widget(HomeBuiltInIds.CALENDAR, 0, 2, columns, 2),
+                            widget(HomeBuiltInIds.TODO, 0, 4, half, 1),
+                            widget(HomeBuiltInIds.FOCUS, half, 4, columns - half, 1),
+                            widget(HomeBuiltInIds.MEDIA, 0, 5, columns, 1),
+                        ),
+                        children = emptyList(),
                     )
                 } else {
-                    val widgetCard = card(HomeItem.CARD_WIDGETS, 0, 1, 3, 2)
-                    val items = listOf(
-                        widget(HomeBuiltInIds.GLANCE, 0, 0, 3, 1),
-                        widget(HomeBuiltInIds.WEATHER, 3, 0, 2, 1),
-                        widget(HomeBuiltInIds.DEVICES, 5, 0, columns - 5, 1),
-                        widgetCard,
-                        widget(HomeBuiltInIds.MEDIA, 3, 1, columns - 3, 1),
-                        widget(HomeBuiltInIds.TODO, 3, 2, 2, 1),
-                        widget(HomeBuiltInIds.FOCUS, 5, 2, columns - 5, 1),
-                    )
                     Seed(
-                        items = items,
-                        children = listOf(HomeBuiltInIds.CALENDAR, HomeBuiltInIds.NEWS)
-                            .mapIndexed { i, id -> Child(3, cardWidget(widgetCard, id, i)) },
+                        items = listOf(
+                            widget(HomeBuiltInIds.GLANCE, 0, 0, 3, 1),
+                            widget(HomeBuiltInIds.WEATHER, 3, 0, 2, 1),
+                            widget(HomeBuiltInIds.DEVICES, 5, 0, columns - 5, 1),
+                            widget(HomeBuiltInIds.CALENDAR, 0, 1, 3, 2),
+                            widget(HomeBuiltInIds.MEDIA, 3, 1, columns - 3, 1),
+                            widget(HomeBuiltInIds.TODO, 3, 2, 2, 1),
+                            widget(HomeBuiltInIds.FOCUS, 5, 2, columns - 5, 1),
+                            widget(HomeBuiltInIds.NEWS, 0, 3, 3, 2),
+                        ),
+                        children = emptyList(),
                     )
                 }
             }
@@ -141,19 +136,26 @@ object StarterLayouts {
             }
             HomeStyle.HYBRID -> {
                 val topRows = 3
-                val widgetCard = card(HomeItem.CARD_WIDGETS, 0, 0, columns, topRows)
                 val appCard = card(HomeItem.CARD_APPS, 0, topRows, columns, (visibleRows - topRows).coerceAtLeast(2))
-                val widgetIds = if (inner) {
-                    listOf(HomeBuiltInIds.CLOCK, HomeBuiltInIds.CALENDAR, HomeBuiltInIds.MEDIA)
+                val widgets = if (inner && columns >= 6) {
+                    val w = columns / 3
+                    listOf(
+                        widget(HomeBuiltInIds.CLOCK, 0, 0, w, topRows),
+                        widget(HomeBuiltInIds.CALENDAR, w, 0, w, topRows),
+                        widget(HomeBuiltInIds.MEDIA, 2 * w, 0, columns - 2 * w, topRows),
+                    )
                 } else {
-                    listOf(HomeBuiltInIds.GLANCE, HomeBuiltInIds.CALENDAR)
+                    listOf(
+                        widget(HomeBuiltInIds.GLANCE, 0, 0, columns, 1),
+                        widget(HomeBuiltInIds.CALENDAR, 0, 1, columns, 2),
+                    )
                 }
                 val appCount = if (inner) 16 else 8
                 Seed(
-                    items = listOf(widgetCard, appCard),
-                    children = widgetIds.mapIndexed { i, id -> Child(0, cardWidget(widgetCard, id, i)) } +
-                        preferredHomeApps(apps, appCount).mapIndexed { i, a -> Child(1, app(a, 0, i, parent = true)) },
+                    items = widgets + appCard,
+                    children = preferredHomeApps(apps, appCount).mapIndexed { i, a -> Child(widgets.size, app(a, 0, i, parent = true)) },
                 )
+            }
             }
         }
     }

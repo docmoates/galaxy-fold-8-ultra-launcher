@@ -63,7 +63,6 @@ import com.foldos.launcher.home.rememberGridGeometry
 import com.foldos.launcher.hub.HubPage
 import com.foldos.launcher.notifications.QuietDrawerSheet
 import com.foldos.launcher.onboarding.SetupWizard
-import com.foldos.launcher.picker.WidgetPicker
 import com.foldos.launcher.picker.rememberWidgetPickerBackdropModifier
 import com.foldos.launcher.search.SearchBar
 import com.foldos.launcher.search.UniversalSearch
@@ -128,7 +127,6 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     val searchSeed by viewModel.searchSeed.collectAsStateWithLifecycle()
     val editMode by viewModel.editMode.collectAsStateWithLifecycle()
-    val pickerOpen by viewModel.widgetPickerOpen.collectAsStateWithLifecycle()
     val addSheetOpen by viewModel.addSheetOpen.collectAsStateWithLifecycle()
     val homeRequest by viewModel.homeRequests.collectAsStateWithLifecycle()
     val hubRequest by viewModel.hubRequests.collectAsStateWithLifecycle()
@@ -192,7 +190,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     // with that character as the start of the query. Off while search is switched off or an overlay is up;
     // while search itself is opening, further characters are appended to the seed.
     val typeToSearchOn = settings.feature(LauncherSettings.FEATURE_SEARCH) &&
-        !editMode && !drawerOpen && !pickerOpen && !addSheetOpen
+        !editMode && !drawerOpen && !addSheetOpen
     val keyboardShortcuts = remember(viewModel, typeToSearchOn) {
         KeyboardShortcuts(
             onTypeToSearch = if (typeToSearchOn) {
@@ -233,7 +231,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     val gesturesOn = settings.feature(LauncherSettings.FEATURE_GESTURES)
     val onGestureAction: (GestureAction) -> Unit = { action -> viewModel.performGesture(context, action) }
     val pageGestures = Modifier.homeGestures(
-        enabled = !editMode && !drawerOpen && !pickerOpen && !searchOpen && !addSheetOpen,
+        enabled = !editMode && !drawerOpen && !searchOpen && !addSheetOpen,
         settings = settings,
         onAction = onGestureAction,
     )
@@ -241,7 +239,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
 
     // Back on the home screen returns to the default page. The drawer, the picker, the edit
     // overlay and universal search each have their own BackHandler (composed later, so higher priority).
-    BackHandler(enabled = !drawerOpen && !pickerOpen && !editMode && !searchOpen && !addSheetOpen) { viewModel.goHome() }
+    BackHandler(enabled = !drawerOpen && !editMode && !searchOpen && !addSheetOpen) { viewModel.goHome() }
 
     // Widget picker -> app widget: allocate, bind (system permission dialog when needed), configure
     // through MainActivity.onActivityResult, then place the item. Built-ins are placed directly.
@@ -324,8 +322,8 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
     // must be sharp and full size again: that is where the app is dropped.
     // Search is not part of it: its surface is fully opaque, a blurred home behind it is never seen.
     val backdrop = rememberWidgetPickerBackdropModifier(
-        visible = (drawerOpen && !dragController.isDragging) || pickerOpen,
-        blur = settings.popBlur && (pickerOpen || settings.drawerStyle == DrawerStyle.POPUP),
+        visible = drawerOpen && !dragController.isDragging,
+        blur = settings.popBlur && settings.drawerStyle == DrawerStyle.POPUP,
     )
     val onNotifications: (() -> Unit)? = if (settings.feature(LauncherSettings.FEATURE_BADGES)) {
         { quietDrawerOpen = true }
@@ -456,7 +454,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
                     swipeUpOpensDrawer = !gesturesOn,
                     hubSelectRequest = hubRequest,
                     // The home takes keyboard focus back whenever an overlay closes (type-to-search, arrow keys).
-                    keyboardRefocusKey = Triple(drawerOpen, pickerOpen, searchOpen),
+                    keyboardRefocusKey = Pair(drawerOpen, searchOpen),
                     onHubPageChanged = { isHub -> onHub = isHub },
                     dragController = dragController,
                     onDropPayload = onDropPayload,
@@ -508,7 +506,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         // through the same frame. Dropping an app onto another app makes a folder, onto a folder adds to
         // it (LauncherViewModel.moveItem). Remove shows an Undo snackbar (restoreItem).
         EditModeOverlay(
-            active = editMode && !pickerOpen,
+            active = editMode,
             screen = screen,
             settings = settings,
             pages = pages,
@@ -570,15 +568,6 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
         )
         ThemeQuickSheet(visible = themesOpen, settings = settings, onDismiss = { themesOpen = false })
         WallpaperSheet(visible = wallpaperOpen, onDismiss = { wallpaperOpen = false })
-
-        WidgetPicker(
-            visible = pickerOpen,
-            screen = fold.kind,
-            settings = settings,
-            onPick = onPickWidget,
-            onDismiss = { viewModel.closeWidgetPicker() },
-            modifier = Modifier.fillMaxSize(),
-        )
 
         AppDrawer(
             visible = drawerOpen,
