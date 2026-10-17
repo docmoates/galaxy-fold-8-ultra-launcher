@@ -95,7 +95,7 @@ fun CalendarAgendaWidget(spanX: Int, spanY: Int, modifier: Modifier) {
         } else {
             val ch = ih - WidgetHeaderHeight.value
             val strip = spanX >= 3 && spanY >= 3
-            val n = max(1, floor((ch - (if (strip) 48f else 0f) + 9f) / 41f).toInt())
+            val n = max(1, floor((ch - (if (strip) 48f else 0f) + 9f) / 47f).toInt())
             val shown = (if (upcoming.isNotEmpty()) upcoming else events).take(n)
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 WidgetHeader(Icons.Outlined.Event, "Today", trailingText = "${events.size} today")
@@ -123,7 +123,7 @@ fun CalendarAgendaWidget(spanX: Int, spanY: Int, modifier: Modifier) {
 @Composable
 internal fun AgendaEventRow(event: AgendaEvent, modifier: Modifier = Modifier) {
     val tokens = LocalFoldOsTokens.current
-    Row(modifier.fillMaxWidth().height(32.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
             Modifier
                 .width(4.dp)

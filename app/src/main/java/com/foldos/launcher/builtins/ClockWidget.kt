@@ -84,12 +84,10 @@ fun ClockWidget(spanX: Int, spanY: Int, modifier: Modifier, weatherProvider: Wea
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
                 BigNumber(now.clockText(), dpToSp(fs))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
+                    FitText(
                         now.shortDateText(),
                         fontSize = 13.sp,
                         color = LocalContentColor.current.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
                     Icon(Icons.Outlined.Alarm, null, Modifier.size(18.dp), tint = LocalContentColor.current.copy(alpha = 0.7f))

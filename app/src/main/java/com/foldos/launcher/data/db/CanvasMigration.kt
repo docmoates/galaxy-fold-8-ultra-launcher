@@ -89,6 +89,27 @@ internal object CanvasMigration {
                 widgets.sortedWith(compareBy({ it.row }, { it.col })).forEachIndexed { order, item ->
                     placeInCard(db, item.id, widgetCard, page.id, order)
                 }
+                if (widgets.isEmpty()) {
+                    // The old Panels page drew built-in widgets that were never stored: never leave an empty card.
+                    val ids = if (cols == 4) listOf("foldos.glance", "foldos.calendar") else listOf("foldos.clock", "foldos.calendar", "foldos.media")
+                    val titles = mapOf("foldos.glance" to "At a glance", "foldos.clock" to "Clock", "foldos.calendar" to "Calendar", "foldos.media" to "Now playing")
+                    ids.forEachIndexed { order, id ->
+                        val values = ContentValues().apply {
+                            put("page_id", page.id)
+                            put("kind", ItemKind.WIDGET.name)
+                            put("grid_col", 0)
+                            put("grid_row", order)
+                            put("span_x", cols)
+                            put("span_y", 3)
+                            put("stack_index", 0)
+                            put("free", 0)
+                            put("parent_id", widgetCard)
+                            put("builtin_id", id)
+                            put("title", titles[id])
+                        }
+                        db.insert("items", SQLiteDatabase.CONFLICT_REPLACE, values)
+                    }
+                }
                 val appCard = insertCard(db, page.id, 0, 3, cols, ROWS - 3, HomeItem.CARD_APPS, null)
                 holdable.sortedWith(compareBy({ it.row }, { it.col })).forEachIndexed { order, item ->
                     placeInCard(db, item.id, appCard, page.id, order)

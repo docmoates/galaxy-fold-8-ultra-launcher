@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -26,6 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -370,43 +374,98 @@ private fun CardAppList(ctx: HomeContext, children: List<HomeItem>, bounds: Card
 }
 
 /**
- * The widgets of a widgets card, one at a time: a pager with dots when there are several (the card
- * acts like a stack). Each widget is drawn at the card's size and keeps its own menu / drag.
+ * The widgets of a widgets card. One widget per pager page, or two side by side when the card is wide
+ * (wider than three columns and at least [TWO_UP_MIN_WIDTH]); dots only when there is more than one page.
+ *
+ * Each tile gets the full card width. A built-in widget is laid out for a smaller virtual tile and scaled up
+ * to fill the tile ([fitScale]), so text grows with a big card instead of leaving a lone line in dead
+ * space, and nothing is clipped; an app widget is simply sized to the tile.
  */
 @Composable
 private fun CardWidgets(ctx: HomeContext, card: HomeItem, children: List<HomeItem>, bounds: CardChildBounds) {
     val tokens = LocalFoldOsTokens.current
-    val pagerState = rememberPagerState { children.size }
-    Box(Modifier.fillMaxSize()) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-            key = { index -> children.getOrNull(index)?.id ?: index },
-        ) { page ->
-            val child = children.getOrNull(page) ?: return@HorizontalPager
-            val holder = remember(child.id) { HomeAnchorHolder() }
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .cardChild(bounds, child.id)
-                    .homeAnchor(holder)
-                    .homeWidgetGestures(ctx, child, holder),
-            ) {
-                // Drawn at the card's span, whatever the child row remembers from when it was added.
-                HomeWidgetItem(child.copy(spanX = card.spanX, spanY = card.spanY), Modifier.fillMaxSize())
-                HomeItemPressOverlay(ctx, child)
-            }
-        }
-        if (children.size > 1) {
-            Row(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                repeat(children.size) { index ->
-                    val alpha = if (index == pagerState.currentPage) 1f else 0.3f
-                    Box(Modifier.size(5.dp).background(tokens.onSurface.copy(alpha = alpha), CircleShape))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val perPage = if (card.spanX > 3 && maxWidth >= TWO_UP_MIN_WIDTH && children.size > 1) 2 else 1
+        val pages = remember(children, perPage) { children.chunked(perPage) }
+        val pagerState = rememberPagerState { pages.size }
+        val dotsHeight = if (pages.size > 1) 14.dp else 0.dp
+        Column(Modifier.fillMaxSize()) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                key = { index -> pages.getOrNull(index)?.firstOrNull()?.id ?: index },
+            ) { page ->
+                val group = pages.getOrNull(page) ?: return@HorizontalPager
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
+                    group.forEach { child ->
+                        val holder = remember(child.id) { HomeAnchorHolder() }
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .cardChild(bounds, child.id)
+                                .homeAnchor(holder)
+                                .homeWidgetGestures(ctx, child, holder),
+                        ) {
+                            WidgetFitted(child, tileSpanX = (card.spanX / group.size).coerceAtLeast(1), tileSpanY = card.spanY)
+                            HomeItemPressOverlay(ctx, child)
+                        }
+                    }
+                    // A short last page keeps its tile width instead of stretching one widget over the row.
+                    repeat(perPage - group.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
+            if (pages.size > 1) {
+                Row(
+                    modifier = Modifier.align(Alignment.CenterHorizontally).height(dotsHeight).padding(top = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    repeat(pages.size) { index ->
+                        val alpha = if (index == pagerState.currentPage) 1f else 0.3f
+                        Box(Modifier.size(5.dp).background(tokens.onSurface.copy(alpha = alpha), CircleShape))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val TWO_UP_MIN_WIDTH = 480.dp
+private val TILE_GAP = 8.dp
+private const val FIT_DESIGN_WIDTH_DP = 340f
+private const val FIT_DESIGN_HEIGHT_DP = 160f
+private const val FIT_MAX_SCALE = 1.7f
+private const val FIT_UNIT_DP = 90f
+
+/** The factor a tile of [widthDp] x [heightDp] is magnified by: 1 for small tiles, up to [FIT_MAX_SCALE]. */
+internal fun fitScale(widthDp: Float, heightDp: Float): Float =
+    minOf(widthDp / FIT_DESIGN_WIDTH_DP, heightDp / FIT_DESIGN_HEIGHT_DP).coerceIn(1f, FIT_MAX_SCALE)
+
+/** One widget of a card filling its tile; see [CardWidgets]. */
+@Composable
+private fun WidgetFitted(child: HomeItem, tileSpanX: Int, tileSpanY: Int) {
+    if (!child.isBuiltInWidget) {
+        HomeWidgetItem(child.copy(spanX = tileSpanX, spanY = tileSpanY), Modifier.fillMaxSize())
+        return
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
+        val w = maxWidth.value
+        val h = maxHeight.value
+        val s = fitScale(w, h)
+        val vw = (w / s).coerceAtLeast(1f)
+        val vh = (h / s).coerceAtLeast(1f)
+        val vSpanX = Math.round(vw / FIT_UNIT_DP).coerceIn(1, tileSpanX.coerceAtLeast(1))
+        val vSpanY = Math.round(vh / FIT_UNIT_DP).coerceAtLeast(1)
+        Box(
+            Modifier
+                .requiredSize(vw.dp, vh.dp)
+                .graphicsLayer {
+                    scaleX = s
+                    scaleY = s
+                    transformOrigin = TransformOrigin(0f, 0f)
+                },
+        ) {
+            HomeWidgetItem(child.copy(spanX = vSpanX, spanY = vSpanY), Modifier.fillMaxSize())
         }
     }
 }

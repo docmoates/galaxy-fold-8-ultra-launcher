@@ -172,7 +172,7 @@ private enum class MenuSheet { NONE, ICON_OVERRIDE, PAIR, RENAME }
 
 /**
  * Long-press menu for a home item when not in edit mode (PLAN.md 5.2 "per-element context menu"):
- * a 236dp card next to the tile (compose it inside the tile so the `Popup` anchors there) with the
+ * a 280dp card next to the tile (compose it inside the tile so the `Popup` anchors there) with the
  * item's icon and name on top and one row per action in [actions], filtered to the ones that apply.
  *
  * Every action has a default implementation through [LocalAppGraph] and standard intents, except
@@ -326,7 +326,7 @@ fun ItemContextMenu(
             ) {
                 Column(
                     modifier = modifier
-                        .width(236.dp)
+                        .width(280.dp)
                         .shadow(16.dp, shape)
                         .clip(shape)
                         .background(tokens.drawerScrim)
@@ -471,7 +471,9 @@ private fun MenuRow(action: ContextAction, onClick: () -> Unit) {
             color = tint,
             fontSize = 14.5.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = 1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }

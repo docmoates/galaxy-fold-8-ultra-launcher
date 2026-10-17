@@ -59,6 +59,66 @@ class LayoutRepositoryImpl(
      * [removeLegacyDuplicatePages]).
      */
     override suspend fun ensureDefaultLayout(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?, rows: Int?) {
+        ensureDefaultLayoutInner(screen, apps, columns, style, rows)
+        repairEmptyWidgetCardsOnce(screen)
+    }
+
+    /**
+     * 1.3.1, once per screen: a widget card the 1.2.x -> 1.3.0 migration left empty (a Panels page that had
+     * no stored widgets) on a page whose recorded starter is Panels gets the starter's widgets, so it is
+     * not a "Drop widgets here" hole. Cards the user emptied later are never refilled (the marker stops a rerun).
+     */
+    private suspend fun repairEmptyWidgetCardsOnce(screen: ScreenKind) {
+        val marker = markerDir?.let { File(it, "foldos_131_empty_card_repair_${screen.name}") } ?: return
+        if (withContext(Dispatchers.IO) { marker.exists() }) return
+        runCatching {
+            db.withTransaction {
+                for (page in dao.pagesByScreenOnce(screen.name)) {
+                    if (page.style != HomeStyle.HYBRID) continue
+                    val items = dao.allItemsByPageOnce(page.id)
+                    for (card in items.filter { it.kind == ItemKind.CARD && it.parentId == null && it.cardStyle == HomeItem.CARD_WIDGETS }) {
+                        if (dao.countChildren(card.id) > 0) continue
+                        defaultCardWidgetIds(screen).forEachIndexed { order, id ->
+                            dao.upsertItem(
+                                ItemEntity(
+                                    pageId = page.id,
+                                    kind = ItemKind.WIDGET,
+                                    col = 0,
+                                    row = order,
+                                    spanX = card.spanX,
+                                    spanY = card.spanY,
+                                    title = com.foldos.launcher.home.HomeBuiltInIds.title(id),
+                                    builtinId = id,
+                                    parentId = card.id,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        withContext(Dispatchers.IO) {
+            try {
+                marker.parentFile?.mkdirs()
+                marker.createNewFile()
+            } catch (e: java.io.IOException) {
+                // Rerun next launch; it only touches still-empty cards of Panels pages.
+            }
+        }
+    }
+
+    private fun defaultCardWidgetIds(screen: ScreenKind): List<String> =
+        if (screen == ScreenKind.COVER) {
+            listOf(com.foldos.launcher.home.HomeBuiltInIds.GLANCE, com.foldos.launcher.home.HomeBuiltInIds.CALENDAR)
+        } else {
+            listOf(
+                com.foldos.launcher.home.HomeBuiltInIds.CLOCK,
+                com.foldos.launcher.home.HomeBuiltInIds.CALENDAR,
+                com.foldos.launcher.home.HomeBuiltInIds.MEDIA,
+            )
+        }
+
+    private suspend fun ensureDefaultLayoutInner(screen: ScreenKind, apps: List<AppInfo>, columns: Int?, style: HomeStyle?, rows: Int?) {
         val marker = markerDir?.let { File(it, "foldos_legacy_pages_checked_${screen.name}") }
         if (marker != null && withContext(Dispatchers.IO) { marker.exists() }) {
             // Already tidied (or created by this version): only seed a screen that has no pages yet.

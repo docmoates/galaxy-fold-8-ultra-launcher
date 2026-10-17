@@ -4,6 +4,24 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.3.1] - 2026-10-16
+
+Fixes from the first run of 1.3.0 on the phone (`versionCode` 131). Same signing key; no schema change.
+
+### Fixed
+- Add to home sheet: Back, the "Close" text and a tap on the dimmed page now close it, also while edit mode is open (edit
+  mode's exit handler was composed after the sheet's and won; it is switched off while the sheet is up).
+- The sheet is opaque (solid base under the theme surface, stronger scrim) and edit mode's bottom bar (Add, Wallpaper,
+  Themes, Dock, Settings) is hidden while the sheet is open, so no labels or page dots ghost through.
+- Widget cards: each widget gets the card's full width; built-in widgets are laid out for a smaller virtual tile and scaled
+  up to fill the card (no giant empty area); dots only with more than one page; a card wider than three columns on a wide
+  (inner) screen shows two widgets side by side per page.
+- Migration of a 1.2.x Panels page whose built-in widgets were never stored no longer creates an empty widget card: it is
+  seeded with the starter's widgets. Phones already on 1.3.0 get the same repair once (empty widget cards of Panels pages).
+- Built-in widgets (Clock, Glance, Calendar, Weather, ...) shrink their text to fit the tile: no more "10:1" cut off or
+  "Fri, Oct..." in a 2 x 2 clock; agenda rows are 38dp tall so the second line is not clipped.
+- Card menu: "Move contents to page" fits (menu 280dp wide, labels wrap to two lines).
+
 ## [1.3.0] - 2026-10-16
 
 Round 2.0: free canvas + cards (`versionCode` 130). Written from the source; not yet run on a device. Same signing key.

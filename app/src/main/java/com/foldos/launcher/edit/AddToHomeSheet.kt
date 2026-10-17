@@ -44,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -130,7 +131,9 @@ fun AddToHomeSheet(
     var tab by rememberSaveable { mutableStateOf(AddTab.APPS.name) }
     val currentTab = AddTab.entries.firstOrNull { it.name == tab } ?: AddTab.APPS
 
-    BackHandler(enabled = visible) { onDismiss() }
+    val currentDismiss = rememberUpdatedState(onDismiss)
+    // Registered after (so above) the edit overlay's exit handler: Back closes the sheet first.
+    BackHandler(enabled = visible) { currentDismiss.value() }
 
     // Collapse while one of our tiles is being dragged; come back once the drop is done.
     val dragging = dragController.payload.value != null
@@ -158,9 +161,9 @@ fun AddToHomeSheet(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = if (tokens.isDark) 0.28f else 0.18f))
+                    .background(Color.Black.copy(alpha = if (tokens.isDark) 0.55f else 0.40f))
                     .a11yButton(label = "Close", onActivate = onDismiss)
-                    .pointerInput(onDismiss) { detectTapGestures(onTap = { onDismiss() }) },
+                    .pointerInput(Unit) { detectTapGestures(onTap = { currentDismiss.value() }) },
             )
         }
 
@@ -199,6 +202,8 @@ fun AddToHomeSheet(
                     .padding(start = 6.dp, end = 6.dp, bottom = 6.dp)
                     .shadow(24.dp, shape, clip = false)
                     .clip(shape)
+                    // Solid base first: drawerScrim can be translucent and the edit bars / dock must not ghost through.
+                    .background(if (tokens.isDark) Color(0xFF16171D) else Color(0xFFF3F3F7))
                     .background(tokens.drawerScrim)
                     .border(1.dp, tokens.surfaceBorder, shape)
                     .semantics { paneTitle = "Add to home" }
@@ -212,7 +217,21 @@ fun AddToHomeSheet(
                             .navigationBarsPadding()
                             .padding(top = 10.dp),
                     ) {
-                        DrawerGrabHandle(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Box(Modifier.fillMaxWidth()) {
+                            DrawerGrabHandle(modifier = Modifier.align(Alignment.Center))
+                            Text(
+                                text = "Close",
+                                color = tokens.onSurface,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 10.dp)
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .clickable(onClick = onDismiss)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
                         Spacer(Modifier.height(8.dp))
                         AddTabs(currentTab, onSelect = { tab = it.name }, modifier = Modifier.padding(horizontal = 16.dp))
                         Spacer(Modifier.height(8.dp))

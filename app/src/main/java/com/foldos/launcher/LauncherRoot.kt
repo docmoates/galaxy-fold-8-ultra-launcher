@@ -536,6 +536,7 @@ private fun LauncherHome(viewModel: LauncherViewModel, settings: LauncherSetting
             onSelectPage = { pageId -> viewModel.selectPage(pageId) },
             onRestoreItem = { item -> viewModel.restoreItem(item) },
             selectRequestId = editSelectId,
+            sheetOpen = addSheetOpen,
         )
 
         // Round 2.0: the "Add to home" sheet (long press on empty space, edit mode's Add). Drags from it land

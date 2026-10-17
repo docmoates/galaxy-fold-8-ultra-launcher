@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -151,7 +152,60 @@ internal fun WidgetKicker(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Large light numeral (mock-up `.bn`): weight 350, tight tracking, tabular digits, one line. */
+/**
+ * Single-line text that shrinks (down to [minScale] of [fontSize]) until it fits the width and height it is
+ * given, then falls back to an ellipsis. No subcomposition, so it is safe inside intrinsic-size layouts.
+ * It also grows back (up to the requested size) when it is given more room.
+ */
+@Composable
+internal fun FitText(
+    text: String,
+    fontSize: TextUnit,
+    modifier: Modifier = Modifier,
+    color: Color = LocalContentColor.current,
+    fontWeight: FontWeight? = null,
+    letterSpacing: TextUnit = TextUnit.Unspecified,
+    textAlign: TextAlign? = null,
+    style: TextStyle = TextStyle.Default,
+    lineHeightEqualsSize: Boolean = false,
+    minScale: Float = 0.45f,
+    overflow: TextOverflow = TextOverflow.Ellipsis,
+) {
+    var scale by remember(text, fontSize) { mutableFloatStateOf(1f) }
+    val size = fontSize * scale
+    Text(
+        text = text,
+        fontSize = size,
+        lineHeight = if (lineHeightEqualsSize) size else TextUnit.Unspecified,
+        fontWeight = fontWeight,
+        letterSpacing = letterSpacing,
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        overflow = overflow,
+        textAlign = textAlign,
+        style = style,
+        modifier = modifier,
+        onTextLayout = { r ->
+            val limitW = r.layoutInput.constraints.maxWidth
+            val limitH = r.layoutInput.constraints.maxHeight
+            val natW = r.multiParagraph.maxIntrinsicWidth
+            val natH = r.multiParagraph.height
+            val wr = if (limitW in 1 until 100_000 && natW > 0f) limitW / natW else Float.MAX_VALUE
+            val hr = if (limitH in 1 until 100_000 && natH > 0f) limitH / natH else Float.MAX_VALUE
+            val ratio = min(wr, hr)
+            if (ratio < 1f) {
+                val next = (scale * ratio * 0.98f).coerceAtLeast(minScale)
+                if (next < scale - 0.005f) scale = next
+            } else if (scale < 1f && ratio > 1.12f) {
+                val next = min(1f, scale * ratio * 0.98f)
+                if (next > scale + 0.005f) scale = next
+            }
+        },
+    )
+}
+
+/** Large light numeral (mock-up `.bn`): weight 350, tight tracking, tabular digits, one line, scaled to fit. */
 @Composable
 internal fun BigNumber(
     text: String,
@@ -160,33 +214,25 @@ internal fun BigNumber(
     color: Color = LocalContentColor.current,
     textAlign: TextAlign? = null,
 ) {
-    Text(
+    FitText(
         text = text,
         fontSize = size,
-        lineHeight = size,
+        modifier = modifier,
+        color = color,
         fontWeight = FontWeight.Light,
         letterSpacing = (-0.03).em,
-        color = color,
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Clip,
         textAlign = textAlign,
         style = TabularNumbers,
-        modifier = modifier,
+        lineHeightEqualsSize = true,
+        minScale = 0.3f,
+        overflow = TextOverflow.Clip,
     )
 }
 
-/** Bold 13-15sp label used for titles inside rows (mock-up `b`). */
+/** Bold 13-15sp label used for titles inside rows (mock-up `b`); shrinks to fit before it ellipsizes. */
 @Composable
 internal fun WidgetTitleText(text: String, modifier: Modifier = Modifier, size: TextUnit = 13.sp) {
-    Text(
-        text = text,
-        fontSize = size,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = modifier,
-    )
+    FitText(text = text, fontSize = size, fontWeight = FontWeight.SemiBold, modifier = modifier)
 }
 
 /** Dimmed 12.5-13sp secondary text (mock-up `span { opacity: .7 }`). */
@@ -199,16 +245,27 @@ internal fun WidgetDimText(
     maxLines: Int = 1,
     textAlign: TextAlign? = null,
 ) {
-    Text(
-        text = text,
-        fontSize = size,
-        color = LocalContentColor.current.copy(alpha = alpha),
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-        textAlign = textAlign,
-        style = TabularNumbers,
-        modifier = modifier,
-    )
+    if (maxLines == 1) {
+        FitText(
+            text = text,
+            fontSize = size,
+            color = LocalContentColor.current.copy(alpha = alpha),
+            textAlign = textAlign,
+            style = TabularNumbers,
+            modifier = modifier,
+        )
+    } else {
+        Text(
+            text = text,
+            fontSize = size,
+            color = LocalContentColor.current.copy(alpha = alpha),
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = textAlign,
+            style = TabularNumbers,
+            modifier = modifier,
+        )
+    }
 }
 
 /**
@@ -232,13 +289,11 @@ internal fun WidgetRow(
         if (icon != null) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
         }
-        Text(
+        FitText(
             text = start,
             fontSize = 13.sp,
             fontWeight = if (startEmphasis) FontWeight.SemiBold else FontWeight.Normal,
             color = LocalContentColor.current.copy(alpha = if (startEmphasis) 1f else 0.7f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             style = TabularNumbers,
             modifier = Modifier.weight(1f),
         )

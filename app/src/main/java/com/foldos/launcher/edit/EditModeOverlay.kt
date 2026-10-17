@@ -172,9 +172,11 @@ fun EditModeOverlay(
     onRestoreItem: ((HomeItem) -> Unit)? = null,
     selectRequestId: Long? = null,
     onChromeMeasured: (EditChrome) -> Unit = {},
+    sheetOpen: Boolean = false,
 ) {
     if (!active) return
-    BackHandler(onBack = onExit)
+    // While the Add sheet is up Back belongs to it; the bottom bar is hidden (its labels ghosted through the sheet).
+    BackHandler(enabled = !sheetOpen, onBack = onExit)
 
     val tokens = LocalFoldOsTokens.current
     val density = LocalDensity.current
@@ -259,7 +261,7 @@ fun EditModeOverlay(
         edgeSide = 0
     }
     // Back deselects first (composed after the exit handler, so it has priority while selected).
-    BackHandler(enabled = selectedId != null) { selectedId = null }
+    BackHandler(enabled = selectedId != null && !sheetOpen) { selectedId = null }
 
     val selected = pageItems.firstOrNull { it.id == selectedId }
     val targetPage = sortedPages.getOrNull(targetPageIndex) ?: currentPage
@@ -625,7 +627,9 @@ fun EditModeOverlay(
                 .testTag(EditTags.BOTTOM_BAR),
             contentAlignment = Alignment.Center,
         ) {
-            if (removeStripShown) {
+            if (sheetOpen && !removeStripShown) {
+                // Intentionally empty: the Add sheet covers this bar.
+            } else if (removeStripShown) {
                 EditRemoveStrip(
                     hot = removeHot,
                     modifier = Modifier

@@ -59,12 +59,10 @@ fun GlanceWidget(spanX: Int, spanY: Int, modifier: Modifier, weatherProvider: We
             ) {
                 BigNumber(now.clockText(), dpToSp(fs))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(
+                    FitText(
                         text = if (spanX >= 3) now.longDateText() else now.shortDateText(),
                         fontSize = if (one) 13.5.sp else 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                     val w = weather
                     if (showWeather && w != null) {
@@ -91,7 +89,7 @@ fun GlanceWidget(spanX: Int, spanY: Int, modifier: Modifier, weatherProvider: We
             }
             if (!one) {
                 val remaining = ih - headerHeight - 8f
-                val n = floor((remaining + 9f) / 41f).toInt().coerceAtLeast(0)
+                val n = floor((remaining + 9f) / 47f).toInt().coerceAtLeast(0)
                 if (n > 0 && calendarGranted) {
                     val upcoming = events.filter { it.endMillis > System.currentTimeMillis() }.take(n)
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -118,6 +116,6 @@ private fun GlanceLine(
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
-        Text(text, fontSize = size, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        FitText(text, fontSize = size, color = color, modifier = Modifier.weight(1f, fill = false))
     }
 }

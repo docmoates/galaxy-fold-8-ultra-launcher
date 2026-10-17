@@ -389,3 +389,23 @@ the old dashboard coordinates.
 - Linking: `startLink(activity)` posts mail/link, opens the URL with ACTION_VIEW, then polls `/me` every 2 s for up to 2 minutes
   (`waitingForLink` in `MailAccount`). The Mail tab also refreshes on resume, which covers returning after the poll window.
 - Not verified on a device: the browser hand-off, IME behaviour of the sign-in form on the cover and inner screens, real server replies.
+
+# 1.3.1: bugs found on the phone after 1.3.0
+
+1. **Add sheet could not be closed in edit mode**: `EditModeOverlay` registers its `BackHandler(onBack = onExit)` when edit mode starts,
+   i.e. after the always-composed sheet's handler, so Back went to the overlay (Done). The overlay now takes `sheetOpen` and disables
+   both its handlers while the sheet is up; the sheet also has a visible "Close" and keeps tap-the-scrim.
+2. **See-through sheet**: the panel fill was `drawerScrim` (translucent) over the edit bars. A solid base colour sits under it, the scrim
+   is darker, and the overlay's bottom bar is not drawn while the sheet is open.
+3. **Empty cover widget card, tiny widget in a huge inner card**: the old Panels cover page showed built-in widgets that were never rows
+   in the database, so the migration created a widget card with no children. It now seeds the starter's widgets, and a one-time repair
+   (`LayoutRepositoryImpl.repairEmptyWidgetCardsOnce`, marker file per screen) fills empty widget cards of pages whose recorded starter is
+   Panels. The inner card had 8 real widgets, but each was laid out at the card's full span, so a one-event agenda sat at the top of
+   a 6 x 4 area. `CardWidgets` now lays a built-in widget out for a smaller virtual tile and scales it by `fitScale` (1 .. 1.7).
+4. **Clock clipped**: `BigNumber` had a fixed size with `Clip`, date lines ellipsized at 13sp. `FitText` (builtins/WidgetSupport) shrinks
+   to the width/height it is given (no subcomposition, so it also works in intrinsic layouts) and grows back; `BigNumber`,
+   `WidgetTitleText`, `WidgetDimText`, `WidgetRow`, the clock date and Glance lines use it.
+5. **Card menu label**: menu was 236dp with `maxLines = 1`; now 280dp, two lines.
+
+Not verified on a device (written from the source): the Back order with the sheet opened from edit mode, the scaled widgets' touch
+targets in a widget card, two-up tiling on the inner screen, and the one-time repair on a database migrated by 1.3.0.
