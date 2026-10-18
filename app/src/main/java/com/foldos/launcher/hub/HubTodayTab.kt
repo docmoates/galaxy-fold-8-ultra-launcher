@@ -148,6 +148,7 @@ internal fun HubTodayTab(
     ) {
         val gap = HubFitGap
         val columnHeight = maxHeight
+        val boxWidth = maxWidth
 
         if (screen == ScreenKind.COVER) {
             val plan = remember(columnHeight, fontScale, briefing.length, briefingOn, calendarGranted, needMail.size, maxWidth) {
@@ -215,7 +216,7 @@ internal fun HubTodayTab(
                     }
                     if (fits(HubHeaderHeight.scaledBy(fontScale))) header()
                     if (briefingOn) {
-                        val h = hubBriefingHeight(briefing.length, maxWidth / 2, fontScale)
+                        val h = hubBriefingHeight(briefing.length, boxWidth / 2, fontScale)
                         if (fits(h)) HubBriefingCard(title = briefingTitle(now.hour), text = briefing)
                     }
                     val nextH = if (calendarGranted) HubNextHeight.scaledBy(fontScale) else HubPermissionHeight.scaledBy(fontScale)
