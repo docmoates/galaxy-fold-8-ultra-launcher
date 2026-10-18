@@ -137,6 +137,7 @@ fun <T> SelectRow(
     options: List<Pair<T, String>>,
     onSelect: (T) -> Unit,
     visible: Boolean = true,
+    leadingContent: (@Composable () -> Unit)? = null,
 ) {
     if (!rowVisible(info, visible)) return
     var expanded by remember { mutableStateOf(false) }
@@ -145,6 +146,7 @@ fun <T> SelectRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = "Choose ${info.title}", role = Role.DropdownList) { expanded = true },
+        leadingContent = leadingContent,
         headlineContent = { Text(text = info.title) },
         supportingContent = subtitleContent(info.subtitle),
         trailingContent = {

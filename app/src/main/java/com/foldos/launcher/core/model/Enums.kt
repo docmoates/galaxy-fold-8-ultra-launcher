@@ -38,6 +38,13 @@ enum class Appearance { DARK, LIGHT, AUTO }
 @Serializable
 enum class DrawerStyle { POPUP, FULL }
 
+/**
+ * Color of the app pop-up / drawer panel (Settings > Home > Pop-up color): [THEME] tints it with the chosen color
+ * scheme, [NEUTRAL] keeps the plain theme surface.
+ */
+@Serializable
+enum class DrawerTint { THEME, NEUTRAL }
+
 /** Dock background trait (mock-up `bg`: pill, shelf, none, bubble, line, reflect). */
 @Serializable
 enum class DockBackground { PILL, SHELF, NONE, BUBBLE, LINE, REFLECT }

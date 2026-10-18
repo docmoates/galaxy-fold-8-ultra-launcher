@@ -67,7 +67,11 @@ import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.ui.DragController
 import com.foldos.launcher.home.ProvideLabelSize
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
+import com.foldos.launcher.core.model.DrawerTint
 import com.foldos.launcher.theme.LocalFoldOsTokens
+import com.foldos.launcher.theme.drawerPanelColors
 import kotlinx.coroutines.flow.flowOf
 
 /** Blur radius (dp) applied to the home content behind the pop-up drawer (mock-up `.scrim.blur`). */
@@ -279,6 +283,8 @@ fun AppDrawer(
                 DrawerPanel(
                     shape = RoundedCornerShape(0.dp),
                     showBorder = false,
+                    tint = settings.drawerTint,
+                    highContrast = settings.highContrast,
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     body(
@@ -309,6 +315,8 @@ fun AppDrawer(
                 DrawerPanel(
                     shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 30.dp, bottomEnd = 30.dp),
                     showBorder = true,
+                    tint = settings.drawerTint,
+                    highContrast = settings.highContrast,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(start = 6.dp, end = 6.dp, bottom = 6.dp)
@@ -341,6 +349,8 @@ fun AppDrawer(
                 DrawerPanel(
                     shape = RoundedCornerShape(32.dp),
                     showBorder = true,
+                    tint = settings.drawerTint,
+                    highContrast = settings.highContrast,
                     modifier = Modifier
                         .fillMaxSize()
                         .imePadding(),
@@ -421,12 +431,17 @@ private fun DrawerScrim(visible: Boolean, blur: Boolean, onDismiss: () -> Unit) 
 private fun DrawerPanel(
     shape: Shape,
     showBorder: Boolean,
+    tint: DrawerTint,
+    highContrast: Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val tokens = LocalFoldOsTokens.current
-    // FoldOsTokens.drawerScrim is the mock-up's `--drawer`: the near-opaque sheet fill.
-    val panelColor = tokens.drawerScrim
+    // FoldOsTokens.drawerScrim is the mock-up's `--drawer`: the near-opaque sheet fill. With "Theme color" the
+    // panel is tinted with the color scheme and the text color is re-picked for 4.5:1 on it.
+    val colors = remember(tokens, tint, highContrast) { tokens.drawerPanelColors(tint, highContrast) }
+    val panelColor = colors.panel
+    val panelTokens = remember(tokens, colors) { tokens.copy(drawerScrim = colors.panel, onSurface = colors.onPanel) }
     val borderColor = if (showBorder) tokens.surfaceBorder else Color.Transparent
     Box(
         modifier = modifier
@@ -439,7 +454,12 @@ private fun DrawerPanel(
                 detectTapGestures(onTap = { /* swallow: keep taps inside the panel */ })
             },
     ) {
-        content()
+        CompositionLocalProvider(
+            LocalFoldOsTokens provides panelTokens,
+            LocalContentColor provides colors.onPanel,
+        ) {
+            content()
+        }
     }
 }
 

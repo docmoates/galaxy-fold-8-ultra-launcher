@@ -283,6 +283,8 @@ class GmailMailRepository(
                 labels = m.labels,
                 bodyText = m.bodyText,
                 hasHtml = m.hasHtml,
+                bodyHtml = m.bodyHtml,
+                remoteContent = m.remoteContent,
                 attachments = m.attachments.map { MailAttachment(it.name, it.mime, it.size) },
                 messageIdHeader = m.messageIdHeader,
             ),

@@ -79,6 +79,10 @@ data class MailDetail(
     val labels: Set<String>,
     val bodyText: String,
     val hasHtml: Boolean,
+    /** Sanitized HTML body from the server, null when there is none (the reader then shows [bodyText]). */
+    val bodyHtml: String? = null,
+    /** True when [bodyHtml] references remote https images (they stay hidden until the person loads them). */
+    val remoteContent: Boolean = false,
     val attachments: List<MailAttachment>,
     val messageIdHeader: String?,
 )

@@ -63,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -226,7 +227,9 @@ private fun formatSize(bytes: Long): String = when {
 private val UrlRegex = Regex("https?://[^\\s<>\"]+")
 
 /** [text] with every http(s) link made tappable (opens through the default URI handler). */
-internal fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnnotatedString {
+internal fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnnotatedString { appendLinked(text, linkColor) }
+
+private fun AnnotatedString.Builder.appendLinked(text: String, linkColor: Color) {
     var last = 0
     for (match in UrlRegex.findAll(text)) {
         val url = match.value.trimEnd('.', ',', ';', ':', '!', '?', ')', ']', '>', '\'')
@@ -244,6 +247,25 @@ internal fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnn
         last = start + url.length
     }
     append(text.substring(last))
+}
+
+/**
+ * The plain-text body for reading: CRLF fixed, runs of blank lines collapsed to one paragraph break, URLs tappable,
+ * and quoted lines (starting with ">") in the dimmer [quoteColor].
+ */
+internal fun plainBody(text: String, linkColor: Color, quoteColor: Color): AnnotatedString = buildAnnotatedString {
+    val clean = text.replace("\r\n", "\n").replace('\r', '\n').replace(Regex("\n{3,}"), "\n\n")
+    val lines = clean.split('\n')
+    lines.forEachIndexed { index, line ->
+        if (line.trimStart().startsWith(">")) {
+            pushStyle(SpanStyle(color = quoteColor))
+            appendLinked(line, linkColor)
+            pop()
+        } else {
+            appendLinked(line, linkColor)
+        }
+        if (index < lines.lastIndex) append('\n')
+    }
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -323,6 +345,7 @@ internal fun MailReaderPane(
     onForward: (MailDetail) -> Unit,
     onOpenInGmail: (threadId: String?) -> Unit,
     onMarkedUnread: () -> Unit,
+    onNewMessage: (MailComposeState) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalFoldOsTokens.current
@@ -332,6 +355,9 @@ internal fun MailReaderPane(
     var note by remember(messageId) { mutableStateOf<String?>(null) }
     var menuOpen by remember(messageId) { mutableStateOf(false) }
     val scroll = remember(messageId) { ScrollState(0) }
+    // Formatted (HTML) view is the default when the server sent a body_html; images stay hidden until asked, per message.
+    var plainMode by remember(messageId) { mutableStateOf(false) }
+    var imagesLoaded by remember(messageId) { mutableStateOf(false) }
 
     LaunchedEffect(messageId, attempt) {
         result = null
@@ -354,6 +380,15 @@ internal fun MailReaderPane(
                             Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = tokens.onSurface)
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            if (detail?.bodyHtml != null) {
+                                DropdownMenuItem(
+                                    text = { Text(if (plainMode) "View formatted" else "View as plain text") },
+                                    onClick = {
+                                        menuOpen = false
+                                        plainMode = !plainMode
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Open in Gmail") },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
@@ -477,30 +512,65 @@ internal fun MailReaderPane(
                             }
                         }
                         HorizontalDivider(color = tokens.surfaceBorder.copy(alpha = 0.7f))
-                        val text = detail.bodyText.trim()
-                        val shown = if (text.length > MaxBodyChars) text.take(MaxBodyChars) else text
-                        SelectionContainer {
-                            Text(
-                                text = if (shown.isEmpty()) AnnotatedString("(no text in this message)") else linkify(shown, tokens.accent),
-                                color = tokens.onSurface.copy(alpha = if (shown.isEmpty()) 0.65f else 1f),
-                                fontSize = 14.5.sp,
-                                lineHeight = 21.sp,
+                        val html = detail.bodyHtml
+                        if (html != null && !plainMode) {
+                            if (detail.remoteContent && !imagesLoaded) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(tokens.onSurface.copy(alpha = 0.08f))
+                                        .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "Images are hidden to protect your privacy",
+                                        color = tokens.onSurface,
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    TextButton(onClick = { imagesLoaded = true }) { Text("Load images", color = tokens.accent) }
+                                }
+                            }
+                            MailHtmlView(
+                                html = html,
+                                allowImages = imagesLoaded,
+                                dark = tokens.isDark,
+                                fontScale = LocalDensity.current.fontScale,
+                                onMailto = { url -> onNewMessage(mailtoDraft(url)) },
+                                modifier = Modifier.fillMaxWidth(),
                             )
-                        }
-                        if (text.length > MaxBodyChars) {
-                            Text(
-                                text = "This message is long. Open it in Gmail to read the rest.",
-                                color = tokens.onSurface.copy(alpha = 0.7f),
-                                fontSize = 12.5.sp,
-                            )
-                        }
-                        if (detail.hasHtml) {
-                            Text(
-                                text = "Shown as plain text. Open in Gmail for the formatted version.",
-                                color = tokens.onSurface.copy(alpha = 0.6f),
-                                fontSize = 12.5.sp,
-                                lineHeight = 17.sp,
-                            )
+                        } else {
+                            val text = detail.bodyText.trim()
+                            val shown = if (text.length > MaxBodyChars) text.take(MaxBodyChars) else text
+                            SelectionContainer {
+                                Text(
+                                    text = if (shown.isEmpty()) {
+                                        AnnotatedString("(no text in this message)")
+                                    } else {
+                                        plainBody(shown, tokens.accent, tokens.onSurface.copy(alpha = 0.68f))
+                                    },
+                                    color = tokens.onSurface.copy(alpha = if (shown.isEmpty()) 0.65f else 1f),
+                                    fontSize = 14.5.sp,
+                                    lineHeight = 21.sp,
+                                )
+                            }
+                            if (text.length > MaxBodyChars) {
+                                Text(
+                                    text = "This message is long. Open it in Gmail to read the rest.",
+                                    color = tokens.onSurface.copy(alpha = 0.7f),
+                                    fontSize = 12.5.sp,
+                                )
+                            }
+                            if (detail.hasHtml && html == null) {
+                                Text(
+                                    text = "Shown as plain text. Open in Gmail for the formatted version.",
+                                    color = tokens.onSurface.copy(alpha = 0.6f),
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp,
+                                )
+                            }
                         }
                     }
                     HorizontalDivider(color = tokens.surfaceBorder.copy(alpha = 0.7f))

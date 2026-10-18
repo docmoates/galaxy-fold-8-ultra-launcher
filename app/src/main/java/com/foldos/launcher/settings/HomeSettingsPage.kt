@@ -7,7 +7,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.foldos.launcher.core.model.DrawerStyle
+import com.foldos.launcher.core.model.DrawerTint
+import com.foldos.launcher.theme.DrawerTintPreviewChip
 import com.foldos.launcher.core.model.GridMode
 import com.foldos.launcher.core.model.HomeStyle
 import com.foldos.launcher.core.model.LauncherSettings
@@ -22,6 +27,7 @@ object HomeRows {
     val cardTitles = SettingsRowInfo("Card titles", "Show the title row on cards that have one")
     val drawerStyle = SettingsRowInfo("App drawer", "Pixel-style pop-up or full screen")
     val popBlur = SettingsRowInfo("Blur behind pop-up", "Blur home while the drawer is open")
+    val drawerTint = SettingsRowInfo("Pop-up color", "Tint the app pop-up and drawer with your theme color, or keep it neutral")
     val labels = SettingsRowInfo("App labels")
     val folderStyle = SettingsRowInfo("Folder style", "Grid, list or big folders; each folder can override it")
     val colsCover = SettingsRowInfo("Cover columns", advanced = true)
@@ -35,7 +41,7 @@ object HomeRows {
         subtitle = "Starter layouts, placement, cards, app drawer, labels",
         icon = Icons.Outlined.Home,
         rows = listOf(
-            starterCover, starterInner, gridMode, cardBackground, cardTitles, drawerStyle, popBlur, labels,
+            starterCover, starterInner, gridMode, cardBackground, cardTitles, drawerStyle, popBlur, drawerTint, labels,
             folderStyle, colsCover, colsInner, iconSize, more,
         ),
     )
@@ -48,6 +54,11 @@ object HomeRows {
 
     /** The four starter layouts (Round 2.0); seeding only, no rendering style. */
     val starterOptions: List<Pair<HomeStyle, String>> get() = StarterLayouts.all
+
+    val drawerTintOptions: List<Pair<DrawerTint, String>> = listOf(
+        DrawerTint.THEME to "Theme color",
+        DrawerTint.NEUTRAL to "Neutral",
+    )
 
     val gridModeOptions: List<Pair<GridMode, String>> = listOf(
         GridMode.GRID to "Grid",
@@ -111,6 +122,19 @@ fun HomeSettingsPage(
             checked = settings.popBlur,
             onCheckedChange = { on -> update { it.copy(popBlur = on) } },
             visible = settings.drawerStyle == DrawerStyle.POPUP,
+        )
+        SelectRow(
+            info = HomeRows.drawerTint,
+            value = settings.drawerTint,
+            options = HomeRows.drawerTintOptions,
+            onSelect = { tint -> update { it.copy(drawerTint = tint) } },
+            leadingContent = {
+                DrawerTintPreviewChip(
+                    base = settings,
+                    tint = settings.drawerTint,
+                    modifier = Modifier.size(width = 48.dp, height = 64.dp),
+                )
+            },
         )
         ToggleRow(
             info = HomeRows.labels,

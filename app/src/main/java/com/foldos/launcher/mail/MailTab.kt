@@ -630,6 +630,7 @@ private fun MailInboxContent(
                 onForward = { detail -> startDraft(forwardDraft(detail)) },
                 onOpenInGmail = openInGmail,
                 onMarkedUnread = { if (!inner) selectedId = null },
+                onNewMessage = { fresh -> startDraft(fresh) },
                 modifier = paneModifier,
             )
             else -> FoldOsSurface(modifier = paneModifier) {

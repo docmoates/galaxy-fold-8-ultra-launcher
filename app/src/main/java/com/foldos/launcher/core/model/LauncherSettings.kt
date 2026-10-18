@@ -30,6 +30,8 @@ data class LauncherSettings(
     val dockInner: DockConfig = DockConfig(taskbar = true),
     val drawerStyle: DrawerStyle = DrawerStyle.POPUP,
     val popBlur: Boolean = true,
+    /** App pop-up / drawer panel color: [DrawerTint.THEME] (tinted with the color scheme, default since 1.5.1) or [DrawerTint.NEUTRAL]. */
+    val drawerTint: DrawerTint = DrawerTint.THEME,
     val hubOn: Boolean = true,
     /** "left" or "right". */
     val hubPos: String = HUB_POS_LEFT,

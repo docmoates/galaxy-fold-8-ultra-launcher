@@ -57,6 +57,10 @@ data class ServerMessage(
     val labels: Set<String>,
     val bodyText: String,
     val hasHtml: Boolean,
+    /** Server-sanitized HTML body (strict allow-list), null when the message has none. Never logged. */
+    val bodyHtml: String? = null,
+    /** True when [bodyHtml] references remote https images. */
+    val remoteContent: Boolean = false,
     val attachments: List<ServerAttachment>,
     val messageIdHeader: String?,
 )
@@ -167,6 +171,8 @@ class ServerClient(private val baseUrl: suspend () -> String?) {
             labels = labels,
             bodyText = m.optString("body_text"),
             hasHtml = m.optBoolean("has_html", false),
+            bodyHtml = if (m.isNull("body_html")) null else m.optString("body_html").ifBlank { null },
+            remoteContent = m.optBoolean("remote_content", false),
             attachments = attachments,
             messageIdHeader = m.optString("message_id_header").ifBlank { null },
         )

@@ -458,3 +458,18 @@ when the process ends); Back keeps the draft, Discard asks first when anything w
 
 Not verified (nothing was run on a device, and the server side was being built in parallel): the real response shapes, keyboard behavior in the compose view on
 cover and inner, link taps inside the selectable body, and contrast of the new panes in Space black.
+
+# 1.5.1: formatted mail and a themed app pop-up
+
+Owner requests: "fix broken HTML when emails are opened" and "make the app pop-up background match the theme color."
+Mail: the reader showed only `body_text`, which looks broken for newsletters and receipts. The server now adds a sanitized `body_html`; the reader shows it in a
+locked-down WebView (`mail/MailHtmlView.kt`), images blocked until asked, links handed to the system, dark appearance handled by inverting the body (chosen over a
+`prefers-color-scheme` rule because newsletters carry their own inline colors and the inversion keeps them legible both ways). Pop-up: `DrawerPanel` used the neutral
+`drawerScrim`; it is now tinted from the scheme accent unless Settings > Home > Pop-up color is Neutral.
+
+Decisions: the WebView is sized to its content inside the reader's column (one scroller, nested-scroll interop) rather than being a second scroller. Wide emails are
+scaled to fit (wide viewport plus overview mode). The tint is derived from the accent (which exists for every scheme, custom colors and Material You) instead of
+wall1 / wall2, which the tokens do not carry.
+
+Not verified (CI build only, nothing run on a device): the live `body_html` shape from the server, vertical drag over the WebView inside the scrolling column, very tall newsletters
+(WebView texture limits), inversion on real newsletters, `mailto:` / `tel:` taps, and the pop-up contrast on every color scheme in light and dark (computed to be at least 4.5:1, not seen).
