@@ -1,77 +1,69 @@
 package com.foldos.launcher.hub
 
 import android.Manifest
-import android.provider.CallLog
-import android.telephony.PhoneNumberUtils
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Chat
-import androidx.compose.material.icons.rounded.Email
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.People
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.Videocam
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
+import com.foldos.launcher.core.repo.HubCall
 import com.foldos.launcher.core.repo.HubContact
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /**
- * The Hub's Contacts tab (mock-up `peoplePage`): favourites row, search, A-Z list with section
- * headers and an alphabet scrubber, call / message buttons per row. The inner screen keeps the list
- * on the left and shows the selected contact's card (call, message, video, e-mail, details and
- * recent calls) on the right.
+ * The Hub's Contacts tab (1.6.0, "Quick-action rows"): a Favorites avatar row (up to 7 starred contacts;
+ * tap opens the contact card, long-press opens the dialer) and a "Frequent" list of as many people as the
+ * height holds, each with a call button (ACTION_DIAL, never a direct call) and a message button
+ * (`sms:`). It never scrolls. The search field stays inline when the height allows it and otherwise
+ * collapses to an icon in the top bar. The inner screen lists the people in two columns.
  */
 @Composable
 internal fun HubContactsTab(
@@ -82,70 +74,13 @@ internal fun HubContactsTab(
 ) {
     val graph = LocalAppGraph.current
     val context = LocalContext.current
+    val fontScale = LocalDensity.current.fontScale
     val granted = rememberHubPermission(Manifest.permission.READ_CONTACTS)
+    val callsGranted = rememberHubPermission(Manifest.permission.READ_CALL_LOG)
     val inner = screen != ScreenKind.COVER
 
-    val contacts by remember(graph) { graph.hub.contacts() }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val favorites by remember(graph) { graph.hub.favorites() }.collectAsStateWithLifecycle(initialValue = emptyList())
-    var query by rememberSaveable { mutableStateOf("") }
-    var selectedId by rememberSaveable { mutableStateOf(-1L) }
-
-    val filtered = remember(contacts, query) { filterContacts(contacts, query) }
-    val selected: HubContact? = remember(contacts, favorites, selectedId) {
-        contacts.firstOrNull { it.id == selectedId } ?: favorites.firstOrNull() ?: contacts.firstOrNull()
-    }
-    val onContactTap: (HubContact) -> Unit = { contact ->
-        if (inner) selectedId = contact.id else HubIntents.openContact(context, contact)
-    }
-
-    val header: @Composable () -> Unit = {
-        HubPageHeader(
-            title = "Contacts",
-            subtitle = when {
-                !granted -> "Contacts access needed"
-                contacts.isEmpty() -> "No contacts yet"
-                else -> "${contacts.size} contacts"
-            },
-            subtitleIcon = Icons.Rounded.Person,
-            trailingIcon = Icons.Rounded.PersonAdd,
-            onTrailingClick = { HubIntents.newContact(context) },
-        )
-    }
-    val search: @Composable () -> Unit = {
-        HubSearchPill(
-            value = query,
-            onValueChange = { query = it },
-            placeholder = if (contacts.isEmpty()) "Search contacts" else "Search ${contacts.size} contacts",
-        )
-    }
-    val favoritesRow: @Composable () -> Unit = {
-        if (granted && query.isEmpty() && favorites.isNotEmpty()) {
-            if (!inner) HubKicker("Favourites")
-            HubFavoritesRow(favorites = favorites, selectedId = if (inner) selected?.id else null, onTap = onContactTap)
-        }
-    }
-    val list: @Composable (Modifier) -> Unit = { m ->
-        if (!granted) {
-            HubPermissionCard(
-                title = "Contacts",
-                body = "Your contacts, favourites and photos stay on this phone.",
-                permission = Manifest.permission.READ_CONTACTS,
-                modifier = m,
-            )
-        } else {
-            HubListCard(modifier = m) {
-                HubContactList(
-                    contacts = filtered,
-                    selectedId = if (inner) selected?.id else null,
-                    onTap = onContactTap,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-    }
-
     if (!granted) {
-        // Permission missing: only the centred card, with no header, search pill, favourites or list.
+        // Permission missing: only the compact centred panel.
         HubPermissionPanel(
             icon = Icons.Rounded.People,
             title = "Contacts access",
@@ -156,49 +91,159 @@ internal fun HubContactsTab(
         return
     }
 
-    if (!inner) {
-        Column(
-            modifier = modifier.fillMaxSize().padding(horizontal = HubPagePadding).padding(contentPadding),
-            verticalArrangement = Arrangement.spacedBy(HubCardGap),
-        ) {
-            header()
-            search()
-            favoritesRow()
-            list(Modifier.fillMaxWidth().weight(1f))
+    val contacts by remember(graph) { graph.hub.contacts() }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val favorites by remember(graph) { graph.hub.favorites() }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val missed by remember(graph) { graph.hub.missedCalls() }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val recent by remember(graph) {
+        (graph.hub as? FoldOsHubRepository)?.recentCalls(RECENT_CALLS_FOR_FREQUENCY) ?: flowOf(emptyList())
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
+    var query by rememberSaveable { mutableStateOf("") }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+
+    val today = remember { LocalDate.now() }
+    val favs = remember(favorites) { favorites.take(MAX_FAVORITES) }
+    val missedByKey = remember(missed, callsGranted) {
+        if (!callsGranted) emptyMap<String, List<HubCall>>() else missed.groupBy { hubNumberKey(it.number) }.filterKeys { it.isNotEmpty() }
+    }
+    val frequent = remember(contacts, favs, recent, query) {
+        if (query.isNotBlank()) {
+            filterContacts(contacts, query)
+        } else {
+            frequentContacts(contacts, favs.map { it.id }.toSet(), recent.map { it.number })
         }
-    } else {
-        HubTwoPane(
-            modifier = modifier.fillMaxSize().padding(horizontal = HubPagePadding).padding(contentPadding),
-            left = {
-                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(HubCardGap)) {
-                    header()
-                    search()
-                    favoritesRow()
-                    list(Modifier.fillMaxWidth().weight(1f))
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(contentPadding)
+            .padding(horizontal = HubPagePadding),
+    ) {
+        val gap = HubFitGap
+        val barH = HubSlimBarHeight.scaledBy(fontScale)
+        val searchH = 50.dp
+        val kickerH = 22.dp.scaledBy(fontScale)
+        val rowH = ContactRowHeight.scaledBy(fontScale)
+        // The field stays inline only when the tab is tall enough to keep a useful list beside it.
+        val inlineSearch = maxHeight >= 680.dp
+        val showSearch = inlineSearch || searchOpen || query.isNotEmpty()
+
+        val slotWidth = maxWidth / FAVORITE_SLOTS
+        val avatar = minOf(56.dp, slotWidth - 10.dp).coerceAtLeast(32.dp)
+        val favRowH = avatar + 8.dp + 18.dp.scaledBy(fontScale)
+
+        var left = maxHeight - barH
+        if (showSearch) left -= searchH + gap
+        val showFavs = query.isBlank() && favs.isNotEmpty() && left >= kickerH + favRowH + gap + 60.dp
+        if (showFavs) left -= kickerH + favRowH + gap
+        // Kicker and list card (border) for the list.
+        val listRoom = left - gap - kickerH - 2.dp
+        val perColumn = fitCount(listRoom, rowH)
+        val columns = if (inner) 2 else 1
+        val shown = minOf(frequent.size, perColumn * columns)
+        val split = splitIntoColumns(shown, columns, perColumn)
+
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(gap)) {
+            HubSlimBar(title = "Contacts") {
+                if (!inlineSearch) {
+                    HubIconButton(
+                        icon = Icons.Rounded.Search,
+                        contentDescription = "Search contacts",
+                        onClick = { searchOpen = !searchOpen; if (!searchOpen) query = "" },
+                        size = 40.dp,
+                        tinted = false,
+                    )
                 }
-            },
-            right = {
-                Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
-                    HubListCard(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                        if (!granted || selected == null) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = if (granted) "Pick a contact" else "Allow contacts access to see details",
-                                    color = LocalFoldOsTokens.current.onSurface.copy(alpha = 0.6f),
-                                    fontSize = 14.sp,
-                                )
-                            }
-                        } else {
-                            HubContactCard(contact = selected, modifier = Modifier.fillMaxSize())
+                HubIconButton(
+                    icon = Icons.Rounded.PersonAdd,
+                    contentDescription = "New contact",
+                    onClick = { HubIntents.newContact(context) },
+                    size = 40.dp,
+                )
+            }
+            if (showSearch) {
+                HubSearchPill(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = if (contacts.isEmpty()) "Search contacts" else "Search ${contacts.size} contacts",
+                )
+            }
+            if (showFavs) {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    HubKicker("Favorites", Modifier.height(kickerH))
+                    Row(Modifier.fillMaxWidth()) {
+                        favs.forEach { contact ->
+                            FavoriteSlot(contact = contact, width = slotWidth, avatar = avatar)
                         }
                     }
                 }
-            },
-        )
+            }
+            if (frequent.isEmpty()) {
+                HubListCard(Modifier.fillMaxWidth()) {
+                    HubEmptyRow(if (query.isBlank()) "No contacts yet" else "No contacts match")
+                }
+            } else if (perColumn > 0) {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    HubKicker(if (query.isBlank()) "Frequent" else "Results", Modifier.height(kickerH))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                        var start = 0
+                        split.forEachIndexed { column, count ->
+                            val slice = frequent.subList(start, start + count)
+                            start += count
+                            if (count > 0 || column == 0) {
+                                HubListCard(Modifier.weight(1f)) {
+                                    slice.forEachIndexed { index, contact ->
+                                        if (index > 0) HubRowDivider()
+                                        ContactQuickRow(
+                                            contact = contact,
+                                            missedCount = missedByKey[hubNumberKey(contact.phone.orEmpty())]?.size ?: 0,
+                                            height = rowH - 1.dp,
+                                            today = today,
+                                            lastMissed = missedByKey[hubNumberKey(contact.phone.orEmpty())]?.firstOrNull()?.time,
+                                        )
+                                    }
+                                }
+                            } else {
+                                Box(Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
-/** Name or phone substring match, case-insensitive; an empty query keeps everything. */
+private const val MAX_FAVORITES = 7
+private const val FAVORITE_SLOTS = 7
+private const val RECENT_CALLS_FOR_FREQUENCY = 400
+private val ContactRowHeight: Dp = 60.dp
+
+/** Last nine digits of a phone number, enough to match "+1 512 555 0100" with "(512) 555-0100". */
+internal fun hubNumberKey(number: String): String {
+    val digits = number.filter { it.isDigit() }
+    return if (digits.length > 9) digits.takeLast(9) else digits
+}
+
+/**
+ * Contacts with a phone number that are not already shown as favorites, most-called first (counted over
+ * [callNumbers], the numbers of the recent call log), then everyone else alphabetically.
+ */
+internal fun frequentContacts(contacts: List<HubContact>, excludeIds: Set<Long>, callNumbers: List<String>): List<HubContact> {
+    val counts = HashMap<String, Int>()
+    for (number in callNumbers) {
+        val key = hubNumberKey(number)
+        if (key.isNotEmpty()) counts[key] = (counts[key] ?: 0) + 1
+    }
+    return contacts
+        .filter { it.id !in excludeIds && !it.phone.isNullOrBlank() }
+        .sortedWith(
+            compareByDescending<HubContact> { counts[hubNumberKey(it.phone.orEmpty())] ?: 0 }
+                .thenBy { it.name.lowercase() },
+        )
+}
+
+/** Name, phone or e-mail substring match, case-insensitive; an empty query keeps everything. */
 internal fun filterContacts(contacts: List<HubContact>, query: String): List<HubContact> {
     val q = query.trim()
     if (q.isEmpty()) return contacts
@@ -210,351 +255,114 @@ internal fun filterContacts(contacts: List<HubContact>, query: String): List<Hub
     }
 }
 
-/** Section letter for the A-Z list: the first letter upper-cased, "#" for anything else. */
-internal fun contactSection(contact: HubContact): String {
-    val first = contact.name.trim().firstOrNull() ?: return "#"
-    return if (first.isLetter()) first.uppercaseChar().toString() else "#"
+/** Favorite avatar with first name: tap opens the contact card, long-press opens the dialer. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FavoriteSlot(contact: HubContact, width: Dp, avatar: Dp) {
+    val tokens = LocalFoldOsTokens.current
+    val context = LocalContext.current
+    val phone = contact.phone
+    Column(
+        modifier = Modifier
+            .width(width)
+            .clip(RoundedCornerShape(14.dp))
+            .semantics {
+                if (phone != null) customActions = listOf(CustomAccessibilityAction("Call ${contact.name}") { HubIntents.dial(context, phone); true })
+            }
+            .combinedClickable(
+                role = Role.Button,
+                onClick = { HubIntents.openContact(context, contact) },
+                onLongClick = { if (phone != null) HubIntents.dial(context, phone) },
+            )
+            .padding(vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        HubAvatar(name = contact.name, photoUri = contact.photoUri, size = avatar)
+        Text(
+            text = hubFirstName(contact.name),
+            color = tokens.onSurface,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 2.dp),
+        )
+    }
 }
 
-/* ------------------------------------------------------------------------------------------ */
-/* Favourites                                                                                  */
-/* ------------------------------------------------------------------------------------------ */
-
-/** Mock-up `.favs`: 60dp avatars with first names. */
+/** One "Frequent" row: avatar (with a missed-call badge), name, status line, call and message buttons. */
 @Composable
-private fun HubFavoritesRow(favorites: List<HubContact>, selectedId: Long?, onTap: (HubContact) -> Unit) {
+private fun ContactQuickRow(
+    contact: HubContact,
+    missedCount: Int,
+    height: Dp,
+    today: LocalDate,
+    lastMissed: Long?,
+) {
     val tokens = LocalFoldOsTokens.current
+    val context = LocalContext.current
+    val phone = contact.phone
     Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 2.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .clickable(role = Role.Button) { HubIntents.openContact(context, contact) }
+            .padding(start = 14.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        favorites.forEach { contact ->
-            val isSelected = contact.id == selectedId
-            Column(
-                modifier = Modifier
-                    .width(68.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (isSelected) tokens.accent.copy(alpha = 0.16f) else Color.Transparent)
-                    .clickable { onTap(contact) }
-                    .padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                HubAvatar(name = contact.name, photoUri = contact.photoUri, size = 60.dp)
+        Box {
+            HubAvatar(name = contact.name, photoUri = contact.photoUri, size = 42.dp)
+            if (missedCount > 0) {
                 Text(
-                    text = hubFirstName(contact.name),
-                    color = tokens.onSurface,
-                    fontSize = 12.5.sp,
+                    text = if (missedCount > 99) "99+" else missedCount.toString(),
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 5.dp, y = (-3).dp)
+                        .defaultMinSize(minWidth = 16.dp)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(HubMissedRed)
+                        .padding(horizontal = 4.dp),
+                )
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = contact.name,
+                color = tokens.onSurface,
+                fontSize = 14.5.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val detail = if (missedCount > 0 && lastMissed != null) {
+                "Missed call ${HubFormat.callTime(lastMissed, today)}"
+            } else {
+                phone ?: contact.email
+            }
+            if (detail != null) {
+                Text(
+                    text = detail,
+                    color = if (missedCount > 0) HubMissedRed else tokens.onSurface.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-    }
-}
-
-/* ------------------------------------------------------------------------------------------ */
-/* A-Z list with scrubber                                                                      */
-/* ------------------------------------------------------------------------------------------ */
-
-private sealed class ContactListEntry {
-    data class Section(val letter: String) : ContactListEntry()
-    data class Person(val contact: HubContact) : ContactListEntry()
-}
-
-/** Section headers (`.sect`) and rows (`.crow`) in a LazyColumn, with the alphabet scrubber down the right. */
-@Composable
-private fun HubContactList(
-    contacts: List<HubContact>,
-    selectedId: Long?,
-    onTap: (HubContact) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val tokens = LocalFoldOsTokens.current
-    val context = LocalContext.current
-    val entries = remember(contacts) {
-        val list = ArrayList<ContactListEntry>(contacts.size + 27)
-        var last: String? = null
-        for (contact in contacts) {
-            val section = contactSection(contact)
-            if (section != last) {
-                list += ContactListEntry.Section(section)
-                last = section
-            }
-            list += ContactListEntry.Person(contact)
-        }
-        list
-    }
-    val sectionIndex = remember(entries) {
-        val map = LinkedHashMap<String, Int>()
-        entries.forEachIndexed { index, entry -> if (entry is ContactListEntry.Section) map[entry.letter] = index }
-        map
-    }
-    val letters = remember(sectionIndex) { sectionIndex.keys.toList() }
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    var activeLetter by remember { mutableStateOf<String?>(null) }
-
-    if (contacts.isEmpty()) {
-        HubEmptyRow("No contacts match")
-        return
-    }
-
-    Row(modifier) {
-        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxHeight()) {
-            entries.forEachIndexed { index, entry ->
-                when (entry) {
-                    is ContactListEntry.Section -> item(key = "s-${entry.letter}-$index") {
-                        Text(
-                            text = entry.letter,
-                            color = tokens.accent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 2.dp),
-                        )
-                    }
-                    is ContactListEntry.Person -> item(key = "c-${entry.contact.id}") {
-                        HubContactRow(
-                            contact = entry.contact,
-                            selected = entry.contact.id == selectedId,
-                            onTap = { onTap(entry.contact) },
-                            onCall = { entry.contact.phone?.let { HubIntents.dial(context, it) } },
-                            onMessage = { entry.contact.phone?.let { HubIntents.message(context, it) } },
-                        )
-                    }
-                }
-            }
-        }
-        if (letters.size > 1) {
-            HubAlphabetScrubber(
-                letters = letters,
-                active = activeLetter,
-                modifier = Modifier.width(22.dp).fillMaxHeight().padding(vertical = 8.dp),
-                onLetter = { letter ->
-                    activeLetter = letter
-                    val index = sectionIndex[letter] ?: return@HubAlphabetScrubber
-                    scope.launch { listState.scrollToItem(index) }
-                },
-                onRelease = { activeLetter = null },
-            )
-        }
-    }
-}
-
-@Composable
-private fun HubContactRow(
-    contact: HubContact,
-    selected: Boolean,
-    onTap: () -> Unit,
-    onCall: () -> Unit,
-    onMessage: () -> Unit,
-) {
-    val tokens = LocalFoldOsTokens.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(if (selected) tokens.accent.copy(alpha = 0.16f) else Color.Transparent)
-            .clickable(onClick = onTap)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        HubAvatar(name = contact.name, photoUri = contact.photoUri, size = 42.dp)
-        Column(Modifier.weight(1f)) {
-            Text(text = contact.name, color = tokens.onSurface, fontSize = 14.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val detail = contact.phone ?: contact.email
-            if (detail != null) {
-                Text(text = detail, color = tokens.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        if (contact.phone != null) {
-            HubIconButton(Icons.Rounded.Call, "Call", onCall, size = 36.dp, tinted = false)
-            HubIconButton(Icons.Rounded.Chat, "Message", onMessage, size = 36.dp, tinted = false)
-        }
-    }
-}
-
-/** The A-Z rail: tap or drag to jump to a section; the letter under the finger is highlighted. */
-@Composable
-private fun HubAlphabetScrubber(
-    letters: List<String>,
-    active: String?,
-    onLetter: (String) -> Unit,
-    onRelease: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val tokens = LocalFoldOsTokens.current
-    var heightPx by remember { mutableIntStateOf(1) }
-    fun letterAt(y: Float): String? {
-        if (letters.isEmpty()) return null
-        val index = ((y / heightPx.coerceAtLeast(1)) * letters.size).toInt().coerceIn(0, letters.size - 1)
-        return letters[index]
-    }
-    Column(
-        modifier = modifier
-            .onSizeChanged { heightPx = it.height }
-            .pointerInput(letters) {
-                detectVerticalDragGestures(
-                    onDragStart = { offset -> letterAt(offset.y)?.let(onLetter) },
-                    onDragEnd = onRelease,
-                    onDragCancel = onRelease,
-                ) { change, _ -> letterAt(change.position.y)?.let(onLetter) }
-            }
-            .pointerInput(letters) {
-                detectTapGestures(
-                    onPress = { offset ->
-                        letterAt(offset.y)?.let(onLetter)
-                        tryAwaitRelease()
-                        onRelease()
-                    },
-                )
-            },
-        verticalArrangement = Arrangement.SpaceEvenly,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        letters.forEach { letter ->
-            val isActive = letter == active
-            Text(
-                text = letter,
-                color = if (isActive) tokens.accent else tokens.onSurface.copy(alpha = 0.6f),
-                fontSize = if (isActive) 13.sp else 10.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-/* ------------------------------------------------------------------------------------------ */
-/* Contact card (inner screen)                                                                 */
-/* ------------------------------------------------------------------------------------------ */
-
-/** Mock-up `.cdet` / `.cact` / `.irow`: big avatar, four actions, details and recent calls. */
-@Composable
-private fun HubContactCard(contact: HubContact, modifier: Modifier = Modifier) {
-    val tokens = LocalFoldOsTokens.current
-    val context = LocalContext.current
-    val graph = LocalAppGraph.current
-    val scope = rememberCoroutineScope()
-    val repo = graph.hub as? FoldOsHubRepository
-    val callsGranted = rememberHubPermission(Manifest.permission.READ_CALL_LOG)
-    val recentCalls by remember(repo) { repo?.recentCalls() ?: flowOf(emptyList<HubCallLogEntry>()) }
-        .collectAsStateWithLifecycle(initialValue = emptyList())
-    val phone = contact.phone
-    val calls = remember(recentCalls, phone) {
-        if (phone == null) emptyList() else recentCalls.filter { PhoneNumberUtils.compare(it.number, phone) }.take(5)
-    }
-    val today = LocalDate.now()
-
-    Column(modifier = modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            HubAvatar(name = contact.name, photoUri = contact.photoUri, size = 96.dp)
-            Text(
-                text = contact.name,
-                color = tokens.onSurface,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (contact.starred) {
-                    Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = tokens.onSurface.copy(alpha = 0.65f))
-                }
-                Text(
-                    text = if (contact.starred) "Favourite" else "Contact",
-                    color = tokens.onSurface.copy(alpha = 0.65f),
-                    fontSize = 13.5.sp,
-                )
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        ) {
-            HubContactAction(Icons.Rounded.Call, "Call", enabled = phone != null) { phone?.let { HubIntents.dial(context, it) } }
-            HubContactAction(Icons.Rounded.Chat, "Message", enabled = phone != null) { phone?.let { HubIntents.message(context, it) } }
-            HubContactAction(Icons.Rounded.Videocam, "Video", enabled = true) {
-                scope.launch {
-                    val intent = repo?.videoCallIntent(contact)
-                    if (intent != null) HubIntents.start(context, intent) else HubIntents.openContact(context, contact)
-                }
-            }
-            HubContactAction(Icons.Rounded.Email, "Email", enabled = contact.email != null) {
-                contact.email?.let { HubIntents.email(context, it) }
-            }
-        }
         if (phone != null) {
-            HubInfoRow(Icons.Rounded.Call, phone, "Phone") { HubIntents.dial(context, phone) }
-        }
-        val email = contact.email
-        if (email != null) {
-            HubInfoRow(Icons.Rounded.Email, email, "Email") { HubIntents.email(context, email) }
-        }
-        HubInfoRow(Icons.Rounded.Person, "Open in Contacts", "Edit, share or see every detail") { HubIntents.openContact(context, contact) }
-        if (callsGranted && calls.isNotEmpty()) {
-            calls.forEach { call ->
-                HubInfoRow(
-                    icon = Icons.Rounded.History,
-                    text = "${callTypeLabel(call.type)} · ${HubFormat.callTime(call.time, today)}",
-                    caption = if (call.durationSeconds > 0) HubFormat.duration(0L, call.durationSeconds * 1000L) else "Recent call",
-                    onClick = { HubIntents.dial(context, call.number) },
-                )
-            }
+            HubIconButton(Icons.Rounded.Call, "Call ${contact.name}", { HubIntents.dial(context, phone) }, size = 38.dp)
+            HubIconButton(Icons.Rounded.Chat, "Message ${contact.name}", { HubIntents.message(context, phone) }, size = 38.dp)
         }
     }
 }
 
-private fun callTypeLabel(type: Int): String = when (type) {
-    CallLog.Calls.INCOMING_TYPE -> "Incoming"
-    CallLog.Calls.OUTGOING_TYPE -> "Outgoing"
-    CallLog.Calls.MISSED_TYPE -> "Missed"
-    CallLog.Calls.VOICEMAIL_TYPE -> "Voicemail"
-    CallLog.Calls.REJECTED_TYPE -> "Declined"
-    CallLog.Calls.BLOCKED_TYPE -> "Blocked"
-    else -> "Call"
-}
-
-/** Mock-up `.cact div`: 50dp accent-tinted disc with a label under it. */
-@Composable
-private fun HubContactAction(icon: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
-    val tokens = LocalFoldOsTokens.current
-    val alpha = if (enabled) 1f else 0.4f
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .clip(CircleShape)
-                .background(tokens.accent.copy(alpha = 0.18f * alpha))
-                .clickable(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp), tint = tokens.accent.copy(alpha = alpha))
-        }
-        Text(text = label, color = tokens.onSurface.copy(alpha = alpha), fontSize = 12.sp)
-    }
-}
-
-/** Mock-up `.irow`: icon, value and caption with a hairline above. */
-@Composable
-private fun HubInfoRow(icon: ImageVector, text: String, caption: String, onClick: () -> Unit) {
-    val tokens = LocalFoldOsTokens.current
-    HubRowDivider()
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(21.dp), tint = tokens.onSurface.copy(alpha = 0.6f))
-        Column(Modifier.weight(1f)) {
-            Text(text = text, color = tokens.onSurface, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(text = caption, color = tokens.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
+private val HubMissedRed: Color = Color(0xFFE5384B)

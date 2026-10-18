@@ -1,51 +1,40 @@
 package com.foldos.launcher.ai
 
-import android.content.ContentUris
 import android.content.Intent
 import android.net.Uri
-import android.provider.CalendarContract
+import android.provider.ContactsContract
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Reply
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.DirectionsCar
-import androidx.compose.material.icons.rounded.Event
-import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -55,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -71,28 +59,32 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.foldos.launcher.builtins.FocusTimerStore
-import com.foldos.launcher.core.AppGraph
 import com.foldos.launcher.core.LocalAppGraph
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.repo.AiReply
-import com.foldos.launcher.mail.GmailIntents
-import com.foldos.launcher.mail.GmailMailRepository
+import com.foldos.launcher.hub.HubIntents
+import com.foldos.launcher.hub.fitCount
 import com.foldos.launcher.settings.SettingsActivity
 import com.foldos.launcher.settings.SettingsRoutes
 import com.foldos.launcher.theme.FoldOsSurface
 import com.foldos.launcher.theme.LocalFoldOsTokens
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDateTime
+import java.time.ZoneId
+import kotlin.math.ceil
 
 /** One bubble of the AI tab's conversation. */
 data class AiChatMessage(
@@ -115,7 +107,7 @@ object AiConversation {
 
     private var nextId: Long = 1L
 
-    fun send(graph: AppGraph, text: String) {
+    fun send(graph: com.foldos.launcher.core.AppGraph, text: String) {
         val request = text.trim()
         if (request.isEmpty() || busy) return
         busy = true
@@ -135,37 +127,33 @@ object AiConversation {
         messages.add(AiChatMessage(nextId++, text, fromUser = false))
     }
 
+    /** Adds a user line and an assistant reply that the tab produced locally (task added, directions opened). */
+    fun local(userText: String, reply: String) {
+        messages.add(AiChatMessage(nextId++, userText, fromUser = true))
+        messages.add(AiChatMessage(nextId++, reply, fromUser = false))
+    }
+
     fun clear() {
         messages.clear()
     }
 }
 
-/** A one-tap action under "Suggested actions" (mock-up `.acts`). */
-data class AiSuggestedAction(
-    val icon: ImageVector,
-    val text: String,
-    val onClick: () -> Unit,
-)
+/** What the next line typed in the ask bar means instead of a normal question. */
+private const val PENDING_TASK = "task"
+private const val PENDING_REMINDER = "reminder"
+private const val PENDING_DIRECTIONS = "directions"
 
-private val TRY_ASKING: List<String> = listOf(
-    "What's next on my calendar?",
-    "What's due today?",
-    "Make my inner screen a dashboard",
-    "Switch to dark mode",
-    "Use the ocean colors",
-    "Set the bold theme",
-    "Hide Reddit",
-    "Open Spotify when I unfold",
-    "What's in my inbox?",
-)
+private val QuickCellMinHeight: Dp = 46.dp
+private val QuickCellMaxHeight: Dp = 64.dp
+private val QuickGap: Dp = 8.dp
 
 /**
- * The Hub's AI tab (mock-up `aiPage`): header, ask bar with mic, engine chips, the conversation
- * and "Try asking" prompts. The inner screen adds a right pane with suggested actions (navigate
- * to the next event, reply hints, call back, focus session) and a "For you" briefing card. Reads
- * `LocalAppGraph.current.ai`; must be composed inside `FoldOsTheme`.
+ * The Hub's AI tab (1.6.0, "Action grid"): a grid of compact quick-action tiles (2 columns on the cover,
+ * 3 on the inner screen) that fills the available height without scrolling, and the Ask bar (text field and
+ * mic) pinned at the bottom. Tapping an action or sending text opens the conversation in a panel that replaces
+ * the grid (back arrow returns); the engine chip lives in that panel's header. Only as many actions as fit are
+ * shown. Reads `LocalAppGraph.current.ai`; must be composed inside `FoldOsTheme`.
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = Modifier) {
     val graph = LocalAppGraph.current
@@ -175,18 +163,6 @@ fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = M
     val inner = screen != ScreenKind.COVER
     val aiOn = settings.feature(LauncherSettings.FEATURE_AI)
 
-    val builder = remember(graph) { AiContextBuilder(graph.settings, graph.apps, graph.hub, graph.badges, graph.mail) }
-    var refreshTick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(60_000L)
-            refreshTick++
-        }
-    }
-    val replies = AiConversation.messages.count { !it.fromUser }
-    val snapshot by produceState<AiContextSnapshot?>(initialValue = null, builder, refreshTick, replies) {
-        value = runCatching { builder.snapshot() }.getOrNull()
-    }
     val onDeviceReady by produceState(initialValue = false, settings.aiMode, context) {
         value = settings.aiMode == LauncherSettings.AI_MODE_ONDEVICE &&
             runCatching { AiCoreProvider(context).available() }.getOrDefault(false)
@@ -199,53 +175,113 @@ fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = M
         else -> "On-device · Template rules"
     }
 
+    var panelOpen by rememberSaveable { mutableStateOf(false) }
+    var pending by rememberSaveable { mutableStateOf<String?>(null) }
     var draft by rememberSaveable { mutableStateOf("") }
-    val send: (String) -> Unit = { text ->
-        if (text.isNotBlank()) {
-            AiConversation.send(graph, text)
+    val openAiSettings = { context.startActivity(SettingsActivity.intent(context, SettingsRoutes.AI)) }
+
+    val handlePending: (String, String) -> Unit = { kind, text ->
+        scope.launch {
+            when (kind) {
+                PENDING_TASK -> {
+                    runCatching { graph.hub.addTask(text, null) }
+                    AiConversation.local(text, "Added the task “$text”. It shows in Tasks on the Today tab.")
+                }
+                PENDING_REMINDER -> {
+                    val due = nextHourMillis()
+                    runCatching { graph.hub.addTask(text, due) }
+                    AiConversation.local(text, "Reminder added for ${aiClock(due)}. It shows in Tasks on the Today tab.")
+                }
+                else -> {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(text)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                    AiConversation.local(text, "Opening directions to $text.")
+                }
+            }
+        }
+    }
+    val submit: (String) -> Unit = { text ->
+        val line = text.trim()
+        if (line.isNotEmpty()) {
             draft = ""
+            panelOpen = true
+            val kind = pending
+            if (kind == null) {
+                AiConversation.send(graph, line)
+            } else {
+                pending = null
+                handlePending(kind, line)
+            }
         }
     }
     val speech = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val heard = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        if (!heard.isNullOrBlank()) send(heard)
+        if (!heard.isNullOrBlank()) submit(heard)
     }
     val startSpeech: () -> Unit = {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask anything or tell the launcher")
-        runCatching { speech.launch(intent) }.onFailure { AiConversation.note("Voice input isn't available on this device.") }
+        runCatching { speech.launch(intent) }.onFailure {
+            panelOpen = true
+            AiConversation.note("Voice input isn't available on this device.")
+        }
     }
-    val openAiSettings = { context.startActivity(SettingsActivity.intent(context, SettingsRoutes.AI)) }
 
-    val conversation: @Composable (Modifier) -> Unit = { columnModifier ->
-        Column(modifier = columnModifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            AiAskBar(
-                value = draft,
-                onValueChange = { draft = it },
-                onSend = { send(draft) },
-                onMic = startSpeech,
-                enabled = !AiConversation.busy,
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AiChip(text = engineLabel, icon = Icons.Rounded.Lock, onClick = openAiSettings)
-                AiChip(text = "Calendar, Mail, Tasks, Calls", icon = Icons.Rounded.Link, onClick = null)
+    val runAction: (AiQuickAction) -> Unit = { action ->
+        when (action.id) {
+            "call_back" -> scope.launch {
+                val call = runCatching { graph.hub.missedCalls().first().firstOrNull() }.getOrNull()
+                if (call != null) {
+                    HubIntents.dial(context, call.number)
+                } else {
+                    panelOpen = true
+                    AiConversation.local(action.label, "No missed calls to return.")
+                }
             }
-            AiSectionLabel("Conversation")
-            AiConversationList(messages = AiConversation.messages, busy = AiConversation.busy, modifier = Modifier.weight(1f))
-            AiSectionLabel("Try asking")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TRY_ASKING.forEach { prompt -> AiChip(text = prompt, icon = null, onClick = { send(prompt) }) }
+            "find_contact" -> runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            "add_event" -> HubIntents.newEvent(context, nextHourMillis())
+            "add_task" -> {
+                panelOpen = true
+                pending = PENDING_TASK
+                AiConversation.note("What's the task? Type it below.")
+            }
+            "set_reminder" -> {
+                panelOpen = true
+                pending = PENDING_REMINDER
+                AiConversation.note("What should I remind you about? I'll add it to Tasks, due in about an hour.")
+            }
+            "directions" -> {
+                panelOpen = true
+                pending = PENDING_DIRECTIONS
+                AiConversation.note("Where to? Type a place or address below.")
+            }
+            "focus_25" -> scope.launch {
+                runCatching { FocusTimerStore(context).start(FocusTimerStore.SESSION_MILLIS) }
+                panelOpen = true
+                AiConversation.local(action.label, "Started a 25-minute focus session. The Focus timer widget shows the countdown.")
+            }
+            else -> action.prompt?.let { prompt ->
+                panelOpen = true
+                AiConversation.send(graph, prompt)
             }
         }
     }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        AiPageHeader(title = "Assistant", subtitle = "Ask, plan, or change the launcher")
         if (!aiOn) {
+            AiTopBar(title = "Assistant", onSettings = openAiSettings)
             FoldOsSurface(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(18.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("AI features are off", color = tokens.onSurface, style = MaterialTheme.typography.titleMedium)
@@ -263,102 +299,123 @@ fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = M
             }
             return@Column
         }
-        if (!inner) {
-            conversation(Modifier.weight(1f).fillMaxWidth())
+
+        if (panelOpen) {
+            AiPanelHeader(
+                engineLabel = engineLabel,
+                onBack = {
+                    panelOpen = false
+                    pending = null
+                },
+                onEngine = openAiSettings,
+            )
+            AiConversationList(
+                messages = AiConversation.messages,
+                busy = AiConversation.busy,
+                modifier = Modifier.weight(1f),
+            )
         } else {
-            Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                conversation(Modifier.weight(1f).fillMaxHeight())
-                Column(
-                    modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AiSectionLabel("Suggested actions")
-                    val actions = suggestedActions(snapshot, graph, scope)
-                    if (actions.isEmpty()) {
-                        AiActionRow(
-                            action = AiSuggestedAction(Icons.Rounded.Settings, "Nothing to suggest yet; connect calendar, mail or tasks") { openAiSettings() },
-                        )
-                    } else {
-                        actions.forEach { action -> AiActionRow(action) }
+            AiTopBar(title = "Assistant", onSettings = openAiSettings)
+            val actions = remember(settings.aiQuickActions) { AiQuickActions.resolve(settings.aiQuickActions) }
+            AiActionGrid(
+                actions = actions,
+                columns = if (inner) 3 else 2,
+                onAction = runAction,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+        }
+        AiAskBar(
+            value = draft,
+            onValueChange = { draft = it },
+            onSend = { submit(draft) },
+            onMic = startSpeech,
+            enabled = !AiConversation.busy,
+            placeholder = when (pending) {
+                PENDING_TASK -> "Type the task"
+                PENDING_REMINDER -> "Remind me to…"
+                PENDING_DIRECTIONS -> "Type a place or address"
+                else -> "Ask anything or tell the launcher"
+            },
+        )
+    }
+}
+
+private fun nextHourMillis(): Long =
+    LocalDateTime.now().withMinute(0).withSecond(0).withNano(0).plusHours(1)
+        .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+/* ------------------------------------------------------------------------------------------ */
+/* Grid                                                                                       */
+/* ------------------------------------------------------------------------------------------ */
+
+/**
+ * The quick-action tiles: [columns] per row, as many rows as [fitCount] says the height holds, tiles stretched
+ * (up to 64dp) to fill the height. Actions that do not fit are dropped, never scrolled.
+ */
+@Composable
+private fun AiActionGrid(
+    actions: List<AiQuickAction>,
+    columns: Int,
+    onAction: (AiQuickAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = LocalFoldOsTokens.current
+    BoxWithConstraints(modifier = modifier) {
+        if (actions.isEmpty()) {
+            Text(
+                text = "No quick actions are shown. Ask below, or pick some under Settings › AI › Quick actions.",
+                color = tokens.onSurface.copy(alpha = 0.75f),
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(4.dp),
+            )
+            return@BoxWithConstraints
+        }
+        val rowsFit = fitCount(maxHeight, QuickCellMinHeight, QuickGap)
+        val rows = minOf(ceil(actions.size / columns.toFloat()).toInt(), rowsFit)
+        if (rows <= 0) return@BoxWithConstraints
+        val cellHeight = ((maxHeight - QuickGap * (rows - 1)) / rows).coerceIn(QuickCellMinHeight, QuickCellMaxHeight)
+        Column(verticalArrangement = Arrangement.spacedBy(QuickGap)) {
+            actions.take(rows * columns).chunked(columns).forEach { line ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QuickGap)) {
+                    line.forEach { action ->
+                        AiActionTile(action = action, height = cellHeight, onClick = { onAction(action) }, modifier = Modifier.weight(1f))
                     }
-                    AiSectionLabel("For you")
-                    AiBriefingCard(snapshot = snapshot)
+                    repeat(columns - line.size) { Box(Modifier.weight(1f)) }
                 }
             }
         }
     }
 }
 
-/* ------------------------------------------------------------------------------------------ */
-/* Suggested actions                                                                          */
-/* ------------------------------------------------------------------------------------------ */
-
+/** A single-line compact tile: accent icon and label. */
 @Composable
-private fun suggestedActions(
-    snapshot: AiContextSnapshot?,
-    graph: AppGraph,
-    scope: kotlinx.coroutines.CoroutineScope,
-): List<AiSuggestedAction> {
-    val context = LocalContext.current
-    if (snapshot == null) return emptyList()
-    val actions = ArrayList<AiSuggestedAction>()
-    val next = snapshot.nextEvent() ?: snapshot.currentEvent()
-    if (next != null) {
-        val location = next.location?.trim().orEmpty()
-        if (location.isNotEmpty()) {
-            actions.add(
-                AiSuggestedAction(Icons.Rounded.DirectionsCar, "Navigate to $location") {
-                    val geo = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(location)}"))
-                    runCatching { context.startActivity(geo) }
-                },
-            )
-        } else {
-            actions.add(
-                AiSuggestedAction(Icons.Rounded.Event, "Open ${next.title} (${aiClock(next.begin)})") {
-                    val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, next.id)
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                },
+private fun AiActionTile(action: AiQuickAction, height: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val tokens = LocalFoldOsTokens.current
+    FoldOsSurface(
+        modifier = modifier
+            .height(height)
+            .clickable(role = Role.Button, onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(action.icon, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(20.dp))
+            Text(
+                text = action.label,
+                color = tokens.onSurface,
+                fontSize = 14.sp,
+                lineHeight = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
         }
-    }
-    val unread = snapshot.unreadMessages.firstOrNull()
-    if (unread != null) {
-        val hint = replyHintFor(unread.subject + " " + unread.snippet)
-        actions.add(
-            AiSuggestedAction(Icons.AutoMirrored.Rounded.Reply, "Reply to ${unread.from.substringBefore(' ')}: “$hint”") {
-                val gmail = graph.mail as? GmailMailRepository
-                val threadId = gmail?.threadIdFor(unread.id)
-                if (threadId != null) GmailIntents.openThread(context, threadId, null) else GmailIntents.openGmail(context)
-            },
-        )
-    }
-    val call = snapshot.missedCalls.firstOrNull()
-    if (call != null) {
-        actions.add(
-            AiSuggestedAction(Icons.Rounded.Call, "Call back ${call.name ?: call.number}") {
-                runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(call.number)}"))) }
-            },
-        )
-    }
-    if (snapshot.openTasks.isNotEmpty() || actions.size < 2) {
-        actions.add(
-            AiSuggestedAction(Icons.Rounded.Timer, "Start a 25-minute focus session") {
-                scope.launch {
-                    runCatching { FocusTimerStore(context).start(FocusTimerStore.SESSION_MILLIS) }
-                    AiConversation.note("Started a 25-minute focus session. The Focus timer widget shows the countdown.")
-                }
-            },
-        )
-    }
-    return actions
-}
-
-private fun replyHintFor(text: String): String {
-    val lower = text.lowercase()
-    return when {
-        Regex("\\b(meet|meeting|1:1|call|sync|invite|reschedul|move|push)").containsMatchIn(lower) -> "That works for me"
-        lower.contains('?') -> "Yes, let me check"
-        else -> "Thanks, got it"
     }
 }
 
@@ -366,23 +423,52 @@ private fun replyHintFor(text: String): String {
 /* Pieces                                                                                     */
 /* ------------------------------------------------------------------------------------------ */
 
+/** Slim title row of the grid view: 24sp title with the AI settings shortcut. */
 @Composable
-private fun AiPageHeader(title: String, subtitle: String) {
+private fun AiTopBar(title: String, onSettings: () -> Unit) {
     val tokens = LocalFoldOsTokens.current
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().height(44.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, color = tokens.onSurface, fontSize = 30.sp, fontWeight = FontWeight.Medium, lineHeight = 33.sp)
-            Text(text = subtitle, color = tokens.onSurface.copy(alpha = 0.75f), fontSize = 13.5.sp)
-        }
-        Icon(
-            Icons.Rounded.AutoAwesome,
-            contentDescription = null,
-            tint = tokens.onSurface.copy(alpha = 0.85f),
-            modifier = Modifier.size(38.dp),
+        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = tokens.accent, modifier = Modifier.padding(start = 4.dp).size(22.dp))
+        Text(
+            text = title,
+            color = tokens.onSurface,
+            fontSize = 24.sp,
+            lineHeight = 28.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f).padding(start = 10.dp),
+            maxLines = 1,
         )
+        IconButton(onClick = onSettings, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Rounded.Settings, contentDescription = "AI settings", tint = tokens.onSurface.copy(alpha = 0.8f), modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+/** Panel header: back arrow, title and the engine chip (moved here from the grid). */
+@Composable
+private fun AiPanelHeader(engineLabel: String, onBack: () -> Unit, onEngine: () -> Unit) {
+    val tokens = LocalFoldOsTokens.current
+    Row(
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to quick actions", tint = tokens.onSurface, modifier = Modifier.size(24.dp))
+        }
+        Text(
+            text = "Assistant",
+            color = tokens.onSurface,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+        )
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            AiChip(text = engineLabel, icon = Icons.Rounded.Lock, onClick = onEngine)
+        }
     }
 }
 
@@ -394,6 +480,7 @@ private fun AiAskBar(
     onSend: () -> Unit,
     onMic: () -> Unit,
     enabled: Boolean,
+    placeholder: String,
 ) {
     val tokens = LocalFoldOsTokens.current
     val shape = RoundedCornerShape(29.dp)
@@ -421,7 +508,7 @@ private fun AiAskBar(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (value.isEmpty()) {
                             Text(
-                                text = if (enabled) "Ask anything or tell the launcher" else "Thinking…",
+                                text = if (enabled) placeholder else "Thinking…",
                                 color = tokens.onSurface.copy(alpha = 0.65f),
                                 fontSize = 15.5.sp,
                                 maxLines = 1,
@@ -446,10 +533,10 @@ private fun AiAskBar(
 }
 
 @Composable
-private fun AiChip(text: String, icon: ImageVector?, onClick: (() -> Unit)?) {
+private fun AiChip(text: String, icon: ImageVector?, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
     val tokens = LocalFoldOsTokens.current
     val shape = RoundedCornerShape(999.dp)
-    val base = Modifier
+    val base = modifier
         .clip(shape)
         .background(tokens.surface)
         .border(1.dp, tokens.surfaceBorder, shape)
@@ -459,23 +546,11 @@ private fun AiChip(text: String, icon: ImageVector?, onClick: (() -> Unit)?) {
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = tokens.onSurface, modifier = Modifier.size(14.dp))
-        Text(text = text, color = tokens.onSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(text = text, color = tokens.onSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
-@Composable
-private fun AiSectionLabel(text: String) {
-    val tokens = LocalFoldOsTokens.current
-    Text(
-        text = text.uppercase(),
-        color = tokens.onSurface.copy(alpha = 0.72f),
-        fontSize = 11.5.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.sp,
-        modifier = Modifier.padding(horizontal = 4.dp),
-    )
-}
-
+/** The conversation inside the panel; this list may scroll (it is a chat, not the tab). */
 @Composable
 private fun AiConversationList(messages: List<AiChatMessage>, busy: Boolean, modifier: Modifier = Modifier) {
     val tokens = LocalFoldOsTokens.current
@@ -543,64 +618,6 @@ private fun AiBubble(text: String, fromUser: Boolean, applied: Boolean = false) 
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun AiActionRow(action: AiSuggestedAction) {
-    val tokens = LocalFoldOsTokens.current
-    FoldOsSurface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = action.onClick),
-        shape = RoundedCornerShape((tokens.radius - 4.dp).coerceAtLeast(8.dp)),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(action.icon, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(22.dp))
-            Text(
-                text = action.text,
-                color = tokens.onSurface,
-                fontSize = 14.5.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = tokens.onSurface.copy(alpha = 0.45f), modifier = Modifier.size(20.dp))
-        }
-    }
-}
-
-/** "For you": the template briefing from the current snapshot (mock-up's feed card slot). */
-@Composable
-private fun AiBriefingCard(snapshot: AiContextSnapshot?) {
-    val tokens = LocalFoldOsTokens.current
-    val text = remember(snapshot) {
-        if (snapshot == null) "Gathering today's context…" else FoldOsTemplateAiProvider().briefing(snapshot)
-    }
-    FoldOsSurface(
-        modifier = Modifier.fillMaxWidth(),
-        color = tokens.highlight,
-        borderColor = Color.Transparent,
-        contentPadding = PaddingValues(18.dp),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = tokens.onHighlight, modifier = Modifier.size(18.dp))
-                Text(
-                    text = "TODAY, IN SHORT",
-                    color = tokens.onHighlight.copy(alpha = 0.8f),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
-            }
-            Text(text = text, color = tokens.onHighlight, fontSize = 15.sp, lineHeight = 21.sp)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = "Written on-device from your calendar, tasks, mail headers and call log.",
-                color = tokens.onHighlight.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-            )
         }
     }
 }

@@ -4,7 +4,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.ui.semantics.Role
+import com.foldos.launcher.ai.AiQuickActions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +44,7 @@ object AiRows {
     val engineStatus = SettingsRowInfo("Engine status", "Whether Gemini Nano can run on this device")
     val suggestions = SettingsRowInfo("Suggestions", "Smart dock apps, drawer categories, briefing")
     val hubTab = SettingsRowInfo("AI tab in the hub", "Ask bar, conversation, suggested actions")
+    val quickActions = SettingsRowInfo("Quick actions", "Show, hide and reorder the AI tab tiles: summarize mail, plan my day, draft a reply, call back, focus")
     val usageLog = SettingsRowInfo("AI usage log", "What ran, on which data, with which engine")
     val clearLog = SettingsRowInfo("Clear usage log")
     val permissions = SettingsRowInfo("Permissions", "Calendar, Gmail and Todoist access for the briefing", advanced = true)
@@ -44,7 +54,7 @@ object AiRows {
         title = "AI",
         subtitle = "On-device engine, suggestions, usage log",
         icon = Icons.Outlined.AutoAwesome,
-        rows = listOf(ai, engine, engineStatus, suggestions, hubTab, usageLog, clearLog, permissions),
+        rows = listOf(ai, engine, engineStatus, suggestions, hubTab, quickActions, usageLog, clearLog, permissions),
     )
 
     val engineOptions: List<Pair<String, String>> = listOf(
@@ -119,6 +129,43 @@ fun AiPage(
             },
             visible = on && settings.hubOn,
         )
+        if (on && filter.shows(AiRows.quickActions)) {
+            SectionHeader(text = AiRows.quickActions.title)
+            ListItem(
+                headlineContent = { Text("Tiles on the AI tab") },
+                supportingContent = { Text("Tick the ones to show. Use the arrows to change the order. Only as many as fit the screen appear.") },
+            )
+            val order = AiQuickActions.checklistOrder(settings.aiQuickActions)
+            val shown = AiQuickActions.normalize(settings.aiQuickActions)
+            order.forEach { id ->
+                val action = AiQuickActions.byId(id) ?: return@forEach
+                val checked = id in shown
+                val position = shown.indexOf(id)
+                ListItem(
+                    modifier = Modifier.toggleable(
+                        value = checked,
+                        role = Role.Checkbox,
+                        onValueChange = { show -> update { it.copy(aiQuickActions = AiQuickActions.toggled(it.aiQuickActions, id, show)) } },
+                    ),
+                    leadingContent = { Checkbox(checked = checked, onCheckedChange = null) },
+                    headlineContent = { Text(action.label) },
+                    trailingContent = {
+                        if (checked) {
+                            Row {
+                                IconButton(
+                                    onClick = { update { it.copy(aiQuickActions = AiQuickActions.moved(it.aiQuickActions, id, -1)) } },
+                                    enabled = position > 0,
+                                ) { Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move ${action.label} up") }
+                                IconButton(
+                                    onClick = { update { it.copy(aiQuickActions = AiQuickActions.moved(it.aiQuickActions, id, 1)) } },
+                                    enabled = position < shown.size - 1,
+                                ) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move ${action.label} down") }
+                            }
+                        }
+                    },
+                )
+            }
+        }
         StaticRow(info = AiRows.permissions, visible = on)
 
         if (filter.shows(AiRows.usageLog)) {

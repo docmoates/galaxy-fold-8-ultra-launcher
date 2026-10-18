@@ -508,17 +508,17 @@ internal fun HubPermissionCard(
 ) {
     val tokens = LocalFoldOsTokens.current
     val tap = rememberHubPermissionTap(permission)
-    HubListCard(modifier = modifier, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    HubListCard(modifier = modifier, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(
                 imageVector = Icons.Rounded.Lock,
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
                 tint = tokens.onSurface.copy(alpha = 0.7f),
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(text = title, color = tokens.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(text = body, color = tokens.onSurface.copy(alpha = 0.7f), fontSize = 12.5.sp, lineHeight = 16.sp)
+                Text(text = body, color = tokens.onSurface.copy(alpha = 0.7f), fontSize = 12.5.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text(
                 text = if (tap.opensSettings) "Settings" else "Allow",
@@ -553,16 +553,16 @@ internal fun HubPermissionPanel(
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         HubListCard(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 28.dp),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(88.dp)
+                        .size(64.dp)
                         .clip(CircleShape)
                         .background(tokens.accent.copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center,
@@ -570,7 +570,7 @@ internal fun HubPermissionPanel(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        modifier = Modifier.size(46.dp),
+                        modifier = Modifier.size(34.dp),
                         tint = tokens.accent,
                     )
                 }
@@ -865,7 +865,7 @@ internal object HubIntents {
         start(context, Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(number))))
 
     fun message(context: Context, number: String) =
-        start(context, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(number))))
+        start(context, Intent(Intent.ACTION_SENDTO, Uri.parse("sms:" + Uri.encode(number))))
 
     fun email(context: Context, address: String) =
         start(context, Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + Uri.encode(address))))
@@ -874,6 +874,10 @@ internal object HubIntents {
 
     fun openContact(context: Context, contact: HubContact) =
         start(context, Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.getLookupUri(contact.id, contact.lookupKey)))
+
+    /** Opens the system calendar app at [millis] (footer link of the agenda). */
+    fun openCalendar(context: Context, millis: Long) =
+        start(context, Intent(Intent.ACTION_VIEW, Uri.parse("content://com.android.calendar/time/$millis")))
 
     fun newContact(context: Context) =
         start(context, Intent(Intent.ACTION_INSERT, ContactsContract.Contacts.CONTENT_URI))
@@ -910,3 +914,35 @@ internal object HubIntents {
 internal fun HubGap(height: Dp) {
     Spacer(Modifier.height(height))
 }
+
+/**
+ * 1.6.0 slim top bar of the fitted tabs (Calendar, Contacts): a 24sp title and trailing [actions], 48dp high
+ * (scaled with the font scale by the callers that budget heights).
+ */
+@Composable
+internal fun HubSlimBar(
+    title: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    val tokens = LocalFoldOsTokens.current
+    Row(
+        modifier = modifier.fillMaxWidth().height(HubSlimBarHeight),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = title,
+            color = tokens.onSurface,
+            fontSize = 24.sp,
+            lineHeight = 28.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f).padding(start = 4.dp).a11yHeading(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        actions()
+    }
+}
+
+internal val HubSlimBarHeight: Dp = 48.dp

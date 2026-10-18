@@ -4,6 +4,26 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.6.0] - 2026-10-18
+
+Hub tabs fit one screen (`versionCode` 160). Same signing key, no schema change. The Mail tab is untouched.
+
+### Changed
+- Today, AI, Calendar and Contacts no longer scroll: each fills the screen it is given (cover and inner) with as many rows as fit and drops the rest. Tabs keep the bottom tab bar; permission panels are compact.
+- Today: greeting with date and weather, a short briefing line ("2 events today, 25 missed calls, 9 emails need you"), a "Next up" hero card, Tasks and Schedule mini cards (tap Tasks to add one), and the top unread emails that fit. Inner screen: two columns.
+- AI: a grid of twelve compact quick actions (2 columns on the cover, 3 on the inner screen) above the pinned Ask bar. Tapping an action or sending text opens the conversation in a panel with a back arrow; the engine chip moved into the panel header. Actions: Summarize mail, Plan my day, Draft a reply, Read my mail, What's next?, Call back, Find a contact, Add event, Add task, Set a reminder, Focus 25 min, Directions.
+- Calendar: an agenda grouped by day (Today, Tomorrow, then the next days that have events), each event with time, title and duration; all-day events say "All day"; "Open calendar" appears when there is room. Inner screen: two columns.
+- Contacts: a Favorites row (up to 7; tap opens the contact, long-press opens the dialer) and a "Frequent" list with a call button (opens the dialer, never calls directly) and a message button (opens a text message) per person, plus a missed-call badge. The search field collapses to an icon when the screen is short. Inner screen: two columns.
+
+### Added
+- Settings > AI > "Quick actions": show, hide and reorder the AI tiles (`aiQuickActions`, included in backups; older backups restore all twelve).
+- `fitCount(availableHeight, rowHeight)` and the other pure fit helpers in `hub/HubFit.kt`.
+
+### Removed
+- Today's "Reach out" row and call-log card, the Calendar week strip, month grid, timeline and New event button, the Contacts A-Z list, scrubber and detail card, and the AI tab's suggested actions, "For you" card and "Try asking" chips.
+
+Not verified on a device (CI build only): see DIAGNOSIS.md, 1.6.0.
+
 ## [1.5.2] - 2026-10-18
 
 HTML mail fits the screen, images load by default, compact reader (`versionCode` 152). Same signing key, no schema change.

@@ -86,6 +86,8 @@ data class LauncherSettings(
     val mailLoadImages: Boolean = true,
     /** AI engine: [AI_MODE_TEMPLATE] (rule-based replies), [AI_MODE_ONDEVICE] (Gemini Nano) or [AI_MODE_OFF]. */
     val aiMode: String = AI_MODE_TEMPLATE,
+    /** Hub > AI tab quick actions (ids of [AI_QUICK_ACTION_IDS]), in display order; default all 12, old backups load as all. */
+    val aiQuickActions: List<String> = AI_QUICK_ACTION_IDS,
     /** Default folder style: [FOLDER_GRID], [FOLDER_LIST] or [FOLDER_BIG]; a `HomeItem.folderStyle` overrides it. */
     val folderStyle: String = FOLDER_GRID,
     /** Show notification previews on long-press of a badged app. */
@@ -255,6 +257,12 @@ data class LauncherSettings(
         const val BADGE_COUNT: String = "count"
         const val BADGE_DOT: String = "dot"
         const val BADGE_OFF: String = "off"
+
+        /** Every AI-tab quick action id, in default order (labels and behavior live in `ai/AiQuickActions.kt`). */
+        val AI_QUICK_ACTION_IDS: List<String> = listOf(
+            "summarize_mail", "plan_day", "draft_reply", "read_mail", "whats_next", "call_back",
+            "find_contact", "add_event", "add_task", "set_reminder", "focus_25", "directions",
+        )
 
         const val AI_MODE_TEMPLATE: String = "template"
         const val AI_MODE_ONDEVICE: String = "ondevice"
