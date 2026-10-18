@@ -4,6 +4,19 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.5.2] - 2026-10-18
+
+HTML mail fits the screen, images load by default, compact reader (`versionCode` 152). Same signing key, no schema change.
+
+### Fixed
+- Formatted emails were cut off on the right edge (fixed-width newsletter layouts, "Introducing Interactive Dashb"). The view now lays out at exactly the reader width: no wide viewport / overview mode, and the injected CSS makes fixed-width tables, cells, blocks and images fluid (max-width 100%, `width:auto` on tables and cells that carry a width), wraps long words and URLs, wraps `<pre>`, and never scrolls sideways.
+
+### Changed
+- Images in emails load automatically (https images and inline `data:` images; no proxy). New Settings > Mail > "Load images in emails" (default on, included in backups; older backups restore as on). Turn it off to get the old "Images are hidden" banner with a per-message "Load images" button. The view stays locked down: no scripts, and every other remote item (stylesheets, fonts, frames) is still blocked.
+- Reader: Reply, Reply all and Forward are one compact row of icon + label chips pinned at the bottom (at most 56 dp, never wraps); Mark unread moved to the overflow menu next to Open in Gmail and View as plain text. The sender block is compact (name, then address and date on one line when they fit) so more of the message is visible.
+
+Not verified on a device (CI build only).
+
 ## [1.5.1] - 2026-10-17
 
 Formatted mail and a themed app pop-up (`versionCode` 151). Same signing key, no schema change. Needs the server's `body_html`, `has_html` and `remote_content` fields.
