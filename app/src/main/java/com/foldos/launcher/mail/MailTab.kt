@@ -252,6 +252,7 @@ fun MailTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
                     accountEmail = accountEmail,
                     inner = inner,
                     offline = settings.noNetwork,
+                    loadImages = settings.mailLoadImages,
                     menuItems = menuItems,
                     onRefresh = { scope.launch { repo.refresh() } },
                     modifier = Modifier.weight(1f),
@@ -510,6 +511,7 @@ private fun MailInboxContent(
     accountEmail: String?,
     inner: Boolean,
     offline: Boolean,
+    loadImages: Boolean,
     menuItems: List<Pair<String, () -> Unit>>,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
@@ -631,7 +633,7 @@ private fun MailInboxContent(
                 onOpenInGmail = openInGmail,
                 onMarkedUnread = { if (!inner) selectedId = null },
                 onNewMessage = { fresh -> startDraft(fresh) },
-                loadImages = settings.mailLoadImages,
+                loadImages = loadImages,
                 modifier = paneModifier,
             )
             else -> FoldOsSurface(modifier = paneModifier) {
