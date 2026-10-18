@@ -473,3 +473,9 @@ wall1 / wall2, which the tokens do not carry.
 
 Not verified (CI build only, nothing run on a device): the live `body_html` shape from the server, vertical drag over the WebView inside the scrolling column, very tall newsletters
 (WebView texture limits), inversion on real newsletters, `mailto:` / `tel:` taps, and the pop-up contrast on every color scheme in light and dark (computed to be at least 4.5:1, not seen).
+
+# 1.5.2: HTML mail clipped on the right
+
+Phone report (cover screen, WorldQuant University newsletter): formatting rendered but text was cut at the right edge. Root cause: 1.5.1 set `useWideViewPort = true` and `loadWithOverviewMode = true`, which lays the page out at a wide virtual viewport (or the content's own width) instead of the view width; the Compose side does not clip (the reader column only pads 20 dp, and the WebView is `fillMaxWidth` inside that padding), and the nested-scroll interop gives the WebView no horizontal scroll, so anything wider than the view was simply unreachable. Fixed in `MailHtmlView.kt`: wide viewport and overview mode off (layout width = view width), and `wrapMailHtml` forces fluid layout (`max-width:100%` / `min-width:0` on everything, `width:auto` for tables, cells and blocks with width attributes or inline widths, `overflow-wrap:anywhere`, `img{height:auto}`, wrapping `pre`, `overflow-x:hidden`). The reader's action bar was a wrapping FlowRow of four buttons (about 25% of the pane); it is now one row of three chips, Mark unread in the overflow. Images now load by default (`LauncherSettings.mailLoadImages`).
+
+Not verified (no device, no JVM test setup in the project, so `wrapMailHtml` has no unit test): the CSS against real 600 px / 640 px nested-table newsletters, long URLs, wide images and `<pre>` was checked by reading, not by rendering.

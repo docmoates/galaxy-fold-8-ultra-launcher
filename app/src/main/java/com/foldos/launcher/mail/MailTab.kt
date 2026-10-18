@@ -631,6 +631,7 @@ private fun MailInboxContent(
                 onOpenInGmail = openInGmail,
                 onMarkedUnread = { if (!inner) selectedId = null },
                 onNewMessage = { fresh -> startDraft(fresh) },
+                loadImages = settings.mailLoadImages,
                 modifier = paneModifier,
             )
             else -> FoldOsSurface(modifier = paneModifier) {

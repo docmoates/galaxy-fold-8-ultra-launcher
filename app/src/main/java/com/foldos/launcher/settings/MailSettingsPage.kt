@@ -52,6 +52,7 @@ object MailSettingsRows {
     val gmailLink = SettingsRowInfo("Gmail link", "Link or unlink your Gmail (approved once in the browser; reconnect when asked to allow reading and sending)")
     val server = SettingsRowInfo("Server address", "Crosspoint server the Mail tab uses; default ${LauncherSettings.DEFAULT_MAIL_SETUP_URL}")
     val refresh = SettingsRowInfo("Refresh now", "Reload the 25 newest inbox messages")
+    val loadImages = SettingsRowInfo("Load images in emails", "Always show pictures in messages; turn off to hide them until you tap Load images")
     val mailTab = SettingsRowInfo("Mail tab in the hub", "Inbox list; list and reading pane on the inner screen")
     val gmailApp = SettingsRowInfo("Gmail app counts", "Unread counts per label from the Gmail app; no sign-in needed")
     val chooseAccount = SettingsRowInfo("Account for counts", "Pick the Google account the Gmail app counts come from")
@@ -62,7 +63,7 @@ object MailSettingsRows {
         title = "Mail",
         subtitle = "Crosspoint sign-in, Gmail link, server address, Gmail app counts",
         icon = Icons.Outlined.Mail,
-        rows = listOf(account, gmailLink, server, refresh, mailTab, gmailApp, chooseAccount, storage),
+        rows = listOf(account, gmailLink, server, refresh, loadImages, mailTab, gmailApp, chooseAccount, storage),
     )
 }
 
@@ -249,6 +250,11 @@ fun MailSettingsPage(
             info = MailSettingsRows.refresh,
             onClick = { scope.launch { repo.refresh() } },
             visible = signedIn,
+        )
+        ToggleRow(
+            info = MailSettingsRows.loadImages,
+            checked = settings.mailLoadImages,
+            onCheckedChange = { on -> update { it.copy(mailLoadImages = on) } },
         )
         ToggleRow(
             info = MailSettingsRows.mailTab,

@@ -30,7 +30,10 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Forward
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.Reply
+import androidx.compose.material.icons.automirrored.rounded.ReplyAll
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -67,6 +70,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -347,6 +351,7 @@ internal fun MailReaderPane(
     onMarkedUnread: () -> Unit,
     onNewMessage: (MailComposeState) -> Unit,
     modifier: Modifier = Modifier,
+    loadImages: Boolean = true,
 ) {
     val tokens = LocalFoldOsTokens.current
     val scope = rememberCoroutineScope()
@@ -389,6 +394,16 @@ internal fun MailReaderPane(
                                     },
                                 )
                             }
+                            if (detail != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Mark unread") },
+                                    onClick = {
+                                        menuOpen = false
+                                        scope.launch { repo.setRead(detail.id, false) }
+                                        onMarkedUnread()
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Open in Gmail") },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
@@ -420,33 +435,41 @@ internal fun MailReaderPane(
                             .fillMaxWidth()
                             .verticalScroll(scroll)
                             .padding(horizontal = 20.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
                             text = detail.subject,
                             color = tokens.onSurface,
-                            fontSize = 20.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Medium,
-                            lineHeight = 26.sp,
+                            lineHeight = 23.sp,
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            MailAvatar(name = displayName(detail.fromName, detail.fromEmail), size = 42.dp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            MailAvatar(name = displayName(detail.fromName, detail.fromEmail), size = 36.dp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = displayName(detail.fromName, detail.fromEmail),
                                     color = tokens.onSurface,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                if (detail.fromEmail.isNotBlank() && detail.fromEmail != detail.fromName) {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    if (detail.fromEmail.isNotBlank() && detail.fromEmail != detail.fromName) {
+                                        Text(
+                                            text = detail.fromEmail,
+                                            color = tokens.onSurface.copy(alpha = 0.75f),
+                                            fontSize = 12.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.widthIn(max = 320.dp),
+                                        )
+                                    }
                                     Text(
-                                        text = detail.fromEmail,
+                                        text = formatFullDate(detail.date),
                                         color = tokens.onSurface.copy(alpha = 0.75f),
-                                        fontSize = 13.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
+                                        fontSize = 12.5.sp,
                                     )
                                 }
                             }
@@ -454,11 +477,6 @@ internal fun MailReaderPane(
                                 Icon(Icons.Rounded.Star, contentDescription = "Starred", tint = tokens.accent, modifier = Modifier.size(22.dp))
                             }
                         }
-                        Text(
-                            text = formatFullDate(detail.date),
-                            color = tokens.onSurface.copy(alpha = 0.75f),
-                            fontSize = 13.sp,
-                        )
                         if (detail.to.isNotEmpty()) {
                             Text(
                                 text = "To: " + detail.to.joinToString(", ") { it.display },
@@ -514,7 +532,7 @@ internal fun MailReaderPane(
                         HorizontalDivider(color = tokens.surfaceBorder.copy(alpha = 0.7f))
                         val html = detail.bodyHtml
                         if (html != null && !plainMode) {
-                            if (detail.remoteContent && !imagesLoaded) {
+                            if (!loadImages && detail.remoteContent && !imagesLoaded) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -535,7 +553,7 @@ internal fun MailReaderPane(
                             }
                             MailHtmlView(
                                 html = html,
-                                allowImages = imagesLoaded,
+                                allowImages = loadImages || imagesLoaded,
                                 dark = tokens.isDark,
                                 fontScale = LocalDensity.current.fontScale,
                                 onMailto = { url -> onNewMessage(mailtoDraft(url)) },
@@ -574,33 +592,41 @@ internal fun MailReaderPane(
                         }
                     }
                     HorizontalDivider(color = tokens.surfaceBorder.copy(alpha = 0.7f))
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    // One compact row, never wraps: three equal-weight icon + label chips.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 56.dp).padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Button(
-                            onClick = { onReply(detail, false) },
-                            colors = ButtonDefaults.buttonColors(containerColor = tokens.accent, contentColor = tokens.onAccent),
-                        ) { Text("Reply") }
-                        OutlinedButton(onClick = { onReply(detail, true) }, colors = outlinedButtonColors(), border = outlineStroke()) {
-                            Text("Reply all")
-                        }
-                        OutlinedButton(onClick = { onForward(detail) }, colors = outlinedButtonColors(), border = outlineStroke()) {
-                            Text("Forward")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch { repo.setRead(detail.id, false) }
-                                onMarkedUnread()
-                            },
-                            colors = outlinedButtonColors(),
-                            border = outlineStroke(),
-                        ) { Text("Mark unread") }
+                        ActionChip("Reply", Icons.AutoMirrored.Rounded.Reply, primary = true, modifier = Modifier.weight(1f)) { onReply(detail, false) }
+                        ActionChip("Reply all", Icons.AutoMirrored.Rounded.ReplyAll, primary = false, modifier = Modifier.weight(1f)) { onReply(detail, true) }
+                        ActionChip("Forward", Icons.AutoMirrored.Rounded.Forward, primary = false, modifier = Modifier.weight(1f)) { onForward(detail) }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ActionChip(label: String, icon: ImageVector, primary: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val tokens = LocalFoldOsTokens.current
+    val shape = RoundedCornerShape(999.dp)
+    val fg = if (primary) tokens.onAccent else tokens.onSurface
+    Row(
+        modifier = modifier
+            .heightIn(min = 40.dp)
+            .clip(shape)
+            .background(if (primary) tokens.accent else Color.Transparent)
+            .then(if (primary) Modifier else Modifier.border(1.dp, tokens.surfaceBorder, shape))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text = label, color = fg, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

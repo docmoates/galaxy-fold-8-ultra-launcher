@@ -82,6 +82,8 @@ data class LauncherSettings(
      * "Server address" in Settings > Mail); null = [DEFAULT_MAIL_SETUP_URL].
      */
     val mailSetupUrl: String? = null,
+    /** Load https images in HTML emails automatically (default on since 1.5.2); off = banner and per-message Load images. */
+    val mailLoadImages: Boolean = true,
     /** AI engine: [AI_MODE_TEMPLATE] (rule-based replies), [AI_MODE_ONDEVICE] (Gemini Nano) or [AI_MODE_OFF]. */
     val aiMode: String = AI_MODE_TEMPLATE,
     /** Default folder style: [FOLDER_GRID], [FOLDER_LIST] or [FOLDER_BIG]; a `HomeItem.folderStyle` overrides it. */

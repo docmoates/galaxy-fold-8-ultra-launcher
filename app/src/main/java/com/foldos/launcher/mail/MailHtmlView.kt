@@ -30,7 +30,8 @@ import java.util.Locale
  * - Link taps never navigate the WebView: http(s) opens in the default browser, `mailto:` calls [onMailto] (a FoldOS
  *   compose draft), `tel:` opens the dialer (no call is placed), anything else is ignored.
  * - The view sizes itself to its content so it can live inside the reader's scrolling column; the nested-scroll
- *   interop hands vertical drags to that column, wide content scrolls sideways or is scaled to fit.
+ *   interop hands vertical drags to that column. Layout width is exactly the view width ([wrapMailHtml] forces
+ *   fixed-width tables, cells and images to be fluid), so nothing is clipped or scrolls sideways.
  * - The body is never logged. The WebView is destroyed when this leaves the composition.
  */
 @SuppressLint("SetJavaScriptEnabled")
@@ -52,7 +53,7 @@ internal fun MailHtmlView(
                 layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setBackgroundColor(AndroidColor.TRANSPARENT)
                 isVerticalScrollBarEnabled = false
-                isHorizontalScrollBarEnabled = true
+                isHorizontalScrollBarEnabled = false
                 overScrollMode = WebView.OVER_SCROLL_NEVER
                 isNestedScrollingEnabled = true
                 with(settings) {
@@ -70,8 +71,10 @@ internal fun MailHtmlView(
                     cacheMode = WebSettings.LOAD_NO_CACHE
                     // The CSS already carries the font size (system and launcher text size); do not scale twice.
                     textZoom = 100
-                    useWideViewPort = true
-                    loadWithOverviewMode = true
+                    // Lay out at exactly the view width and wrap; a wide viewport / overview mode made fixed-width
+                    // newsletters render wider than the view and get clipped on the right.
+                    useWideViewPort = false
+                    loadWithOverviewMode = false
                 }
                 webViewClient = MailWebViewClient(onMailto)
             }
@@ -157,7 +160,7 @@ internal fun mailtoDraft(url: String): MailComposeState {
 
 /**
  * The sanitized [html] inside a small document: viewport meta, images / tables / pre capped to the width, long words
- * wrap, system font at the app's text size, line height 1.5. Light appearance: dark text on a transparent
+ * wrap, fixed widths made fluid, system font at the app's text size, line height 1.5. Light appearance: dark text on a transparent
  * background. Dark appearance: the whole body is inverted (`invert(1) hue-rotate(180deg)`, which flips lightness and
  * keeps hues), images are inverted back, so dark-on-white newsletters become light-on-dark and dark-on-dark or
  * light-on-light never happens; the background stays transparent over the pane.
@@ -169,15 +172,21 @@ internal fun wrapMailHtml(html: String, dark: Boolean, fontScale: Float): String
     return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
         "<style>" +
-        "html,body{margin:0;padding:0;background:transparent}" +
-        "body{font-family:system-ui,-apple-system,Roboto,sans-serif;font-size:${px}px;line-height:1.5;color:#1a1a1a;" +
-        "word-wrap:break-word;overflow-wrap:anywhere}" +
-        "#w{padding:2px 0 8px}" +
-        "img{max-width:100%;height:auto}" +
-        "table{max-width:100%}" +
-        "pre{max-width:100%;white-space:pre-wrap;overflow:auto}" +
+        "*{box-sizing:border-box;max-width:100% !important;min-width:0 !important}" +
+        "html,body{margin:0;padding:0;width:100%;background:transparent;overflow-x:hidden;" +
+        "word-break:break-word;overflow-wrap:anywhere}" +
+        "body{font-family:system-ui,-apple-system,Roboto,sans-serif;font-size:${px}px;line-height:1.5;color:#1a1a1a}" +
+        "#w{padding:2px 0 8px;width:100%;overflow-x:hidden}" +
+        "table,tbody,thead,tfoot,tr,td,th{max-width:100% !important}" +
+        "table[width],td[width],th[width],table[style*=width],td[style*=width],th[style*=width]{width:auto !important}" +
+        "table{table-layout:auto;border-collapse:collapse}" +
+        "td,th{overflow-wrap:anywhere}" +
+        "div,p,center,section,article,span,font{max-width:100% !important}" +
+        "div[style*=width],center,section,article{width:auto !important}" +
+        "img{max-width:100% !important;height:auto !important}" +
+        "pre{white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:hidden}" +
         "blockquote{margin:.6em 0;padding-left:.8em;border-left:3px solid rgba(128,128,128,.5)}" +
-        "a{color:#0b57d0}" +
+        "a{color:#0b57d0;overflow-wrap:anywhere}" +
         darkCss +
         "</style></head><body><div id=\"w\">" + html + "</div></body></html>"
 }
