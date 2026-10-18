@@ -6,12 +6,12 @@ the README's "Not yet verified on a device" section.
 
 ## [1.5.1] - 2026-10-17
 
-Formatted mail and a themed app pop-up ( 151). Same signing key, no schema change. Needs the server's  /  /  fields.
+Formatted mail and a themed app pop-up (`versionCode` 151). Same signing key, no schema change. Needs the server's `body_html`, `has_html` and `remote_content` fields.
 
 ### Fixed
 - Emails that are HTML (newsletters, receipts) no longer look broken: the reader shows the formatted message (sanitized by the server) in a locked-down view: no scripts, no storage, no file access. Wide content scales to fit or scrolls sideways. Text follows the launcher text size and the light / dark appearance, so it is never dark-on-dark or light-on-light.
 - Images are hidden by default ("Images are hidden to protect your privacy"); "Load images" loads them for that message only and is not remembered. Tapped links open in the default browser, email links open a prefilled FoldOS message, phone links open the dialer without calling.
-- The reader overflow has "View as plain text" / "View formatted". Messages without HTML, and the plain view, keep paragraphs, make links tappable and show quoted  lines dimmer.
+- The reader overflow has "View as plain text" / "View formatted". Messages without HTML, and the plain view, keep paragraphs, make links tappable and show quoted `>` lines dimmer.
 
 ### Changed
 - The app pop-up and full-screen drawer (panel, search field, group chips, labels) now follow the theme color by default: a low-saturation, 94% opaque tint of your color scheme (any scheme, custom colors, Material You, light or dark), with the blur behind it kept. Text color is chosen to stay at 4.5:1 or better. Space black does not turn it black.
