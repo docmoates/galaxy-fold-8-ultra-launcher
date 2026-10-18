@@ -4,6 +4,17 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.6.1] - 2026-10-18
+
+AI grid fills the screen, Contacts lists everyone (`versionCode` 161). Same signing key; one settings flag added. Mail untouched.
+
+### Changed
+- AI: 18 quick actions instead of 12. New: Compose email, What's on tomorrow?, Message someone, Timer, Set an alarm, Open Gmail. The grid now fills the height above the Ask bar: leftover space first makes tiles taller (up to 1.25x), then widens the row gaps, so there is no empty band. Still no scrolling.
+- Settings > AI > Quick actions lists all 18. New installs show all 18; a saved list equal to the old 12-action default is upgraded to 18 once (`aiQuickActionsMigrated`); a customised list is left as it is (new actions appear unticked).
+- Contacts: "Frequent" is replaced by every contact, alphabetical with A-Z headers, inside the list box. Only the box scrolls (the tab does not); search filters it live (name, number) and works when collapsed to the icon; a letter scrubber on the right edge jumps by tap or drag. Inner screen: list on the left 55%, favorites as a column on the right. Rows keep avatar, name, missed-call badge, call and message buttons.
+
+Not verified on a device (CI build only): see DIAGNOSIS.md, 1.6.1.
+
 ## [1.6.0] - 2026-10-18
 
 Hub tabs fit one screen (`versionCode` 160). Same signing key, no schema change. The Mail tab is untouched.

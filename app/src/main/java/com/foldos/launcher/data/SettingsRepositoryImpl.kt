@@ -58,10 +58,17 @@ class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private fun decode(raw: String?): LauncherSettings {
         if (raw.isNullOrBlank()) return LauncherSettings()
         return try {
-            json.decodeFromString(LauncherSettings.serializer(), raw)
+            migrate(json.decodeFromString(LauncherSettings.serializer(), raw))
         } catch (e: Exception) {
             LauncherSettings()
         }
+    }
+
+    /** 1.6.1: a saved quick-action list equal to the old 12-id default becomes the 18-id default, once. */
+    private fun migrate(s: LauncherSettings): LauncherSettings {
+        if (s.aiQuickActionsMigrated) return s
+        val list = if (s.aiQuickActions == LauncherSettings.AI_QUICK_ACTION_IDS_V160) LauncherSettings.AI_QUICK_ACTION_IDS else s.aiQuickActions
+        return s.copy(aiQuickActions = list, aiQuickActionsMigrated = true)
     }
 
     companion object {

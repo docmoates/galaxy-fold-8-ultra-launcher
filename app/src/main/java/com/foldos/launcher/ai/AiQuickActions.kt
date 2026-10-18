@@ -13,6 +13,12 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.HourglassBottom
+import androidx.compose.material.icons.rounded.MarkEmailUnread
+import androidx.compose.material.icons.rounded.Sms
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.foldos.launcher.core.model.LauncherSettings
 
@@ -43,6 +49,12 @@ object AiQuickActions {
         AiQuickAction("set_reminder", "Set a reminder", Icons.Rounded.Notifications),
         AiQuickAction("focus_25", "Focus 25 min", Icons.Rounded.Timer),
         AiQuickAction("directions", "Directions", Icons.Rounded.DirectionsCar),
+        AiQuickAction("compose_email", "Compose email", Icons.Rounded.Edit),
+        AiQuickAction("whats_tomorrow", "What's on tomorrow?", Icons.Rounded.Today, "What's on tomorrow?"),
+        AiQuickAction("message_someone", "Message someone", Icons.Rounded.Sms),
+        AiQuickAction("timer", "Timer", Icons.Rounded.HourglassBottom),
+        AiQuickAction("set_alarm", "Set an alarm", Icons.Rounded.Alarm),
+        AiQuickAction("open_gmail", "Open Gmail", Icons.Rounded.MarkEmailUnread),
     )
 
     fun byId(id: String): AiQuickAction? = all.firstOrNull { it.id == id }

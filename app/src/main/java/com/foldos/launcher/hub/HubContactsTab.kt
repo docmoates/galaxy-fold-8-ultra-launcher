@@ -26,7 +26,25 @@ import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Text
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import com.foldos.launcher.theme.FoldOsSurface
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.ceil
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,15 +73,16 @@ import com.foldos.launcher.core.model.ScreenKind
 import com.foldos.launcher.core.repo.HubCall
 import com.foldos.launcher.core.repo.HubContact
 import com.foldos.launcher.theme.LocalFoldOsTokens
-import kotlinx.coroutines.flow.flowOf
+
 import java.time.LocalDate
 
 /**
- * The Hub's Contacts tab (1.6.0, "Quick-action rows"): a Favorites avatar row (up to 7 starred contacts;
- * tap opens the contact card, long-press opens the dialer) and a "Frequent" list of as many people as the
- * height holds, each with a call button (ACTION_DIAL, never a direct call) and a message button
- * (`sms:`). It never scrolls. The search field stays inline when the height allows it and otherwise
- * collapses to an icon in the top bar. The inner screen lists the people in two columns.
+ * The Hub's Contacts tab (1.6.1): the tab itself never scrolls. A Favorites row (up to 7 starred contacts; tap
+ * opens the contact card, long-press opens the dialer) sits above a rounded box that holds ALL contacts,
+ * alphabetical with A-Z section headers, a call button (ACTION_DIAL, never a direct call) and a message button
+ * (`sms:`) per row, and a letter scrubber on the right edge; only that list scrolls. Search filters the list live.
+ * The field stays inline when the height allows it and otherwise collapses to an icon. Inner screen: list on the
+ * left 55%, favorites as a column on the right.
  */
 @Composable
 internal fun HubContactsTab(
@@ -94,9 +113,6 @@ internal fun HubContactsTab(
     val contacts by remember(graph) { graph.hub.contacts() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val favorites by remember(graph) { graph.hub.favorites() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val missed by remember(graph) { graph.hub.missedCalls() }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val recent by remember(graph) {
-        (graph.hub as? FoldOsHubRepository)?.recentCalls(RECENT_CALLS_FOR_FREQUENCY) ?: flowOf(emptyList())
-    }.collectAsStateWithLifecycle(initialValue = emptyList())
     var query by rememberSaveable { mutableStateOf("") }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -105,13 +121,11 @@ internal fun HubContactsTab(
     val missedByKey = remember(missed, callsGranted) {
         if (!callsGranted) emptyMap<String, List<HubCall>>() else missed.groupBy { hubNumberKey(it.number) }.filterKeys { it.isNotEmpty() }
     }
-    val frequent = remember(contacts, favs, recent, query) {
-        if (query.isNotBlank()) {
-            filterContacts(contacts, query)
-        } else {
-            frequentContacts(contacts, favs.map { it.id }.toSet(), recent.map { it.number })
-        }
+    // Sorting, filtering and grouping ~1000 contacts runs off the main thread.
+    val entries by produceState(initialValue = emptyList<ContactEntry>(), contacts, query) {
+        value = withContext(Dispatchers.Default) { buildContactEntries(filterContacts(contacts, query)) }
     }
+    val peopleCount = remember(entries) { entries.count { it is ContactEntry.Person } }
 
     BoxWithConstraints(
         modifier = modifier
@@ -123,7 +137,6 @@ internal fun HubContactsTab(
         val barH = HubSlimBarHeight.scaledBy(fontScale)
         val searchH = 50.dp
         val kickerH = 22.dp.scaledBy(fontScale)
-        val rowH = ContactRowHeight.scaledBy(fontScale)
         // The field stays inline only when the tab is tall enough to keep a useful list beside it.
         val inlineSearch = maxHeight >= 680.dp
         val showSearch = inlineSearch || searchOpen || query.isNotEmpty()
@@ -132,16 +145,10 @@ internal fun HubContactsTab(
         val avatar = minOf(56.dp, slotWidth - 10.dp).coerceAtLeast(32.dp)
         val favRowH = avatar + 8.dp + 18.dp.scaledBy(fontScale)
 
-        var left = maxHeight - barH
+        var left = maxHeight - barH - gap
         if (showSearch) left -= searchH + gap
-        val showFavs = query.isBlank() && favs.isNotEmpty() && left >= kickerH + favRowH + gap + 60.dp
-        if (showFavs) left -= kickerH + favRowH + gap
-        // Kicker and list card (border) for the list.
-        val listRoom = left - gap - kickerH - 2.dp
-        val perColumn = fitCount(listRoom, rowH)
-        val columns = if (inner) 2 else 1
-        val shown = minOf(frequent.size, perColumn * columns)
-        val split = splitIntoColumns(shown, columns, perColumn)
+        // Cover: favorites row above the list, only while a useful list stays below it.
+        val showFavsRow = !inner && query.isBlank() && favs.isNotEmpty() && left >= kickerH + favRowH + gap + 220.dp
 
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(gap)) {
             HubSlimBar(title = "Contacts") {
@@ -168,7 +175,7 @@ internal fun HubContactsTab(
                     placeholder = if (contacts.isEmpty()) "Search contacts" else "Search ${contacts.size} contacts",
                 )
             }
-            if (showFavs) {
+            if (showFavsRow) {
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     HubKicker("Favorites", Modifier.height(kickerH))
                     Row(Modifier.fillMaxWidth()) {
@@ -178,45 +185,242 @@ internal fun HubContactsTab(
                     }
                 }
             }
-            if (frequent.isEmpty()) {
-                HubListCard(Modifier.fillMaxWidth()) {
-                    HubEmptyRow(if (query.isBlank()) "No contacts yet" else "No contacts match")
-                }
-            } else if (perColumn > 0) {
-                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    HubKicker(if (query.isBlank()) "Frequent" else "Results", Modifier.height(kickerH))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                        var start = 0
-                        split.forEachIndexed { column, count ->
-                            val slice = frequent.subList(start, start + count)
-                            start += count
-                            if (count > 0 || column == 0) {
-                                HubListCard(Modifier.weight(1f)) {
-                                    slice.forEachIndexed { index, contact ->
-                                        if (index > 0) HubRowDivider()
-                                        ContactQuickRow(
-                                            contact = contact,
-                                            missedCount = missedByKey[hubNumberKey(contact.phone.orEmpty())]?.size ?: 0,
-                                            height = rowH - 1.dp,
-                                            today = today,
-                                            lastMissed = missedByKey[hubNumberKey(contact.phone.orEmpty())]?.firstOrNull()?.time,
-                                        )
-                                    }
+            if (inner) {
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    ContactsListBox(
+                        entries = entries,
+                        peopleCount = peopleCount,
+                        hasQuery = query.isNotBlank(),
+                        missedByKey = missedByKey,
+                        today = today,
+                        modifier = Modifier.weight(if (favs.isEmpty()) 1f else 0.55f).fillMaxHeight(),
+                    )
+                    if (favs.isNotEmpty()) {
+                        Column(Modifier.weight(0.45f).fillMaxHeight()) {
+                            HubKicker("Favorites", Modifier.height(kickerH))
+                            HubListCard(Modifier.fillMaxWidth()) {
+                                favs.forEachIndexed { index, contact ->
+                                    if (index > 0) HubRowDivider()
+                                    FavoriteRow(contact)
                                 }
-                            } else {
-                                Box(Modifier.weight(1f))
                             }
                         }
                     }
+                }
+            } else {
+                ContactsListBox(
+                    entries = entries,
+                    peopleCount = peopleCount,
+                    hasQuery = query.isNotBlank(),
+                    missedByKey = missedByKey,
+                    today = today,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+/** One line of the all-contacts list: an alphabetic section header or a person. */
+internal sealed interface ContactEntry {
+    val key: String
+
+    data class Header(val letter: Char) : ContactEntry {
+        override val key: String get() = "h_$letter"
+    }
+
+    data class Person(val contact: HubContact) : ContactEntry {
+        override val key: String get() = "c_${contact.id}_${contact.lookupKey}"
+    }
+}
+
+/** Section letter of a display name: A-Z (diacritics folded to their base letter), everything else is '#'. */
+internal fun contactLetter(name: String): Char {
+    val first = name.trim().firstOrNull() ?: return '#'
+    val base = java.text.Normalizer.normalize(first.toString(), java.text.Normalizer.Form.NFD).firstOrNull() ?: first
+    val upper = base.uppercaseChar()
+    return if (upper in 'A'..'Z') upper else '#'
+}
+
+/** Alphabetical (case-insensitive) list of [contacts] with a [ContactEntry.Header] before each letter; '#' goes last. */
+internal fun buildContactEntries(contacts: List<HubContact>): List<ContactEntry> {
+    val sorted = contacts.sortedWith(
+        compareBy<HubContact> { contactLetter(it.name) == '#' }.thenBy { it.name.lowercase() },
+    )
+    val out = ArrayList<ContactEntry>(sorted.size + 28)
+    var current: Char? = null
+    for (contact in sorted) {
+        val letter = contactLetter(contact.name)
+        if (letter != current) {
+            out += ContactEntry.Header(letter)
+            current = letter
+        }
+        out += ContactEntry.Person(contact)
+    }
+    return out
+}
+
+/** The rounded list card: a LazyColumn of every contact with section headers, and the letter scrubber on the right. */
+@Composable
+private fun ContactsListBox(
+    entries: List<ContactEntry>,
+    peopleCount: Int,
+    hasQuery: Boolean,
+    missedByKey: Map<String, List<HubCall>>,
+    today: LocalDate,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = LocalFoldOsTokens.current
+    val fontScale = LocalDensity.current.fontScale
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val rowH = ContactRowHeight.scaledBy(fontScale)
+    val letters = remember(entries) { entries.mapNotNull { (it as? ContactEntry.Header)?.letter } }
+    val letterIndex = remember(entries) {
+        HashMap<Char, Int>().also { map -> entries.forEachIndexed { i, e -> if (e is ContactEntry.Header) map[e.letter] = i } }
+    }
+    // A new query starts at the top.
+    LaunchedEffect(hasQuery, peopleCount) { listState.scrollToItem(0) }
+
+    FoldOsSurface(modifier = modifier) {
+        if (entries.isEmpty()) {
+            HubEmptyRow(if (hasQuery) "No contacts match" else "No contacts yet")
+        } else {
+            Row(Modifier.fillMaxSize()) {
+                LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    items(entries, key = { it.key }, contentType = { if (it is ContactEntry.Header) 0 else 1 }) { entry ->
+                        when (entry) {
+                            is ContactEntry.Header -> Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(28.dp)
+                                    .background(tokens.onSurface.copy(alpha = 0.05f))
+                                    .padding(start = 16.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Text(
+                                    text = entry.letter.toString(),
+                                    color = tokens.accent,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            is ContactEntry.Person -> {
+                                val calls = missedByKey[hubNumberKey(entry.contact.phone.orEmpty())]
+                                ContactQuickRow(
+                                    contact = entry.contact,
+                                    missedCount = calls?.size ?: 0,
+                                    height = rowH,
+                                    today = today,
+                                    lastMissed = calls?.firstOrNull()?.time,
+                                )
+                            }
+                        }
+                    }
+                }
+                if (letters.size > 1) {
+                    LetterScrubber(
+                        letters = letters,
+                        onJump = { letter ->
+                            val index = letterIndex[letter]
+                            if (index != null) scope.launch { listState.scrollToItem(index) }
+                        },
+                    )
                 }
             }
         }
     }
 }
 
+/** Slim right-edge letter strip: tap or drag along it to jump to a section. Thins out the letters when short. */
+@Composable
+private fun LetterScrubber(letters: List<Char>, onJump: (Char) -> Unit) {
+    val tokens = LocalFoldOsTokens.current
+    var heightPx by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val perLetterPx = with(density) { 15.dp.toPx() }
+    val step = if (heightPx <= 0f) 1 else ceil(letters.size * perLetterPx / heightPx).toInt().coerceAtLeast(1)
+    val shown = remember(letters, step) { letters.filterIndexed { i, _ -> i % step == 0 } }
+    val jump by rememberUpdatedState(onJump)
+    Column(
+        modifier = Modifier
+            .width(26.dp)
+            .fillMaxHeight()
+            .onSizeChanged { heightPx = it.height.toFloat() }
+            .pointerInput(shown) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    fun at(y: Float) {
+                        if (shown.isEmpty() || size.height <= 0) return
+                        val i = (y / size.height * shown.size).toInt().coerceIn(0, shown.size - 1)
+                        jump(shown[i])
+                    }
+                    at(down.position.y)
+                    down.consume()
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (change.pressed) {
+                            at(change.position.y)
+                            change.consume()
+                        }
+                    } while (change.pressed)
+                }
+            }
+            .semantics { contentDescription = "Jump to letter" },
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        shown.forEach { letter ->
+            Text(
+                text = letter.toString(),
+                color = tokens.accent,
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+/** Favorite as a compact row (inner screen): tap opens the contact card, long-press opens the dialer. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FavoriteRow(contact: HubContact) {
+    val tokens = LocalFoldOsTokens.current
+    val context = LocalContext.current
+    val phone = contact.phone
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .semantics {
+                if (phone != null) customActions = listOf(CustomAccessibilityAction("Call ${contact.name}") { HubIntents.dial(context, phone); true })
+            }
+            .combinedClickable(
+                role = Role.Button,
+                onClick = { HubIntents.openContact(context, contact) },
+                onLongClick = { if (phone != null) HubIntents.dial(context, phone) },
+            )
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        HubAvatar(name = contact.name, photoUri = contact.photoUri, size = 38.dp)
+        Text(
+            text = contact.name,
+            color = tokens.onSurface,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+
 private const val MAX_FAVORITES = 7
 private const val FAVORITE_SLOTS = 7
-private const val RECENT_CALLS_FOR_FREQUENCY = 400
 private val ContactRowHeight: Dp = 60.dp
 
 /** Last nine digits of a phone number, enough to match "+1 512 555 0100" with "(512) 555-0100". */

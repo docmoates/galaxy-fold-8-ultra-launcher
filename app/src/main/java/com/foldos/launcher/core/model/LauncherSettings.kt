@@ -88,6 +88,8 @@ data class LauncherSettings(
     val aiMode: String = AI_MODE_TEMPLATE,
     /** Hub > AI tab quick actions (ids of [AI_QUICK_ACTION_IDS]), in display order; default all 12, old backups load as all. */
     val aiQuickActions: List<String> = AI_QUICK_ACTION_IDS,
+    /** 1.6.1: true once a saved list equal to the old 12-id default has been replaced by the 18-id default. */
+    val aiQuickActionsMigrated: Boolean = false,
     /** Default folder style: [FOLDER_GRID], [FOLDER_LIST] or [FOLDER_BIG]; a `HomeItem.folderStyle` overrides it. */
     val folderStyle: String = FOLDER_GRID,
     /** Show notification previews on long-press of a badged app. */
@@ -262,7 +264,11 @@ data class LauncherSettings(
         val AI_QUICK_ACTION_IDS: List<String> = listOf(
             "summarize_mail", "plan_day", "draft_reply", "read_mail", "whats_next", "call_back",
             "find_contact", "add_event", "add_task", "set_reminder", "focus_25", "directions",
+            "compose_email", "whats_tomorrow", "message_someone", "timer", "set_alarm", "open_gmail",
         )
+
+        /** The twelve ids that were the default up to 1.6.0 (used once to migrate saved lists to the 18-id default). */
+        val AI_QUICK_ACTION_IDS_V160: List<String> = AI_QUICK_ACTION_IDS.take(12)
 
         const val AI_MODE_TEMPLATE: String = "template"
         const val AI_MODE_ONDEVICE: String = "ondevice"

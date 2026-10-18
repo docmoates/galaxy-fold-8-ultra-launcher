@@ -144,7 +144,8 @@ private const val PENDING_REMINDER = "reminder"
 private const val PENDING_DIRECTIONS = "directions"
 
 private val QuickCellMinHeight: Dp = 46.dp
-private val QuickCellMaxHeight: Dp = 64.dp
+/** Tiles stretch to at most 1.25x the base height when rows are left over; the rest goes into the row gaps. */
+private const val QuickStretchMax = 1.25f
 private val QuickGap: Dp = 8.dp
 
 /**
@@ -261,6 +262,14 @@ fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = M
                 pending = PENDING_DIRECTIONS
                 AiConversation.note("Where to? Type a place or address below.")
             }
+            "compose_email" -> launchSafely(context, Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")))
+            "message_someone" -> launchSafely(context, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")))
+            "timer" -> launchSafely(context, Intent(android.provider.AlarmClock.ACTION_SET_TIMER))
+            "set_alarm" -> launchSafely(context, Intent(android.provider.AlarmClock.ACTION_SET_ALARM))
+            "open_gmail" -> {
+                val gmail = context.packageManager.getLaunchIntentForPackage("com.google.android.gm")
+                launchSafely(context, gmail ?: Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")))
+            }
             "focus_25" -> scope.launch {
                 runCatching { FocusTimerStore(context).start(FocusTimerStore.SESSION_MILLIS) }
                 panelOpen = true
@@ -340,6 +349,10 @@ fun AiTab(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = M
     }
 }
 
+private fun launchSafely(context: android.content.Context, intent: Intent) {
+    runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
 private fun nextHourMillis(): Long =
     LocalDateTime.now().withMinute(0).withSecond(0).withNano(0).plusHours(1)
         .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -374,8 +387,9 @@ private fun AiActionGrid(
         val rowsFit = fitCount(maxHeight, QuickCellMinHeight, QuickGap)
         val rows = minOf(ceil(actions.size / columns.toFloat()).toInt(), rowsFit)
         if (rows <= 0) return@BoxWithConstraints
-        val cellHeight = ((maxHeight - QuickGap * (rows - 1)) / rows).coerceIn(QuickCellMinHeight, QuickCellMaxHeight)
-        Column(verticalArrangement = Arrangement.spacedBy(QuickGap)) {
+        val cellHeight = ((maxHeight - QuickGap * (rows - 1)) / rows).coerceIn(QuickCellMinHeight, QuickCellMinHeight * QuickStretchMax)
+        val gap = if (rows > 1) ((maxHeight - cellHeight * rows) / (rows - 1)).coerceAtLeast(QuickGap) else QuickGap
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
             actions.take(rows * columns).chunked(columns).forEach { line ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QuickGap)) {
                     line.forEach { action ->
