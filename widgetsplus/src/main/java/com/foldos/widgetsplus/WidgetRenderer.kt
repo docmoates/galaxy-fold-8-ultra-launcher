@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.CalendarContract
 import android.provider.ContactsContract
@@ -31,10 +30,6 @@ object WidgetRenderer {
     const val ACTION_TAB: String = "com.foldos.widgetsplus.TAB"
     const val ACTION_REFRESH: String = "com.foldos.widgetsplus.REFRESH"
     const val EXTRA_TAB: String = "tab"
-
-    private const val HUB_PACKAGE = "com.foldos.launcher"
-    private const val HUB_ACTIVITY = "com.foldos.launcher.hub.HubActivity"
-    private const val HUB_TAB_EXTRA = "com.foldos.launcher.hub.TAB"
 
     private const val EVENT_ROWS = 8
     private const val TODAY_ROWS = 4
@@ -109,7 +104,7 @@ object WidgetRenderer {
                 else -> "${todays.size} events today."
             },
         )
-        views.setOnClickPendingIntent(R.id.today_brief, hubOr(context, widgetId * 10 + 1, "today", calendarApp()))
+        views.setOnClickPendingIntent(R.id.today_brief, activity(context, widgetId * 10 + 1, calendarApp()))
         val next = events.firstOrNull { !it.allDay } ?: events.firstOrNull()
         if (next == null) {
             views.setViewVisibility(R.id.next_card, View.GONE)
@@ -217,24 +212,30 @@ object WidgetRenderer {
     private fun drawMail(context: Context, views: RemoteViews, widgetId: Int, zone: ZoneId, area: Int) {
         views.setTextViewText(R.id.header_title, "Mail")
         views.setOnClickPendingIntent(R.id.mail_compose, activity(context, widgetId * 10 + 4, Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))))
-        val toHub = hubOr(context, widgetId * 10 + 5, "mail", mailApp())
-        views.setOnClickPendingIntent(R.id.mail_status, toHub)
+        val setup = activity(context, widgetId * 10 + 5, Intent(context, SetupActivity::class.java))
+        views.setOnClickPendingIntent(R.id.mail_status, setup)
         // Status card 70dp + gap, then as many 46dp rows as the widget leaves room for.
         val rows = ((area - 76) / ROW_DP).coerceIn(0, MAIL_ROWS)
-        val result = if (hubInstalled(context)) MailBridge.read(context, maxOf(rows, 1)) else MailResult.NotInstalled
         var messages: List<MailRow> = emptyList()
-        when (result) {
+        var gmail: String? = null
+        when (val result = MailService.inbox(context, maxOf(rows, 1))) {
             is MailResult.Connected -> {
                 views.setTextViewText(R.id.mail_status_title, if (result.unread == 1) "1 unread" else "${result.unread} unread")
-                views.setTextViewText(R.id.mail_status_sub, if (result.rows.isEmpty()) "Your inbox is empty." else "Tap to open Mail in FoldOS Hub")
+                views.setTextViewText(
+                    R.id.mail_status_sub,
+                    when {
+                        result.offline -> "Offline. Showing the last copy."
+                        result.rows.isEmpty() -> "Your inbox is empty."
+                        else -> result.gmail ?: "Tap a message to open it in Gmail"
+                    },
+                )
+                views.setOnClickPendingIntent(R.id.mail_status, activity(context, widgetId * 10 + 5, mailApp()))
                 messages = result.rows
+                gmail = result.gmail
             }
-            MailResult.NotInstalled -> status(views, "Mail needs FoldOS", "Install FoldOS to see your inbox here. Tap to open your mail app.")
-            MailResult.NoAccess -> status(views, "Mail is blocked", "Widgets + and FoldOS must come from the same build. Update both apps.")
-            MailResult.SignedOut -> status(views, "Sign in to Mail", "Open FoldOS Hub > Mail and sign in with your server account. Tap to open it.")
-            MailResult.NotLinked -> status(views, "Link Gmail", "Your server account is signed in but Gmail is not linked yet. Tap to finish in FoldOS Hub.")
+            MailResult.SignedOut -> status(views, "Sign in to see your mail", "Tap to open Widgets + and sign in with your account.")
+            MailResult.NotLinked -> status(views, "Link Gmail", "You are signed in, but Gmail is not linked yet. Tap to finish in Widgets +.")
             MailResult.NotConfigured -> status(views, "Mail is not set up", "The server has no mail set up yet.")
-            MailResult.Connecting -> status(views, "Mail is loading", "FoldOS is still contacting the server. Tap the title above to refresh.")
             is MailResult.Error -> status(views, "Mail is unavailable", result.message)
         }
         for (i in 0 until MAIL_ROWS) {
@@ -248,8 +249,15 @@ object WidgetRenderer {
             views.setTextViewText(rowId("ml_time_", i), mailTime(message.date, zone))
             views.setTextViewText(rowId("ml_title_", i), message.subject.ifBlank { "(No subject)" })
             views.setTextViewText(rowId("ml_sub_", i), listOf(message.sender, message.snippet).filter { it.isNotBlank() }.joinToString("  \u00B7  "))
-            views.setOnClickPendingIntent(row, toHub)
+            views.setOnClickPendingIntent(row, activity(context, widgetId * 100 + 90 + i, threadIntent(message.threadId, gmail)))
         }
+    }
+
+    /** A Gmail conversation link: the Gmail app opens it when it handles `mail.google.com`, otherwise the browser does. */
+    private fun threadIntent(threadId: String, account: String?): Intent {
+        val builder = Uri.parse("https://mail.google.com/mail/").buildUpon()
+        if (!account.isNullOrBlank()) builder.appendQueryParameter("authuser", account)
+        return Intent(Intent.ACTION_VIEW, Uri.parse(builder.build().toString() + "#all/" + Uri.encode(threadId)))
     }
 
     private fun status(views: RemoteViews, title: String, sub: String) {
@@ -270,14 +278,17 @@ object WidgetRenderer {
     }
 
     private fun drawAi(context: Context, views: RemoteViews, widgetId: Int, area: Int) {
-        views.setTextViewText(R.id.header_title, "AI")
-        val tiles = (area / TILE_DP).coerceIn(1, 4)
-        val ids = intArrayOf(R.id.ai_assist, R.id.ai_voice, R.id.ai_hub, R.id.ai_event)
+        views.setTextViewText(R.id.header_title, "Ask AI")
+        // The text box is a button: Android widgets cannot hold a typing field, so it opens the Ask sheet with the keyboard up.
+        views.setOnClickPendingIntent(R.id.ai_box, activity(context, widgetId * 10 + 6, AskActivity.intent(context, null)))
+        views.setOnClickPendingIntent(R.id.ai_box_send, activity(context, widgetId * 10 + 6, AskActivity.intent(context, null)))
+        val tiles = ((area - 74) / TILE_DP).coerceIn(0, 4)
+        val ids = intArrayOf(R.id.ai_next, R.id.ai_plan, R.id.ai_mail, R.id.ai_event)
         ids.forEachIndexed { i, id -> views.setViewVisibility(id, if (i < tiles) View.VISIBLE else View.GONE) }
-        views.setOnClickPendingIntent(R.id.ai_assist, activity(context, widgetId * 10 + 6, Intent(Intent.ACTION_ASSIST)))
-        views.setOnClickPendingIntent(R.id.ai_voice, activity(context, widgetId * 10 + 7, Intent(Intent.ACTION_VOICE_COMMAND)))
-        views.setOnClickPendingIntent(R.id.ai_hub, hubOr(context, widgetId * 10 + 8, "ai", Intent(Intent.ACTION_ASSIST)))
-        views.setOnClickPendingIntent(R.id.ai_event, activity(context, widgetId * 10 + 9, Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)))
+        views.setOnClickPendingIntent(R.id.ai_next, activity(context, widgetId * 10 + 7, AskActivity.intent(context, "What's next?")))
+        views.setOnClickPendingIntent(R.id.ai_plan, activity(context, widgetId * 10 + 8, AskActivity.intent(context, "Plan my day")))
+        views.setOnClickPendingIntent(R.id.ai_mail, activity(context, widgetId * 10 + 9, AskActivity.intent(context, "Summarize my mail")))
+        views.setOnClickPendingIntent(R.id.ai_event, activity(context, widgetId * 10 + 3, Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)))
     }
 
     // ---- Shared pieces -------------------------------------------------------------------------------
@@ -356,23 +367,6 @@ object WidgetRenderer {
             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, event.end)
             .putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, event.allDay)
         return activity(context, requestCode, intent)
-    }
-
-    /** Opens FoldOS Hub at [hubTab] when FoldOS is installed, otherwise the [fallback] system app. */
-    private fun hubOr(context: Context, requestCode: Int, hubTab: String, fallback: Intent): PendingIntent {
-        val intent = if (hubInstalled(context)) {
-            Intent().setClassName(HUB_PACKAGE, HUB_ACTIVITY).putExtra(HUB_TAB_EXTRA, hubTab)
-        } else {
-            fallback
-        }
-        return activity(context, requestCode, intent)
-    }
-
-    fun hubInstalled(context: Context): Boolean = try {
-        context.packageManager.getPackageInfo(HUB_PACKAGE, 0)
-        true
-    } catch (_: PackageManager.NameNotFoundException) {
-        false
     }
 
     private fun calendarApp(): Intent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR)

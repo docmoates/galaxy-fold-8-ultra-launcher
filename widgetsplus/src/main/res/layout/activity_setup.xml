@@ -22,14 +22,83 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="A full page for your home screen: Today, Calendar, Contacts, Mail and AI shortcuts in one resizable widget. Works with the One UI and Pixel launchers."
+            android:text="A full page for your home screen: Today, Calendar, Contacts, Mail and Ask AI in one resizable widget. Works with the One UI and Pixel launchers, and on its own: no other app needed."
             android:textSize="15sp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="1. Allow access"
+            android:text="1. Sign in for Mail"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/acct_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:id="@+id/signin_form"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <EditText
+                android:id="@+id/input_email"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Email (same account as FoldOS)"
+                android:importantForAutofill="yes"
+                android:autofillHints="emailAddress"
+                android:inputType="textEmailAddress" />
+
+            <EditText
+                android:id="@+id/input_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Password"
+                android:importantForAutofill="yes"
+                android:autofillHints="password"
+                android:inputType="textPassword" />
+
+            <EditText
+                android:id="@+id/input_server"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Server address (leave empty for the default)"
+                android:inputType="textUri" />
+
+            <Button
+                android:id="@+id/btn_signin"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Sign in" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_link"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Link Gmail"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btn_signout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Sign out"
+            android:visibility="gone" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="2. Allow access"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -53,12 +122,11 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Allow calendar and contacts" />
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="2. Add the widget"
+            android:text="3. Add the widget"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -75,28 +143,26 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Add widget to home screen" />
-
         <TextView
-            android:id="@+id/hub_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="3. Optional: FoldOS Hub"
+            android:text="Try Ask AI"
             android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/hub_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
+            android:text="Ask about your day, mail or contacts, or tell it to call someone or set a timer. It runs on this phone."
             android:textSize="14sp" />
 
         <Button
-            android:id="@+id/btn_hub"
+            android:id="@+id/btn_ask"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Open FoldOS Hub" />
+            android:text="Open Ask AI" />
     </LinearLayout>
 </ScrollView>

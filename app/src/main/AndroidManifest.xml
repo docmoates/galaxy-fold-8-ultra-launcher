@@ -13,12 +13,6 @@
         tools:ignore="ProtectedPermissions" />
     <!-- Built-in widgets: Calendar agenda (events), Photos (frame), Devices battery (Watch / Buds over
          Bluetooth). Each is requested at runtime from the widget's own "Allow ..." button. -->
-    <!-- Signature permission for the Widgets + app (same key) to read the Hub inbox through MailBridgeProvider.
-         Widgets + declares the same permission, so install order does not matter. -->
-    <permission
-        android:name="com.foldos.launcher.permission.MAIL_BRIDGE"
-        android:protectionLevel="signature" />
-
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <!-- Android 14 "Select photos": partial access is granted as this permission while
@@ -141,14 +135,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- The Hub inbox for the Widgets + app; read only, signature permission (see MailBridgeProvider). -->
-        <provider
-            android:name=".mail.MailBridgeProvider"
-            android:authorities="com.foldos.launcher.mailbridge"
-            android:exported="true"
-            android:readPermission="com.foldos.launcher.permission.MAIL_BRIDGE"
-            android:writePermission="com.foldos.launcher.permission.MAIL_BRIDGE" />
 
         <!-- Setup wizard re-run and the preset gallery (Settings > Quick setup); the first-run wizard
              itself is drawn inside MainActivity. -->

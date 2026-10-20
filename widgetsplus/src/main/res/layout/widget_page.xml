@@ -270,25 +270,25 @@
         </LinearLayout>
 
         <LinearLayout android:id="@+id/section_ai" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:visibility="gone">
-
-            <LinearLayout android:id="@+id/ai_assist" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:background="@drawable/card_bg" android:orientation="vertical" android:padding="14dp">
-                <TextView android:id="@+id/ai_assist_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Ask your assistant" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
-                <TextView android:id="@+id/ai_assist_sub" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Gemini, Bixby or your default assistant" android:textColor="@color/w_text2" android:textSize="12sp" />
+            <LinearLayout android:id="@+id/ai_box" android:layout_width="match_parent" android:layout_height="54dp" android:layout_marginBottom="10dp" android:background="@drawable/card_bg" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="8dp">
+                <TextView android:id="@+id/ai_box_hint" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:ellipsize="end" android:maxLines="1" android:text="Ask about your day, mail or contacts" android:textColor="@color/w_text2" android:textSize="15sp" />
+                <TextView android:id="@+id/ai_box_send" android:layout_width="wrap_content" android:layout_height="38dp" android:background="@drawable/pill_bg" android:gravity="center" android:paddingStart="16dp" android:paddingEnd="16dp" android:text="Ask" android:textColor="@color/w_text" android:textSize="14sp" android:textStyle="bold" />
             </LinearLayout>
-
-            <LinearLayout android:id="@+id/ai_voice" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:background="@drawable/card_bg" android:orientation="vertical" android:padding="14dp">
-                <TextView android:id="@+id/ai_voice_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Voice command" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
-                <TextView android:id="@+id/ai_voice_sub" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Speak a request" android:textColor="@color/w_text2" android:textSize="12sp" />
+            <LinearLayout android:id="@+id/ai_next" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:background="@drawable/card_bg" android:orientation="vertical" android:padding="14dp">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="What's next?" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Your next event and when it starts" android:textColor="@color/w_text2" android:textSize="12sp" />
             </LinearLayout>
-
-            <LinearLayout android:id="@+id/ai_hub" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:background="@drawable/card_bg" android:orientation="vertical" android:padding="14dp">
-                <TextView android:id="@+id/ai_hub_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="FoldOS AI" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
-                <TextView android:id="@+id/ai_hub_sub" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Quick actions in the Hub" android:textColor="@color/w_text2" android:textSize="12sp" />
+            <LinearLayout android:id="@+id/ai_plan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:background="@drawable/card_bg" android:orientation="vertical" android:padding="14dp">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Plan my day" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Events, unread mail and what is next" android:textColor="@color/w_text2" android:textSize="12sp" />
             </LinearLayout>
-
+            <LinearLayout android:id="@+id/ai_mail" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:background="@drawable/card_bg" android:orientation="vertical" android:padding="14dp">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Summarize my mail" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Your newest unread messages" android:textColor="@color/w_text2" android:textSize="12sp" />
+            </LinearLayout>
             <LinearLayout android:id="@+id/ai_event" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:background="@drawable/card_bg" android:orientation="vertical" android:padding="14dp">
-                <TextView android:id="@+id/ai_event_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="New calendar event" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
-                <TextView android:id="@+id/ai_event_sub" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Add something to your day" android:textColor="@color/w_text2" android:textSize="12sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="New calendar event" android:textColor="@color/w_text" android:textSize="16sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="Add something to your day" android:textColor="@color/w_text2" android:textSize="12sp" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>

@@ -2,14 +2,8 @@ package com.foldos.widgetsplus
 
 import android.content.Context
 
-/** The tabs of the widget page, in tab-bar order. [hubTab] is the FoldOS Hub tab id a tap on the tab's content opens. */
-enum class PageTab(val hubTab: String?) {
-    TODAY("today"),
-    CALENDAR("cal"),
-    CONTACTS("people"),
-    MAIL("mail"),
-    AI("ai"),
-}
+/** The tabs of the widget page, in tab-bar order. */
+enum class PageTab { TODAY, CALENDAR, CONTACTS, MAIL, AI }
 
 /** Which tab each widget instance shows, kept in SharedPreferences. */
 object WidgetPrefs {

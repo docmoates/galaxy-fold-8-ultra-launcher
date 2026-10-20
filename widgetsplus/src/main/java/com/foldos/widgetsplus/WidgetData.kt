@@ -117,6 +117,41 @@ object WidgetData {
         return out
     }
 
+    /** Contacts with a phone number whose name matches [query], best matches first, at most [limit]. */
+    fun findContacts(context: Context, query: String, limit: Int = 3): List<ContactItem> {
+        if (!hasContacts(context) || query.isBlank()) return emptyList()
+        val seen = HashSet<Long>()
+        val out = ArrayList<ContactItem>()
+        runCatching {
+            val uri = Uri.withAppendedPath(ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI, Uri.encode(query.trim()))
+            context.contentResolver.query(
+                uri,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                    ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY,
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ),
+                null,
+                null,
+                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} COLLATE LOCALIZED ASC",
+            )?.use { cursor ->
+                while (cursor.moveToNext() && out.size < limit) {
+                    val id = cursor.getLong(0)
+                    val lookup = cursor.getString(1) ?: continue
+                    val number = cursor.getString(3) ?: continue
+                    if (!seen.add(id)) continue
+                    out += ContactItem(
+                        name = cursor.getString(2)?.takeIf { it.isNotBlank() } ?: number,
+                        number = number,
+                        lookupUri = ContactsContract.Contacts.getLookupUri(id, lookup),
+                    )
+                }
+            }
+        }
+        return out
+    }
+
     private fun startOfTodayUtcAligned(now: Long): Long {
         // Local midnight expressed in UTC wall-clock terms, matching how all-day events are stored.
         val localDate = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()

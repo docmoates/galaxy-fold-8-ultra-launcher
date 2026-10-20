@@ -15,8 +15,8 @@ android {
         applicationId = "com.foldos.widgetsplus"
         minSdk = 34
         targetSdk = 35
-        versionCode = 110
-        versionName = "1.1.0"
+        versionCode = 120
+        versionName = "1.2.0"
     }
 
     signingConfigs {
@@ -60,4 +60,6 @@ kotlin {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // Encrypted storage for the server sign-in token (same library FoldOS uses).
+    implementation(libs.androidx.security.crypto)
 }

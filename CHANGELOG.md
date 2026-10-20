@@ -4,6 +4,15 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.7.3] - 2026-10-20
+
+Removes the mail bridge again (`versionCode` 173). Same signing key, no schema change.
+
+### Removed
+- `MailBridgeProvider` and the `com.foldos.launcher.permission.MAIL_BRIDGE` permission, added in 1.7.2. Widgets + now signs in to the Crosspoint server by itself, so it no longer needs anything from FoldOS. The Hub tab deep link (`com.foldos.launcher.hub.TAB`, 1.7.1) stays.
+
+Not verified on a device (CI build only).
+
 ## [1.7.2] - 2026-10-20
 
 Mail bridge for Widgets + (`versionCode` 172). Same signing key, no schema change.

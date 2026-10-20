@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sign-in token and cached inbox never leave the phone through a backup. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="widgetsplus_auth.xml" />
+    <exclude domain="sharedpref" path="widgetsplus_auth_plain.xml" />
+</full-backup-content>
