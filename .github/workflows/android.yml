@@ -44,6 +44,13 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
+      - name: Upload Widgets + debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: widgetsplus-debug-apk
+          path: widgetsplus/build/outputs/apk/debug/widgetsplus-debug.apk
+          if-no-files-found: error
+
   release:
     name: Assemble release APK
     runs-on: ubuntu-latest
@@ -107,6 +114,13 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
+      - name: Upload Widgets + release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: widgetsplus-release-apk
+          path: widgetsplus/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -124,4 +138,7 @@ jobs:
             flags="--prerelease"
             notes="$notes This APK is signed with the committed project key (no private release keystore configured); it updates other builds signed with the same key in place."
           fi
-          gh release create "$TAG" "$asset" --title "FoldOS ${TAG}" --notes "$notes" $flags
+          widgets=$(ls widgetsplus/build/outputs/apk/release/*.apk | head -n 1)
+          widgets_asset="$RUNNER_TEMP/WidgetsPlus-${TAG}.apk"
+          cp "$widgets" "$widgets_asset"
+          gh release create "$TAG" "$asset" "$widgets_asset" --title "FoldOS ${TAG}" --notes "$notes" $flags

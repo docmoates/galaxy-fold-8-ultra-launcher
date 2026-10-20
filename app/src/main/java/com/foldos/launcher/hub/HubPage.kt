@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -96,11 +97,17 @@ fun HubPage(
     settings: LauncherSettings,
     modifier: Modifier = Modifier,
     standalone: Boolean = false,
+    initialTab: String? = null,
+    tabRequestKey: Int = 0,
 ) {
     val tabs = remember(settings.hubTabs, standalone) {
         if (standalone) HubTab.standalone(settings) else HubTab.enabled(settings)
     }
-    var selectedId by rememberSaveable { mutableStateOf(tabs.first().id) }
+    var selectedId by rememberSaveable { mutableStateOf(initialTab?.takeIf { id -> tabs.any { it.id == id } } ?: tabs.first().id) }
+    // A tab asked for while the page is already open (a widget tap on the running Hub app).
+    LaunchedEffect(initialTab, tabRequestKey) {
+        if (initialTab != null && tabs.any { it.id == initialTab }) selectedId = initialTab
+    }
     val selected = tabs.firstOrNull { it.id == selectedId } ?: tabs.first()
     val barOnTop = settings.hubBar == LauncherSettings.HUB_BAR_TOP
     val inner = screen != ScreenKind.COVER

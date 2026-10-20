@@ -125,6 +125,7 @@
         <activity
             android:name=".hub.HubActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/hub_app_name"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|uiMode|density"

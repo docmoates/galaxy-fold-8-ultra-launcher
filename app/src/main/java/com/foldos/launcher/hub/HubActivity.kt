@@ -2,6 +2,7 @@ package com.foldos.launcher.hub
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -39,8 +42,15 @@ import com.foldos.launcher.theme.isDarkAppearance
  */
 class HubActivity : ComponentActivity() {
 
+    /** Tab the intent asked for ([EXTRA_TAB]); updated by [onNewIntent] while the activity is open. */
+    private val requestedTab = mutableStateOf<String?>(null)
+
+    /** Bumped on every new intent so a repeated request for the same tab still switches to it. */
+    private val requestCount = mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedTab.value = intent?.getStringExtra(EXTRA_TAB)
         enableLauncherEdgeToEdge()
         val graph = FoldOsApplication.from(this).graph
         setContent {
@@ -75,7 +85,7 @@ class HubActivity : ComponentActivity() {
                                     .background(LocalFoldOsTokens.current.wallpaper)
                                     .systemBarsPadding(),
                             ) {
-                                HubPage(screen = screen, settings = settings, standalone = true)
+                                HubPage(screen = screen, settings = settings, standalone = true, initialTab = requestedTab.value, tabRequestKey = requestCount.intValue)
                             }
                         }
                     }
@@ -84,8 +94,21 @@ class HubActivity : ComponentActivity() {
         }
     }
 
-    private companion object {
-        const val TAG = "HubActivity"
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        requestedTab.value = intent.getStringExtra(EXTRA_TAB)
+        requestCount.intValue++
+    }
+
+    companion object {
+        private const val TAG = "HubActivity"
+
+        /**
+         * Optional extra: the [HubTab] id to open ("launch", "today", "ai", "mail", "cal" or "people").
+         * Used by the Widgets + home-screen widget so a tap lands on the matching tab.
+         */
+        const val EXTRA_TAB: String = "com.foldos.launcher.hub.TAB"
     }
 }
 

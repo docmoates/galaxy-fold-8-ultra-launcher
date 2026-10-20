@@ -4,6 +4,18 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.7.1] - 2026-10-20
+
+Hub opens at a requested tab (`versionCode` 171). Same signing key, no schema change.
+
+### Added
+- FoldOS Hub (`HubActivity`) accepts the extra `com.foldos.launcher.hub.TAB` ("launch", "today", "ai", "mail", "cal" or "people") and opens on that tab, also when it is already running (`launchMode="singleTop"`). The new **Widgets +** app uses it for its Mail and AI tiles.
+
+### Monorepo
+- The repository now holds two Android apps in one Gradle build: `:app` (FoldOS) and `:widgetsplus` (Widgets +, a home-screen widget for the One UI and Pixel launchers). See `widgetsplus/README.md`.
+
+Not verified on a device (CI build only).
+
 ## [1.7.0] - 2026-10-20
 
 Hub Launch tab and a standalone "FoldOS Hub" app, for people who keep the Pixel or One UI launcher as their home screen (`versionCode` 170). Same signing key, no schema change; one value (`launch`) is now allowed in `hubTabs` (off by default).

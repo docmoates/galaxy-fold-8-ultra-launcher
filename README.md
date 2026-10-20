@@ -20,6 +20,15 @@ accessibility options, backup and restore, and a full settings app.
 > Status: nothing in this repository has been run on a device yet. GitHub Actions is the only
 > thing that has compiled it. See [Not yet verified on a device](#not-yet-verified-on-a-device).
 
+## Monorepo
+
+| Module | App | What it is |
+|---|---|---|
+| `app/` | FoldOS (`com.foldos.launcher`) | The launcher and the Hub (this README) |
+| `widgetsplus/` | Widgets + (`com.foldos.widgetsplus`) | One resizable home-screen widget with Today, Calendar, Contacts, Mail and AI tabs, for people who keep the One UI or Pixel launcher. See [widgetsplus/README.md](widgetsplus/README.md) |
+
+Both build with `./gradlew assembleDebug` and share one signing key. CI uploads `foldos-debug-apk` and `widgetsplus-debug-apk`.
+
 ## Screenshots
 
 There are no device screenshots yet. The interactive mock-up is the reference for how every screen
