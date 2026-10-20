@@ -5,6 +5,13 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- Reads the FoldOS Hub inbox through its MailBridgeProvider. Same signature permission as FoldOS declares;
+         granted because both apps are signed with the same key. Declared here too so install order does not matter. -->
+    <permission
+        android:name="com.foldos.launcher.permission.MAIL_BRIDGE"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.foldos.launcher.permission.MAIL_BRIDGE" />
+
     <!-- Lets the setup screen see whether FoldOS (its Hub app) is installed. -->
     <queries>
         <package android:name="com.foldos.launcher" />

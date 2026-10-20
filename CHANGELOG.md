@@ -4,6 +4,15 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.7.2] - 2026-10-20
+
+Mail bridge for Widgets + (`versionCode` 172). Same signing key, no schema change.
+
+### Added
+- `MailBridgeProvider` (`content://com.foldos.launcher.mailbridge/inbox`): a read only content provider that returns the Hub inbox (unread count and the newest messages) to the Widgets + app, so the widget's Mail tab uses the Crosspoint server sign in made in Hub > Mail. It is protected by the signature permission `com.foldos.launcher.permission.MAIL_BRIDGE`, so only apps signed with the same key can read it. The server token never leaves FoldOS; message bodies are not shared.
+
+Not verified on a device (CI build only).
+
 ## [1.7.1] - 2026-10-20
 
 Hub opens at a requested tab (`versionCode` 171). Same signing key, no schema change.

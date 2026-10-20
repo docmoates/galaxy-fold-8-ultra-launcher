@@ -58,9 +58,9 @@ class SetupActivity : Activity() {
         allow.visibility = if (calendar && contacts) View.GONE else View.VISIBLE
         val hub = WidgetRenderer.hubInstalled(this)
         hubStatus.text = if (hub) {
-            "FoldOS is installed. The widget's Mail and AI tiles open the matching Hub tab."
+            "FoldOS is installed. The widget's Mail tab shows your Hub inbox (sign in once under FoldOS Hub > Mail), and its Mail and AI shortcuts open the matching Hub tab."
         } else {
-            "FoldOS is not installed. The widget uses your default calendar, mail and assistant apps instead."
+            "FoldOS is not installed. The Mail tab needs it to show your inbox; the other shortcuts use your default calendar, mail and assistant apps."
         }
         hubButton.visibility = if (hub) View.VISIBLE else View.GONE
     }

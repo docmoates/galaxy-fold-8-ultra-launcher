@@ -41,6 +41,7 @@ object WidgetRenderer {
     private const val CONTACT_ROWS = 8
     private const val ROW_DP = 46
     private const val TILE_DP = 72
+    private const val MAIL_ROWS = 6
 
     private val tabViewIds = intArrayOf(R.id.tab_today, R.id.tab_calendar, R.id.tab_contacts, R.id.tab_mail, R.id.tab_ai)
     private val sectionIds = intArrayOf(R.id.section_today, R.id.section_calendar, R.id.section_contacts, R.id.section_mail, R.id.section_ai)
@@ -84,7 +85,7 @@ object WidgetRenderer {
             PageTab.TODAY -> drawToday(context, views, widgetId, zone, today, area)
             PageTab.CALENDAR -> drawCalendar(context, views, widgetId, zone, today, area)
             PageTab.CONTACTS -> drawContacts(context, views, widgetId, area)
-            PageTab.MAIL -> drawMail(context, views, widgetId, area)
+            PageTab.MAIL -> drawMail(context, views, widgetId, zone, area)
             PageTab.AI -> drawAi(context, views, widgetId, area)
         }
         return views
@@ -213,14 +214,59 @@ object WidgetRenderer {
 
     // ---- Mail and AI ---------------------------------------------------------------------------------
 
-    private fun drawMail(context: Context, views: RemoteViews, widgetId: Int, area: Int) {
+    private fun drawMail(context: Context, views: RemoteViews, widgetId: Int, zone: ZoneId, area: Int) {
         views.setTextViewText(R.id.header_title, "Mail")
-        val tiles = (area / TILE_DP).coerceIn(1, 3)
-        val ids = intArrayOf(R.id.mail_open, R.id.mail_compose, R.id.mail_hub)
-        ids.forEachIndexed { i, id -> views.setViewVisibility(id, if (i < tiles) View.VISIBLE else View.GONE) }
-        views.setOnClickPendingIntent(R.id.mail_open, activity(context, widgetId * 10 + 3, mailApp()))
         views.setOnClickPendingIntent(R.id.mail_compose, activity(context, widgetId * 10 + 4, Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))))
-        views.setOnClickPendingIntent(R.id.mail_hub, hubOr(context, widgetId * 10 + 5, "mail", mailApp()))
+        val toHub = hubOr(context, widgetId * 10 + 5, "mail", mailApp())
+        views.setOnClickPendingIntent(R.id.mail_status, toHub)
+        // Status card 70dp + gap, then as many 46dp rows as the widget leaves room for.
+        val rows = ((area - 76) / ROW_DP).coerceIn(0, MAIL_ROWS)
+        val result = if (hubInstalled(context)) MailBridge.read(context, maxOf(rows, 1)) else MailResult.NotInstalled
+        var messages: List<MailRow> = emptyList()
+        when (result) {
+            is MailResult.Connected -> {
+                views.setTextViewText(R.id.mail_status_title, if (result.unread == 1) "1 unread" else "${result.unread} unread")
+                views.setTextViewText(R.id.mail_status_sub, if (result.rows.isEmpty()) "Your inbox is empty." else "Tap to open Mail in FoldOS Hub")
+                messages = result.rows
+            }
+            MailResult.NotInstalled -> status(views, "Mail needs FoldOS", "Install FoldOS to see your inbox here. Tap to open your mail app.")
+            MailResult.NoAccess -> status(views, "Mail is blocked", "Widgets + and FoldOS must come from the same build. Update both apps.")
+            MailResult.SignedOut -> status(views, "Sign in to Mail", "Open FoldOS Hub > Mail and sign in with your server account. Tap to open it.")
+            MailResult.NotLinked -> status(views, "Link Gmail", "Your server account is signed in but Gmail is not linked yet. Tap to finish in FoldOS Hub.")
+            MailResult.NotConfigured -> status(views, "Mail is not set up", "The server has no mail set up yet.")
+            MailResult.Connecting -> status(views, "Mail is loading", "FoldOS is still contacting the server. Tap the title above to refresh.")
+            is MailResult.Error -> status(views, "Mail is unavailable", result.message)
+        }
+        for (i in 0 until MAIL_ROWS) {
+            val row = rowId("ml_row_", i)
+            val message = messages.getOrNull(i)?.takeIf { i < rows }
+            if (message == null) {
+                views.setViewVisibility(row, View.GONE)
+                continue
+            }
+            views.setViewVisibility(row, View.VISIBLE)
+            views.setTextViewText(rowId("ml_time_", i), mailTime(message.date, zone))
+            views.setTextViewText(rowId("ml_title_", i), message.subject.ifBlank { "(No subject)" })
+            views.setTextViewText(rowId("ml_sub_", i), listOf(message.sender, message.snippet).filter { it.isNotBlank() }.joinToString("  \u00B7  "))
+            views.setOnClickPendingIntent(row, toHub)
+        }
+    }
+
+    private fun status(views: RemoteViews, title: String, sub: String) {
+        views.setTextViewText(R.id.mail_status_title, title)
+        views.setTextViewText(R.id.mail_status_sub, sub)
+    }
+
+    /** "9:30 AM" for today, "Tue" within a week, "Oct 3" before that. */
+    private fun mailTime(millis: Long, zone: ZoneId): String {
+        val moment = Instant.ofEpochMilli(millis).atZone(zone)
+        val day = moment.toLocalDate()
+        val today = LocalDate.now(zone)
+        return when {
+            day == today -> moment.toLocalTime().format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+            day.isAfter(today.minusDays(7)) -> day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            else -> day.format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+        }
     }
 
     private fun drawAi(context: Context, views: RemoteViews, widgetId: Int, area: Int) {
