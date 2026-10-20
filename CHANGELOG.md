@@ -4,6 +4,18 @@ All notable changes to FoldOS. Versions follow `versionName` in `app/build.gradl
 commit dates (all work so far landed on 2026-10-16). Nothing below has been run on a device yet; see
 the README's "Not yet verified on a device" section.
 
+## [1.7.0] - 2026-10-20
+
+Hub Launch tab and a standalone "FoldOS Hub" app, for people who keep the Pixel or One UI launcher as their home screen (`versionCode` 170). Same signing key, no schema change; one value (`launch`) is now allowed in `hubTabs` (off by default).
+
+### Added
+- Launch tab: a search field, a Pinned row and a Recent row (each shown only while the height leaves room), and a rounded box with every app that is the only part that scrolls. Tap launches an app; long-press offers Pin / Unpin and App info. The search key launches the first match; a query with no match offers a web search. Inner screen: apps on the left 55%, Pinned and Recent as lists on the right. A settings button in the top bar opens FoldOS settings.
+- "FoldOS Hub" app (`HubActivity`) with its own launcher icon. It opens the Hub with Launch first, then Today and the other enabled tabs, whether or not the Hub is on in Settings, and does not need FoldOS to be the home app.
+- Settings > Hub: "Launch tab" (adds the tab to the Hub beside home) and "Show Hub app icon" (hides or shows the FoldOS Hub icon).
+- The Hub tab bar narrows its pills when six tabs are shown on the cover screen.
+
+Not verified on a device (CI build only).
+
 ## [1.6.1] - 2026-10-18
 
 AI grid fills the screen, Contacts lists everyone (`versionCode` 161). Same signing key; one settings flag added. Mail untouched.

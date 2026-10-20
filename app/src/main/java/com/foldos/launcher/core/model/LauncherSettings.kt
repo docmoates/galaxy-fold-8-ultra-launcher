@@ -37,7 +37,7 @@ data class LauncherSettings(
     val hubPos: String = HUB_POS_LEFT,
     /** "bottom" or "top". */
     val hubBar: String = HUB_BAR_BOTTOM,
-    /** Enabled hub tabs besides Today: subset of [HUB_TAB_AI], [HUB_TAB_MAIL], [HUB_TAB_CAL], [HUB_TAB_PEOPLE]. */
+    /** Enabled hub tabs besides Today: subset of [HUB_TAB_AI], [HUB_TAB_MAIL], [HUB_TAB_CAL], [HUB_TAB_PEOPLE], [HUB_TAB_LAUNCH] (off by default). */
     val hubTabs: Set<String> = setOf(HUB_TAB_AI, HUB_TAB_MAIL, HUB_TAB_CAL, HUB_TAB_PEOPLE),
     val colors: ColorSchemeConfig = ColorSchemeConfig(),
     /** Widget picker grouping: "category", "app" or "recent". */
@@ -199,6 +199,7 @@ data class LauncherSettings(
         const val HUB_TAB_MAIL: String = "mail"
         const val HUB_TAB_CAL: String = "cal"
         const val HUB_TAB_PEOPLE: String = "people"
+        const val HUB_TAB_LAUNCH: String = "launch"
 
         const val WP_GROUP_CATEGORY: String = "category"
         const val WP_GROUP_APP: String = "app"

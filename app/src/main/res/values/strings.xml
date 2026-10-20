@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FoldOS</string>
+    <string name="hub_app_name">FoldOS Hub</string>
     <string name="settings_title">FoldOS settings</string>
 </resources>

@@ -120,6 +120,21 @@
             </intent-filter>
         </activity>
 
+        <!-- "FoldOS Hub": the Hub page (Launch tab first) as a normal app for people whose home screen is the
+             Pixel / One UI launcher. Settings > Hub > "Show Hub app icon" toggles this component's enabled state. -->
+        <activity
+            android:name=".hub.HubActivity"
+            android:exported="true"
+            android:label="@string/hub_app_name"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|uiMode|density"
+            android:theme="@style/Theme.FoldOS">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- Setup wizard re-run and the preset gallery (Settings > Quick setup); the first-run wizard
              itself is drawn inside MainActivity. -->
         <activity

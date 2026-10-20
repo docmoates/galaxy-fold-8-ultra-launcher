@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Mail
@@ -59,7 +60,8 @@ enum class HubTab(val id: String, val label: String, val icon: ImageVector) {
     AI(LauncherSettings.HUB_TAB_AI, "AI", Icons.Rounded.AutoAwesome),
     MAIL(LauncherSettings.HUB_TAB_MAIL, "Mail", Icons.Rounded.Mail),
     CALENDAR(LauncherSettings.HUB_TAB_CAL, "Calendar", Icons.Rounded.CalendarMonth),
-    CONTACTS(LauncherSettings.HUB_TAB_PEOPLE, "Contacts", Icons.Rounded.Person);
+    CONTACTS(LauncherSettings.HUB_TAB_PEOPLE, "Contacts", Icons.Rounded.Person),
+    LAUNCH(LauncherSettings.HUB_TAB_LAUNCH, "Launch", Icons.Rounded.Apps);
 
     companion object {
         fun byId(id: String): HubTab? = entries.firstOrNull { it.id == id }
@@ -67,6 +69,14 @@ enum class HubTab(val id: String, val label: String, val icon: ImageVector) {
         /** Today plus the tabs switched on in Settings > Hub, in tab-bar order. */
         fun enabled(settings: LauncherSettings): List<HubTab> =
             entries.filter { it == TODAY || it.id in settings.hubTabs }
+
+        /**
+         * The tabs of the standalone Hub app ([HubActivity], for people who keep the Pixel / One UI
+         * launcher as home): Launch first, then Today and the other enabled tabs. Launch is always
+         * there, whatever Settings > Hub says.
+         */
+        fun standalone(settings: LauncherSettings): List<HubTab> =
+            listOf(LAUNCH) + enabled(settings).filter { it != LAUNCH }
     }
 }
 
@@ -81,10 +91,17 @@ enum class HubTab(val id: String, val label: String, val icon: ImageVector) {
  * `builtins.LocalPermissionRequester` (for the "Allow" buttons) and compose inside `FoldOsTheme`.
  */
 @Composable
-fun HubPage(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier = Modifier) {
-    val tabs = remember(settings.hubTabs) { HubTab.enabled(settings) }
-    var selectedId by rememberSaveable { mutableStateOf(HubTab.TODAY.id) }
-    val selected = tabs.firstOrNull { it.id == selectedId } ?: HubTab.TODAY
+fun HubPage(
+    screen: ScreenKind,
+    settings: LauncherSettings,
+    modifier: Modifier = Modifier,
+    standalone: Boolean = false,
+) {
+    val tabs = remember(settings.hubTabs, standalone) {
+        if (standalone) HubTab.standalone(settings) else HubTab.enabled(settings)
+    }
+    var selectedId by rememberSaveable { mutableStateOf(tabs.first().id) }
+    val selected = tabs.firstOrNull { it.id == selectedId } ?: tabs.first()
     val barOnTop = settings.hubBar == LauncherSettings.HUB_BAR_TOP
     val inner = screen != ScreenKind.COVER
 
@@ -130,6 +147,12 @@ fun HubPage(screen: ScreenKind, settings: LauncherSettings, modifier: Modifier =
                 contentPadding = contentPadding,
                 modifier = Modifier.fillMaxSize(),
             )
+            HubTab.LAUNCH -> HubLaunchTab(
+                screen = screen,
+                settings = settings,
+                contentPadding = contentPadding,
+                modifier = Modifier.fillMaxSize(),
+            )
             HubTab.MAIL -> Box(Modifier.fillMaxSize().padding(contentPadding)) { MailTab(screen, settings) }
             HubTab.AI -> Box(Modifier.fillMaxSize().padding(contentPadding)) { AiTab(screen, settings) }
         }
@@ -168,6 +191,8 @@ private fun HubTabBarRow(
 ) {
     val tokens = LocalFoldOsTokens.current
     val shape = RoundedCornerShape(30.dp)
+    // Six tabs (standalone Hub) would overflow a cover-screen width at 54dp each.
+    val pillWidth = if (!compact && tabs.size > 5) 46.dp else 54.dp
     FoldOsSurface(
         modifier = if (compact) modifier else modifier.fillMaxWidth(),
         shape = shape,
@@ -202,7 +227,7 @@ private fun HubTabBarRow(
                     ) {
                         Box(
                             modifier = Modifier
-                                .width(54.dp)
+                                .width(pillWidth)
                                 .height(30.dp)
                                 .clip(RoundedCornerShape(15.dp))
                                 .background(if (isSelected) tokens.accent else Color.Transparent),

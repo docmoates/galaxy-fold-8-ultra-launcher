@@ -3,6 +3,13 @@ package com.foldos.launcher.settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.foldos.launcher.hub.hubAppIconShown
+import com.foldos.launcher.hub.setHubAppIconShown
 import com.foldos.launcher.core.model.LauncherSettings
 
 object HubRows {
@@ -13,6 +20,8 @@ object HubRows {
     val mailTab = SettingsRowInfo("Mail tab", "Gmail API with Google sign-in")
     val calTab = SettingsRowInfo("Calendar tab", "Android Calendar Provider: Google, Samsung, Outlook")
     val peopleTab = SettingsRowInfo("Contacts tab", "Android Contacts Provider: Google contacts")
+    val appIcon = SettingsRowInfo("Show Hub app icon", "A separate \"FoldOS Hub\" app for using the Hub with the Pixel or One UI launcher")
+    val launchTab = SettingsRowInfo("Launch tab", "Search, pin and open apps from the Hub; the Hub app always has it")
     val briefing = SettingsRowInfo("Briefing sections", "Choose and order: emails, tasks, events, people, weather, commute")
     val opensOn = SettingsRowInfo("Opens on", "Today, or the last tab used", advanced = true)
     val tabOrder = SettingsRowInfo("Tab order", "Drag to reorder tabs", advanced = true)
@@ -24,7 +33,7 @@ object HubRows {
         title = "Hub",
         subtitle = "Today briefing, AI, Mail, Calendar, Contacts",
         icon = Icons.Outlined.Hub,
-        rows = listOf(hubOn, position, tabBar, aiTab, mailTab, calTab, peopleTab, briefing, opensOn, tabOrder, mailAccounts, calendars),
+        rows = listOf(hubOn, position, tabBar, aiTab, mailTab, calTab, peopleTab, launchTab, appIcon, briefing, opensOn, tabOrder, mailAccounts, calendars),
     )
 
     val positionOptions: List<Pair<String, String>> = listOf(
@@ -96,6 +105,19 @@ fun HubSettingsPage(
             checked = LauncherSettings.HUB_TAB_PEOPLE in settings.hubTabs,
             onCheckedChange = { enabled -> setTab(LauncherSettings.HUB_TAB_PEOPLE, enabled) },
             visible = on,
+        )
+        ToggleRow(
+            info = HubRows.launchTab,
+            checked = LauncherSettings.HUB_TAB_LAUNCH in settings.hubTabs,
+            onCheckedChange = { enabled -> setTab(LauncherSettings.HUB_TAB_LAUNCH, enabled) },
+            visible = on,
+        )
+        val context = LocalContext.current
+        var iconShown by remember { mutableStateOf(hubAppIconShown(context)) }
+        ToggleRow(
+            info = HubRows.appIcon,
+            checked = iconShown,
+            onCheckedChange = { shown -> iconShown = shown; setHubAppIconShown(context, shown) },
         )
         StaticRow(info = HubRows.briefing)
         StaticRow(info = HubRows.opensOn, trailingText = "Today")

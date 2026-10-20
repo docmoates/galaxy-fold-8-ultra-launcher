@@ -353,6 +353,7 @@ internal fun HubSearchPill(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    onSearch: (() -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val tokens = LocalFoldOsTokens.current
@@ -391,7 +392,7 @@ internal fun HubSearchPill(
                     singleLine = true,
                     cursorBrush = SolidColor(tokens.accent),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { }),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke() }),
                 )
             }
             if (trailing != null) trailing()
