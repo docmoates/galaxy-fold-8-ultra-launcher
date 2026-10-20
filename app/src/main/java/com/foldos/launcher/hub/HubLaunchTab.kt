@@ -110,11 +110,11 @@ internal fun HubLaunchTab(
         val searching = query.isNotBlank()
 
         // Cover: a Pinned / Recent row is shown only while at least MinGridHeight stays for the app box.
-        val left = maxHeight - barH - searchH - 2 * gap
+        val left = maxHeight - barH - searchH - gap * 2
         val rowSectionH = kickerH + cellH + gap
         val showPinned = !inner && !searching && left >= rowSectionH + MinGridHeight
         val showRecent = !inner && !searching && recent.isNotEmpty() &&
-            left >= (if (showPinned) 2 * rowSectionH else rowSectionH) + MinGridHeight
+            left >= (if (showPinned) rowSectionH * 2 else rowSectionH) + MinGridHeight
 
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(gap)) {
             HubSlimBar(title = "Launch") {
@@ -232,7 +232,7 @@ private fun SideLists(
     kickerH: Dp,
 ) {
     BoxWithConstraints(modifier) {
-        val rowsLeft = fitCount(maxHeight - 2 * kickerH - 2 * HubFitGap, LaunchRowHeight)
+        val rowsLeft = fitCount(maxHeight - kickerH * 2 - HubFitGap * 2, LaunchRowHeight)
         val recentRows = minOf(recent.size, rowsLeft / 2)
         val pinnedRows = minOf(maxOf(pinned.size, 1), rowsLeft - recentRows)
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(HubFitGap)) {

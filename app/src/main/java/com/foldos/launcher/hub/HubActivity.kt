@@ -22,8 +22,8 @@ import com.foldos.launcher.a11y.A11yRoot
 import com.foldos.launcher.builtins.LocalPermissionRequester
 import com.foldos.launcher.core.FoldOsApplication
 import com.foldos.launcher.core.LocalAppGraph
-import com.foldos.launcher.core.fold.effectiveScreen
-import com.foldos.launcher.core.fold.rememberFoldState
+import com.foldos.launcher.fold.effectiveScreen
+import com.foldos.launcher.fold.rememberFoldState
 import com.foldos.launcher.core.model.LauncherSettings
 import com.foldos.launcher.onboarding.SystemBarsEffect
 import com.foldos.launcher.onboarding.enableLauncherEdgeToEdge
